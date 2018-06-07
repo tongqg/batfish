@@ -1,4 +1,4 @@
-package org.batfish.question.reachability;
+package org.batfish.allinone;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasItem;
@@ -15,14 +15,14 @@ import org.batfish.datamodel.FlowHistory;
 import org.batfish.datamodel.ReachabilityType;
 import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.main.Batfish;
-import org.batfish.main.BatfishTestUtils;
 import org.batfish.question.ReachabilityQuestionPlugin.ReachabilityAnswerer;
 import org.batfish.question.ReachabilityQuestionPlugin.ReachabilityQuestion;
+import org.batfish.utils.BatfishTestUtils;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-public class ReachabilityQuestionPluginTest {
+public class ReachabilityQuestionTest {
 
   @Rule public TemporaryFolder _testFolder = new TemporaryFolder();;
 
@@ -122,7 +122,7 @@ public class ReachabilityQuestionPluginTest {
 
   private SortedMap<String, Configuration> getConfigurations(
       String testrigName, String[] configurationNames, TemporaryFolder folder) throws IOException {
-    String testrigsPrefix = "org/batfish/question/reachability/testrigs/";
+    String testrigsPrefix = "org/batfish/allinone/testrigs/";
     return BatfishTestUtils.getBatfishFromTestrigResource(
             testrigsPrefix + testrigName, configurationNames, null, null, null, null, folder)
         .loadConfigurations();

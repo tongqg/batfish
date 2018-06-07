@@ -1,4 +1,4 @@
-package org.batfish.main;
+package org.batfish.utils;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -26,6 +26,7 @@ import org.batfish.datamodel.DataPlane;
 import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.collections.BgpAdvertisementsByVrf;
 import org.batfish.datamodel.collections.RoutesByVrf;
+import org.batfish.main.Batfish;
 import org.junit.rules.TemporaryFolder;
 
 public class BatfishTestUtils {

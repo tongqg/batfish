@@ -1,4 +1,4 @@
-package org.batfish.main;
+package org.batfish.utils;
 
 import java.util.SortedMap;
 import java.util.SortedSet;
