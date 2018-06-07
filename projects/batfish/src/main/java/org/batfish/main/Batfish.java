@@ -863,7 +863,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return flows;
   }
 
-  private Answer computeDataPlane(boolean differentialContext) {
+  public Answer computeDataPlane(boolean differentialContext) {
     checkEnvironmentExists();
     return _dataPlanePlugin.computeDataPlane(differentialContext);
   }
@@ -3837,7 +3837,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return answer;
   }
 
-  private void serializeAsJson(Path outputPath, Object object, String objectName) {
+  public static void serializeAsJson(Path outputPath, Object object, String objectName) {
     try {
       new BatfishObjectMapper().writeValue(outputPath.toFile(), object);
     } catch (IOException e) {
