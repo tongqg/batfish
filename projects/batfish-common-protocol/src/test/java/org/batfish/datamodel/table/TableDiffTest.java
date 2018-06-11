@@ -3,10 +3,14 @@ package org.batfish.datamodel.table;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.Assert.assertNull;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import org.batfish.datamodel.answers.Schema;
 import org.batfish.datamodel.questions.DisplayHints;
 import org.batfish.datamodel.table.Row.RowBuilder;
@@ -35,7 +39,59 @@ public class TableDiffTest {
   }
 
   private static Row mixRow(String key, String both, String value, String neither) {
-    return Row.of("key", key, "both", both, "value", value, "neither", neither);
+    return Row.of(
+        TableMetadata.toColumnMap(mixColumns()),
+        "key",
+        key,
+        "both",
+        both,
+        "value",
+        value,
+        "neither",
+        neither);
+  }
+
+  @Test
+  public void buildMapNoKeyColumn() {
+    // Column metadata has no keys; so all rows should match
+    ImmutableMap<String, ColumnMetadata> columns =
+        ImmutableMap.of("k1", new ColumnMetadata("k1", Schema.STRING, "desc", false, true));
+
+    List<Object> rowKey = ImmutableList.of();
+
+    // empty maps is returned when there are no Rows
+    assertThat(TableDiff.buildMap(new Rows()), equalTo(ImmutableMap.of()));
+
+    assertThat(
+        TableDiff.buildMap(new Rows().add(Row.of(columns, "k1", "a"))),
+        equalTo(ImmutableMap.of(new LinkedList<>(), Row.of(columns, "k1", "a"))));
+  }
+
+  @Test
+  public void buildMapMixKeyValueColumns() {
+    ImmutableMap<String, ColumnMetadata> columns =
+        ImmutableMap.of(
+            "key",
+            new ColumnMetadata("key", Schema.STRING, "desc", true, false),
+            "both",
+            new ColumnMetadata("both", Schema.STRING, "desc", true, true),
+            "value",
+            new ColumnMetadata("value", Schema.STRING, "desc", false, true));
+
+    Row row1 = Row.of(columns, "key", "key1", "both", "both1", "value", "value1");
+    Row row2 = Row.of(columns, "key", "key2", "both", "both2", "value", "value2");
+    Rows rows = new Rows().add(row1).add(row2);
+
+    Map<List<Object>, Row> map = TableDiff.buildMap(rows);
+
+    // row1 should be returned
+    assertThat(map.get(ImmutableList.of("key1", "both1")), equalTo(row1));
+
+    // nothing should be returned since the key is "partial"
+    assertNull(map.get(ImmutableList.of("key1")));
+
+    // nothing should be returned since there is no matching key
+    assertNull(map.get(ImmutableList.of("key1", "both2")));
   }
 
   @Test
@@ -104,12 +160,15 @@ public class TableDiffTest {
     Row baseRow = mixRow("key1", "both1", "value1", null);
     Row deltaRow = mixRow(null, null, null, "neither2");
 
-    RowBuilder diff = Row.builder();
-    TableDiff.diffRowValues(diff, baseRow, deltaRow, new TableMetadata(mixColumns(), null));
+    TableMetadata inputMetadata = new TableMetadata(mixColumns(), null);
+    TableMetadata diffMetadata = TableDiff.diffMetadata(inputMetadata);
+    RowBuilder diff = Row.builder(diffMetadata.toColumnMap());
+    TableDiff.diffRowValues(diff, baseRow, deltaRow, inputMetadata);
     assertThat(
         diff.build(),
         equalTo(
             Row.of(
+                diffMetadata.toColumnMap(),
                 TableDiff.COL_KEY_STATUS,
                 TableDiff.COL_KEY_STATUS_BOTH,
                 // value
@@ -129,18 +188,22 @@ public class TableDiffTest {
   /** One of the rows is null */
   @Test
   public void diffRowValuesNull() {
-    Row row = Row.of("key", "value");
     TableMetadata metadata =
         new TableMetadata(
             ImmutableList.of(new ColumnMetadata("key", Schema.STRING, "desc", false, true)), null);
+    TableAnswerElement table = new TableAnswerElement(metadata);
+
+    Row row = Row.of(metadata.toColumnMap(), "key", "value");
 
     // delta is null
-    RowBuilder diff1 = Row.builder();
+    TableAnswerElement diffTable = new TableAnswerElement(TableDiff.diffMetadata(metadata));
+    RowBuilder diff1 = Row.builder(diffTable.getMetadata().toColumnMap());
     TableDiff.diffRowValues(diff1, row, null, metadata);
     assertThat(
         diff1.build(),
         equalTo(
             Row.of(
+                diffTable.getMetadata().toColumnMap(),
                 TableDiff.COL_KEY_STATUS,
                 TableDiff.COL_KEY_STATUS_ONLY_BASE,
                 TableDiff.diffColumnName("key"),
@@ -151,12 +214,13 @@ public class TableDiffTest {
                 null)));
 
     // base is null
-    RowBuilder diff2 = Row.builder();
+    RowBuilder diff2 = Row.builder(diffTable.getMetadata().toColumnMap());
     TableDiff.diffRowValues(diff2, null, row, metadata);
     assertThat(
         diff2.build(),
         equalTo(
             Row.of(
+                diffTable.getMetadata().toColumnMap(),
                 TableDiff.COL_KEY_STATUS,
                 TableDiff.COL_KEY_STATUS_ONLY_DELTA,
                 TableDiff.diffColumnName("key"),
@@ -176,9 +240,9 @@ public class TableDiffTest {
             new ColumnMetadata("value", Schema.STRING, "value", false, true));
     TableMetadata metadata = new TableMetadata(columns, null);
 
-    Row row1 = Row.of("key", "sameKey", "value", "value1");
-    Row row2 = Row.of("key", "sameKey", "value", "value2");
-    Row row3 = Row.of("key", "diffKey", "value", "value3");
+    Row row1 = Row.of(metadata.toColumnMap(), "key", "sameKey", "value", "value1");
+    Row row2 = Row.of(metadata.toColumnMap(), "key", "sameKey", "value", "value2");
+    Row row3 = Row.of(metadata.toColumnMap(), "key", "diffKey", "value", "value3");
 
     TableAnswerElement table12 = new TableAnswerElement(metadata).addRow(row1).addRow(row2);
     TableAnswerElement table3 = new TableAnswerElement(metadata).addRow(row3);
@@ -210,9 +274,10 @@ public class TableDiffTest {
             new ColumnMetadata("value", Schema.STRING, "value", false, true));
     TableMetadata metadata = new TableMetadata(columns, null);
 
-    Row row1 = Row.of("key", "sameKey", "value", "value1");
-    Row row2 = Row.of("key", "sameKey", "value", "value2");
-    Row row3 = Row.of("key", "diffKey", "value", "value3");
+    TableAnswerElement table = new TableAnswerElement(metadata);
+    Row row1 = Row.of(metadata.toColumnMap(), "key", "sameKey", "value", "value1");
+    Row row2 = Row.of(metadata.toColumnMap(), "key", "sameKey", "value", "value2");
+    Row row3 = Row.of(metadata.toColumnMap(), "key", "diffKey", "value", "value3");
 
     TableAnswerElement table0 = new TableAnswerElement(metadata);
     TableAnswerElement table1 = new TableAnswerElement(metadata).addRow(row1);
@@ -249,7 +314,7 @@ public class TableDiffTest {
     Rows expectedRows =
         new Rows()
             .add(
-                Row.builder()
+                Row.builder(TableDiff.diffMetadata(metadata).toColumnMap())
                     .put("key", "key1")
                     .put("both", "both1")
                     .put(TableDiff.COL_KEY_STATUS, TableDiff.COL_KEY_STATUS_BOTH)
@@ -271,8 +336,8 @@ public class TableDiffTest {
             ImmutableList.of(new ColumnMetadata("value", Schema.STRING, "value", false, true)),
             null);
 
-    Row row1 = Row.of("value", "value1");
-    Row row2 = Row.of("value", "value2");
+    Row row1 = Row.of(noKeys.toColumnMap(), "value", "value1");
+    Row row2 = Row.of(noKeys.toColumnMap(), "value", "value2");
 
     TableAnswerElement table1 = new TableAnswerElement(noKeys).addRow(row1);
     TableAnswerElement table2 = new TableAnswerElement(noKeys).addRow(row2);
@@ -280,7 +345,7 @@ public class TableDiffTest {
     Rows expectedRows =
         new Rows()
             .add(
-                Row.builder()
+                Row.builder(TableDiff.diffMetadata(noKeys).toColumnMap())
                     .put(TableDiff.COL_KEY_STATUS, TableDiff.COL_KEY_STATUS_BOTH)
                     .put(TableDiff.diffColumnName("value"), TableDiff.RESULT_DIFFERENT)
                     .put(TableDiff.baseColumnName("value"), "value1")
@@ -293,32 +358,35 @@ public class TableDiffTest {
   /** Checks if we properly handle tables where all columns are keys */
   @Test
   public void diffTablesTestAllKeys() {
-    TableMetadata noKeys =
+    TableMetadata allKeys =
         new TableMetadata(
             ImmutableList.of(new ColumnMetadata("key", Schema.STRING, "key", true, false)), null);
 
-    Row row1 = Row.of("key", "key1");
-    Row row2 = Row.of("key", "key2");
+    Row row1 = Row.of(allKeys.toColumnMap(), "key", "key1");
+    Row row2 = Row.of(allKeys.toColumnMap(), "key", "key2");
 
-    TableAnswerElement table1 = new TableAnswerElement(noKeys).addRow(row1);
-    TableAnswerElement table2 = new TableAnswerElement(noKeys).addRow(row2);
+    TableAnswerElement table1 = new TableAnswerElement(allKeys).addRow(row1);
+    TableAnswerElement table2 = new TableAnswerElement(allKeys).addRow(row2);
 
     // should get back no rows if we are not including one table keys
     assertThat(TableDiff.diffTables(table1, table2, false).getRows(), equalTo(new Rows()));
 
     // should get back two rows if we are including one table keys
+    TableMetadata diffMetatadata = TableDiff.diffMetadata(allKeys);
     assertThat(
         TableDiff.diffTables(table1, table2, true).getRows(),
         equalTo(
             new Rows()
                 .add(
                     Row.of(
+                        diffMetatadata.toColumnMap(),
                         "key",
                         "key1",
                         TableDiff.COL_KEY_STATUS,
                         TableDiff.COL_KEY_STATUS_ONLY_BASE))
                 .add(
                     Row.of(
+                        diffMetatadata.toColumnMap(),
                         "key",
                         "key2",
                         TableDiff.COL_KEY_STATUS,

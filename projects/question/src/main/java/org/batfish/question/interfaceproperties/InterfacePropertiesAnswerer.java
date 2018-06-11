@@ -3,6 +3,7 @@ package org.batfish.question.interfaceproperties;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Multiset;
 import java.util.List;
 import java.util.Map;
@@ -78,7 +79,8 @@ public class InterfacePropertiesAnswerer extends Answerer {
     TableMetadata tableMetadata = createMetadata(question);
     TableAnswerElement answer = new TableAnswerElement(tableMetadata);
 
-    Multiset<Row> propertyRows = rawAnswer(question, configurations, nodes);
+    Multiset<Row> propertyRows =
+        rawAnswer(question, configurations, nodes, tableMetadata.toColumnMap());
 
     answer.postProcessAnswer(question, propertyRows);
     return answer;
@@ -88,7 +90,8 @@ public class InterfacePropertiesAnswerer extends Answerer {
   static Multiset<Row> rawAnswer(
       InterfacePropertiesQuestion question,
       Map<String, Configuration> configurations,
-      Set<String> nodes) {
+      Set<String> nodes,
+      ImmutableMap<String, ColumnMetadata> columns) {
     Multiset<Row> rows = HashMultiset.create();
 
     for (String nodeName : nodes) {
@@ -97,7 +100,8 @@ public class InterfacePropertiesAnswerer extends Answerer {
           continue;
         }
         RowBuilder row =
-            Row.builder().put(COL_INTERFACE, new NodeInterfacePair(nodeName, iface.getName()));
+            Row.builder(columns)
+                .put(COL_INTERFACE, new NodeInterfacePair(nodeName, iface.getName()));
 
         for (String property : question.getPropertySpec().getMatchingProperties()) {
           PropertyDescriptor<Interface> propertyDescriptor =

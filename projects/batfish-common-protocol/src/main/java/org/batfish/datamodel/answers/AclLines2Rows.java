@@ -11,6 +11,8 @@ import java.util.stream.Collectors;
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.table.Row;
+import org.batfish.datamodel.table.TableAnswerElement;
+import org.batfish.datamodel.table.TableMetadata;
 
 @ParametersAreNonnullByDefault
 public class AclLines2Rows implements AclLinesAnswerElementInterface {
@@ -24,6 +26,11 @@ public class AclLines2Rows implements AclLinesAnswerElementInterface {
 
   private SortedMap<String, SortedMap<String, AclSpecs>> _equivalenceClasses = new TreeMap<>();
   private Multiset<Row> _rows = ConcurrentHashMultiset.create();
+  private TableAnswerElement _table;
+
+  public AclLines2Rows(TableAnswerElement table) {
+    _table = table;
+  }
 
   @Override
   public void addEquivalenceClass(
@@ -51,7 +58,7 @@ public class AclLines2Rows implements AclLinesAnswerElementInterface {
     AclSpecs specs = _equivalenceClasses.get(aclName).get(hostname);
 
     _rows.add(
-        Row.builder()
+        Row.builder(TableMetadata.toColumnMap(_table.getMetadata().getColumnMetadata()))
             .put(COL_NODES, specs.nodes)
             .put(COL_ACL, aclName)
             .put(COL_LINES, specs.lines)

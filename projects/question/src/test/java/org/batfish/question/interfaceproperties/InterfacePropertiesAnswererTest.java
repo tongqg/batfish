@@ -14,6 +14,7 @@ import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.datamodel.questions.InterfacePropertySpecifier;
 import org.batfish.datamodel.questions.InterfacesSpecifier;
 import org.batfish.datamodel.table.Row;
+import org.batfish.datamodel.table.TableMetadata;
 import org.junit.Test;
 
 public class InterfacePropertiesAnswererTest {
@@ -40,13 +41,17 @@ public class InterfacePropertiesAnswererTest {
             null,
             new InterfacePropertySpecifier(property1 + "|" + property2));
 
+    TableMetadata metadata = InterfacePropertiesAnswerer.createMetadata(question);
     Multiset<Row> propertyRows =
         InterfacePropertiesAnswerer.rawAnswer(
-            question, ImmutableMap.of("node1", conf1), ImmutableSet.of("node1"));
+            question,
+            ImmutableMap.of("node1", conf1),
+            ImmutableSet.of("node1"),
+            metadata.toColumnMap());
 
     // we should have exactly one row1 with two properties; iface2 should have been filtered out
     Row expectedRow =
-        Row.builder()
+        Row.builder(metadata.toColumnMap())
             .put(
                 InterfacePropertiesAnswerer.COL_INTERFACE, new NodeInterfacePair("node1", "iface1"))
             .put(property2, false)

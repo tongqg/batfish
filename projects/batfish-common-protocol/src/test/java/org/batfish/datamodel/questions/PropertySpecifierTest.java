@@ -4,6 +4,7 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
@@ -18,6 +19,7 @@ import org.batfish.datamodel.answers.AutocompleteSuggestion;
 import org.batfish.datamodel.answers.Schema;
 import org.batfish.datamodel.pojo.Node;
 import org.batfish.datamodel.questions.PropertySpecifier.PropertyDescriptor;
+import org.batfish.datamodel.table.ColumnMetadata;
 import org.batfish.datamodel.table.Row;
 import org.batfish.datamodel.table.Row.RowBuilder;
 import org.junit.Rule;
@@ -26,6 +28,10 @@ import org.junit.rules.ExpectedException;
 
 public class PropertySpecifierTest {
   @Rule public ExpectedException _thrown = ExpectedException.none();
+
+  private static ImmutableMap<String, ColumnMetadata> colMetadata(String colName, Schema schema) {
+    return ImmutableMap.of(colName, new ColumnMetadata(colName, schema, "desc"));
+  }
 
   @Test
   public void baseAutoComplete() {
@@ -79,30 +85,21 @@ public class PropertySpecifierTest {
   }
 
   @Test
-  public void fillPropertyFail() {
-    PropertyDescriptor<Configuration> propDescriptor =
-        new PropertyDescriptor<>(null, Schema.list(Schema.STRING));
-
-    _thrown.expect(ClassCastException.class);
-    _thrown.expectMessage("Cannot recover object");
-
-    PropertySpecifier.fillProperty("col", "stringNotList", Row.builder(), propDescriptor);
-  }
-
-  @Test
   public void fillPropertyForcedString() {
     Configuration configuration = new Configuration("hostname", ConfigurationFormat.CISCO_IOS);
     configuration.setDefaultInboundAction(LineAction.ACCEPT);
     String property = "default-inbound-action";
     PropertyDescriptor<Configuration> propertyDescriptor =
         NodePropertySpecifier.JAVA_MAP.get(property);
-    RowBuilder row = Row.builder();
+    ImmutableMap<String, ColumnMetadata> colMetadata = colMetadata(property, Schema.STRING);
+    RowBuilder row = Row.builder(colMetadata);
 
     PropertySpecifier.fillProperty(propertyDescriptor, configuration, property, row);
 
     // the row should be filled out with the String value
     assertThat(
-        row.build(), equalTo(Row.builder().put(property, LineAction.ACCEPT.toString()).build()));
+        row.build(),
+        equalTo(Row.builder(colMetadata).put(property, LineAction.ACCEPT.toString()).build()));
   }
 
   @Test
@@ -111,12 +108,16 @@ public class PropertySpecifierTest {
     String property = "ntp-servers";
     PropertyDescriptor<Configuration> propertyDescriptor =
         NodePropertySpecifier.JAVA_MAP.get(property);
-    RowBuilder row = Row.builder();
+    ImmutableMap<String, ColumnMetadata> colMetadata =
+        colMetadata(property, Schema.list(Schema.STRING));
+    RowBuilder row = Row.builder(colMetadata);
 
     PropertySpecifier.fillProperty(propertyDescriptor, configuration, property, row);
 
     // the row should be filled out with an empty list
-    assertThat(row.build(), equalTo(Row.builder().put(property, new LinkedList<String>()).build()));
+    assertThat(
+        row.build(),
+        equalTo(Row.builder(colMetadata).put(property, new LinkedList<String>()).build()));
   }
 
   @Test
@@ -126,13 +127,16 @@ public class PropertySpecifierTest {
     String property = "ntp-servers";
     PropertyDescriptor<Configuration> propertyDescriptor =
         NodePropertySpecifier.JAVA_MAP.get(property);
-    RowBuilder row = Row.builder();
+    ImmutableMap<String, ColumnMetadata> colMetadata =
+        colMetadata(property, Schema.list(Schema.STRING));
+    RowBuilder row = Row.builder(colMetadata);
 
     PropertySpecifier.fillProperty(propertyDescriptor, configuration, property, row);
 
     // the row should be filled out with the right list and the schemas map should be List<String>
     assertThat(
-        row.build(), equalTo(Row.builder().put(property, ImmutableList.of("sa", "sb")).build()));
+        row.build(),
+        equalTo(Row.builder(colMetadata).put(property, ImmutableList.of("sa", "sb")).build()));
   }
 
   @Test
@@ -142,12 +146,16 @@ public class PropertySpecifierTest {
     String property = "interfaces";
     PropertyDescriptor<Configuration> propertyDescriptor =
         NodePropertySpecifier.JAVA_MAP.get(property);
-    RowBuilder row = Row.builder();
+    ImmutableMap<String, ColumnMetadata> colMetadata =
+        colMetadata(property, Schema.list(Schema.STRING));
+    RowBuilder row = Row.builder(colMetadata);
 
     PropertySpecifier.fillProperty(propertyDescriptor, configuration, property, row);
 
     // the row should be filled out with the right list and the schemas map should be List<String>
-    assertThat(row.build(), equalTo(Row.builder().put(property, ImmutableList.of("i1")).build()));
+    assertThat(
+        row.build(),
+        equalTo(Row.builder(colMetadata).put(property, ImmutableList.of("i1")).build()));
   }
 
   @Test
@@ -156,11 +164,12 @@ public class PropertySpecifierTest {
     String property = "ntp-source-interface";
     PropertyDescriptor<Configuration> propertyDescriptor =
         NodePropertySpecifier.JAVA_MAP.get(property);
-    RowBuilder row = Row.builder();
+    ImmutableMap<String, ColumnMetadata> colMetadata = colMetadata(property, Schema.INTEGER);
+    RowBuilder row = Row.builder(colMetadata);
 
     PropertySpecifier.fillProperty(propertyDescriptor, configuration, property, row);
 
     // the row should be filled out with null and the schemas shouldn't be
-    assertThat(row.build(), equalTo(Row.builder().put(property, null).build()));
+    assertThat(row.build(), equalTo(Row.builder(colMetadata).put(property, null).build()));
   }
 }

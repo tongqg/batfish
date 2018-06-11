@@ -2,7 +2,6 @@ package org.batfish.datamodel.questions;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
 
-import com.google.common.annotations.VisibleForTesting;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -118,18 +117,7 @@ public abstract class PropertySpecifier {
       PropertyDescriptor<T> propertyDescriptor, T object, String columnName, RowBuilder row) {
     Object propertyValue = propertyDescriptor.getGetter().apply(object);
     propertyValue = PropertySpecifier.convertTypeIfNeeded(propertyValue, propertyDescriptor);
-    fillProperty(columnName, propertyValue, row, propertyDescriptor); // separate for testing
-  }
-
-  @VisibleForTesting
-  static void fillProperty(
-      String columnName,
-      Object propertyValue,
-      RowBuilder row,
-      PropertyDescriptor<?> propertyDescriptor) {
     row.put(columnName, propertyValue);
-    // if this barfs, the value cannot be converted to expected Schema
-    row.build().get(columnName, propertyDescriptor.getSchema());
   }
 
   // hacky way to check if the query is a regex already

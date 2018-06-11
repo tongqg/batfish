@@ -1,12 +1,15 @@
 package org.batfish.datamodel.table;
 
+import static com.google.common.base.MoreObjects.firstNonNull;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.Multiset;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
-import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 import org.batfish.common.BatfishException;
 import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.datamodel.answers.AnswerElement;
@@ -16,12 +19,11 @@ import org.batfish.datamodel.questions.Exclusion;
 import org.batfish.datamodel.questions.Question;
 
 /** Holds tabular answers. */
+@ParametersAreNonnullByDefault
 public final class TableAnswerElement extends AnswerElement {
 
   private static final String PROP_EXCLUDED_ROWS = "excludedRows";
-
   private static final String PROP_METADATA = "metadata";
-
   private static final String PROP_ROWS = "rows";
 
   private List<ExcludedRows> _excludedRows;
@@ -30,11 +32,18 @@ public final class TableAnswerElement extends AnswerElement {
 
   private TableMetadata _tableMetadata;
 
+  public TableAnswerElement(TableMetadata tableMetadata) {
+    this(tableMetadata, null, null);
+  }
+
   @JsonCreator
-  public TableAnswerElement(@Nonnull @JsonProperty(PROP_METADATA) TableMetadata tableMetadata) {
+  public TableAnswerElement(
+      @JsonProperty(PROP_METADATA) TableMetadata tableMetadata,
+      @Nullable @JsonProperty(PROP_EXCLUDED_ROWS) List<ExcludedRows> excludedRows,
+      @Nullable @JsonProperty(PROP_ROWS) Rows rows) {
     _tableMetadata = tableMetadata;
-    _rows = new Rows();
-    _excludedRows = new LinkedList<>();
+    _rows = firstNonNull(rows, new Rows());
+    _excludedRows = firstNonNull(excludedRows, new LinkedList<>());
   }
 
   /**
@@ -43,6 +52,7 @@ public final class TableAnswerElement extends AnswerElement {
    * @param row The row to add
    */
   public TableAnswerElement addRow(Row row) {
+    // TODO: check if metadata of table and row match
     _rows.add(row);
     return this;
   }
@@ -53,6 +63,7 @@ public final class TableAnswerElement extends AnswerElement {
    * @param row The row to add
    */
   public void addExcludedRow(Row row, String exclusionName) {
+    // TODO: check if metadata of table and row match
     for (ExcludedRows exRows : _excludedRows) {
       if (exRows.getExclusionName().equals(exclusionName)) {
         exRows.addRow(row);
@@ -150,15 +161,5 @@ public final class TableAnswerElement extends AnswerElement {
         });
 
     setSummary(computeSummary(question.getAssertion()));
-  }
-
-  @JsonProperty(PROP_EXCLUDED_ROWS)
-  private void setExcludedRows(List<ExcludedRows> excludedRows) {
-    _excludedRows = excludedRows == null ? new LinkedList<>() : excludedRows;
-  }
-
-  @JsonProperty(PROP_ROWS)
-  private void setRows(Rows rows) {
-    _rows = rows == null ? new Rows() : rows;
   }
 }

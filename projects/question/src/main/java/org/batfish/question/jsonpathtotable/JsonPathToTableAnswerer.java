@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.IntNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+import com.google.common.collect.ImmutableMap;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -122,7 +123,8 @@ public class JsonPathToTableAnswerer extends Answerer {
     // 2. Put them in the answer element based on whether they are covered by an exclusion
     for (JsonPathResult result : jsonPathResults) {
       Row answerValues =
-          computeRowValues(query.getExtractions(), query.getCompositions(), result, tableMetadata);
+          computeRowValues(
+              query.getExtractions(), query.getCompositions(), result, tableMetadata.toColumnMap());
       Exclusion exclusion = Exclusion.covered(answerValues, question.getExclusions());
       if (exclusion != null) {
         answer.addExcludedRow(answerValues, exclusion.getName());
@@ -141,16 +143,16 @@ public class JsonPathToTableAnswerer extends Answerer {
       Map<String, JsonPathToTableExtraction> extractions,
       Map<String, JsonPathToTableComposition> compositions,
       JsonPathResult jpResult,
-      TableMetadata tableMetadata) {
+      ImmutableMap<String, ColumnMetadata> columns) {
     ObjectNode answerValues = BatfishObjectMapper.mapper().createObjectNode();
     computeExtractions(extractions, jpResult, answerValues);
     doCompositions(compositions, extractions, answerValues);
 
-    RowBuilder row = Row.builder();
+    RowBuilder row = Row.builder(columns);
     Iterator<String> iterator = answerValues.fieldNames();
     while (iterator.hasNext()) {
       String columnName = iterator.next();
-      if (tableMetadata.containsColumn(columnName)) {
+      if (columns.containsKey(columnName)) {
         row.put(columnName, answerValues.get(columnName));
       }
     }

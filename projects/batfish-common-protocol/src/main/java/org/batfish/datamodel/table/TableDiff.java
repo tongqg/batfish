@@ -4,10 +4,13 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Sets;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -39,6 +42,21 @@ public final class TableDiff {
   @VisibleForTesting
   static String baseColumnName(String originalColumnName) {
     return "Base_" + originalColumnName;
+  }
+
+  /**
+   * Returns a map over Rows, where the key is the key of the Row and the value is a Row with that
+   * key. If multiple {@link Row}s with the same key exist, (any) one is returned.
+   */
+  @VisibleForTesting
+  static Map<List<Object>, Row> buildMap(Rows rows) {
+    Map<List<Object>, Row> map = new HashMap<>();
+    Iterator<Row> iterator = rows.iterator();
+    while (iterator.hasNext()) {
+      Row row = iterator.next();
+      map.put(row.getKey(), row);
+    }
+    return map;
   }
 
   @VisibleForTesting
@@ -182,8 +200,8 @@ public final class TableDiff {
       if (cm.getIsKey()) {
         continue;
       }
-      Object baseValue = baseRow == null ? null : baseRow.get(cm.getName(), cm.getSchema());
-      Object deltaValue = deltaRow == null ? null : deltaRow.get(cm.getName(), cm.getSchema());
+      Object baseValue = baseRow == null ? null : baseRow.get(cm.getName());
+      Object deltaValue = deltaRow == null ? null : deltaRow.get(cm.getName());
       if (cm.getIsValue()) {
         if (baseRow == null || deltaRow == null) {
           rowBuilder.put(diffColumnName(cm.getName()), resultDifferent(keyStatus));
@@ -213,7 +231,10 @@ public final class TableDiff {
         "Cannot diff tables with different column metadatas");
 
     TableMetadata inputMetadata = baseTable.getMetadata();
+
     TableAnswerElement diffTable = new TableAnswerElement(diffMetadata(inputMetadata));
+    ImmutableMap<String, ColumnMetadata> diffColumnMap =
+        TableMetadata.toColumnMap(diffTable.getMetadata().getColumnMetadata());
 
     List<String> keyColumns =
         inputMetadata
@@ -233,20 +254,21 @@ public final class TableDiff {
     Set<Object> processedKeys = new HashSet<>();
 
     Iterator<Row> baseRows = baseTable.getRows().iterator();
+    Map<List<Object>, Row> deltaMap = buildMap(deltaTable.getRows());
     while (baseRows.hasNext()) {
       Row baseRow = baseRows.next();
-      Object baseKey = baseRow.getKey(inputMetadata.getColumnMetadata());
+      List<Object> baseKey = baseRow.getKey();
       if (processedKeys.contains(baseKey)) {
         continue;
       }
       processedKeys.add(baseKey);
-      Row deltaRow = deltaTable.getRows().getRow(baseKey, inputMetadata.getColumnMetadata());
+      Row deltaRow = deltaMap.get(baseKey);
       if ((deltaRow == null && !includeOneTableKeys)
           || (deltaRow != null /* skip if values are equal */
-              && baseRow.getValue(valueColumns).equals(deltaRow.getValue(valueColumns)))) {
+              && baseRow.getValue().equals(deltaRow.getValue()))) {
         continue;
       }
-      RowBuilder diffRowBuilder = Row.builder(baseRow, keyColumns);
+      RowBuilder diffRowBuilder = Row.builder(diffColumnMap, baseRow, keyColumns);
       diffRowValues(diffRowBuilder, baseRow, deltaRow, inputMetadata);
       diffTable.addRow(diffRowBuilder.build());
     }
@@ -255,12 +277,12 @@ public final class TableDiff {
       Iterator<Row> deltaRows = deltaTable.getRows().iterator();
       while (deltaRows.hasNext()) {
         Row deltaRow = deltaRows.next();
-        Object deltaKey = deltaRow.getKey(inputMetadata.getColumnMetadata());
+        Object deltaKey = deltaRow.getKey();
         if (processedKeys.contains(deltaKey)) {
           continue;
         }
         processedKeys.add(deltaKey);
-        RowBuilder diffRowBuilder = Row.builder(deltaRow, keyColumns);
+        RowBuilder diffRowBuilder = Row.builder(diffColumnMap, deltaRow, keyColumns);
         diffRowValues(diffRowBuilder, null, deltaRow, inputMetadata);
         diffTable.addRow(diffRowBuilder.build());
       }

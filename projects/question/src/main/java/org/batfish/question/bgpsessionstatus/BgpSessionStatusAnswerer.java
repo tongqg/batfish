@@ -243,15 +243,18 @@ public class BgpSessionStatusAnswerer extends Answerer {
    * @return The output object
    */
   public static BgpSessionInfo fromRow(Row row) {
-    Ip localIp = row.get(COL_LOCAL_IP, Ip.class);
-    SessionStatus configuredStatus = row.get(COL_CONFIGURED_STATUS, SessionStatus.class);
-    Integer establishedNeighbors = row.get(COL_ESTABLISHED_NEIGHBORS, Integer.class);
-    NodeInterfacePair localInterface = row.get(COL_LOCAL_INTERFACE, NodeInterfacePair.class);
-    Node node = row.get(COL_NODE, Node.class);
-    Node remoteNode = row.get(COL_REMOTE_NODE, Node.class);
-    Prefix remotePrefix = row.get(COL_REMOTE_PREFIX, Prefix.class);
-    SessionType sessionType = row.get(COL_SESSION_TYPE, SessionType.class);
-    String vrfName = row.get(COL_VRF_NAME, String.class);
+    Ip localIp = (Ip) row.get(COL_LOCAL_IP, Schema.IP);
+    SessionStatus configuredStatus =
+        SessionStatus.valueOf((String) row.get(COL_CONFIGURED_STATUS, Schema.STRING));
+    Integer establishedNeighbors = (Integer) row.get(COL_ESTABLISHED_NEIGHBORS, Schema.INTEGER);
+    NodeInterfacePair localInterface =
+        (NodeInterfacePair) row.get(COL_LOCAL_INTERFACE, Schema.INTERFACE);
+    Node node = (Node) row.get(COL_NODE, Schema.NODE);
+    Node remoteNode = (Node) row.get(COL_REMOTE_NODE, Schema.NODE);
+    Prefix remotePrefix = (Prefix) row.get(COL_REMOTE_PREFIX, Schema.PREFIX);
+    SessionType sessionType =
+        SessionType.valueOf((String) row.get(COL_SESSION_TYPE, Schema.STRING));
+    String vrfName = (String) row.get(COL_VRF_NAME, Schema.STRING);
 
     return new BgpSessionInfo(
         configuredStatus,

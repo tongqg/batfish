@@ -5,6 +5,7 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -19,6 +20,8 @@ public class TableMetadata {
   private static final String PROP_COLUMN_METADATA = "columnMetadata";
 
   private static final String PROP_DISPLAY_HINTS = "displayHints";
+
+  @Nonnull private transient ImmutableMap<String, ColumnMetadata> _columnMap;
 
   @Nonnull private List<ColumnMetadata> _columnMetadata;
 
@@ -43,6 +46,8 @@ public class TableMetadata {
             "Cannot have two columns with the same name '" + cm.getName() + "'");
       }
     }
+
+    _columnMap = toColumnMap(_columnMetadata);
   }
 
   /**
@@ -80,6 +85,16 @@ public class TableMetadata {
   @Override
   public int hashCode() {
     return Objects.hash(_columnMetadata, _displayHints);
+  }
+
+  public ImmutableMap<String, ColumnMetadata> toColumnMap() {
+    return _columnMap;
+  }
+
+  public static ImmutableMap<String, ColumnMetadata> toColumnMap(List<ColumnMetadata> columnList) {
+    return columnList
+        .stream()
+        .collect(ImmutableMap.toImmutableMap(ColumnMetadata::getName, cm -> cm));
   }
 
   @Override
