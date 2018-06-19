@@ -49,19 +49,23 @@ public class ReachabilityQuestionTest {
 
   @Test
   public void testStandardReachability() throws IOException {
+    // setup
     SortedMap<String, Configuration> baseConfigs =
         getConfigurations("example", _configurationNames, _baseFolder);
     Batfish batfish = BatfishTestUtils.getBatfish(baseConfigs, _testFolder);
     batfish.computeDataPlane(false);
 
+    // creating the question
     ReachabilityQuestion reachabilityQuestion = new ReachabilityQuestion();
     reachabilityQuestion.setReachabilityType(ReachabilityType.STANDARD);
     reachabilityQuestion.setIngressNodeRegex("as1border1");
 
+    // getting the answer
     ReachabilityAnswerer reachabilityAnswerer =
         new ReachabilityAnswerer(reachabilityQuestion, batfish);
     AnswerElement answerElement = reachabilityAnswerer.answer();
 
+    // validating the answer
     assertThat(answerElement, instanceOf(FlowHistory.class));
     FlowHistory flowHistory = (FlowHistory) answerElement;
 
@@ -80,6 +84,7 @@ public class ReachabilityQuestionTest {
 
   @Test
   public void testReducedReachability() throws IOException {
+    // setup
     SortedMap<String, Configuration> baseConfigs =
         getConfigurations("example", _configurationNames, _baseFolder);
     SortedMap<String, Configuration> deltaConfigs =
@@ -96,14 +101,17 @@ public class ReachabilityQuestionTest {
 
     batfish.checkDifferentialDataPlaneQuestionDependencies();
 
+    // creating the question
     ReachabilityQuestion reachabilityQuestion = new ReachabilityQuestion();
     reachabilityQuestion.setReachabilityType(ReachabilityType.REDUCED_REACHABILITY);
     reachabilityQuestion.setIngressNodeRegex("as1border1");
 
+    // getting the answer
     ReachabilityAnswerer reachabilityAnswerer =
         new ReachabilityAnswerer(reachabilityQuestion, batfish);
     AnswerElement answerElement = reachabilityAnswerer.answerDiff();
 
+    // validating the answer
     assertThat(answerElement, instanceOf(FlowHistory.class));
     FlowHistory flowHistory = (FlowHistory) answerElement;
 
@@ -120,6 +128,9 @@ public class ReachabilityQuestionTest {
     assertThat(ingressNodeNames, hasItem("as1border1"));
   }
 
+  /**
+   * Helper to get the configuration nodes
+   */
   private SortedMap<String, Configuration> getConfigurations(
       String testrigName, String[] configurationNames, TemporaryFolder folder) throws IOException {
     String testrigsPrefix = "org/batfish/allinone/testrigs/";
