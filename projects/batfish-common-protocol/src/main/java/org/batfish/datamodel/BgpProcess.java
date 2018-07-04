@@ -12,6 +12,7 @@ import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import javax.annotation.Nullable;
 import org.batfish.datamodel.NetworkFactory.NetworkFactoryBuilder;
 
 /** Represents a bgp process on a router */
@@ -63,6 +64,10 @@ public class BgpProcess implements Serializable {
     }
   }
 
+  private static final String PROP_DEFAULT_EBGP_ADMIN_DISTANCE = "defaultEbgpAdminDistance";
+
+  private static final String PROP_DEFAULT_IBGP_ADMIN_DISTANCE = "defaultIbgpAdminDistance";
+
   private static final String PROP_GENERATED_ROUTES = "generatedRoutes";
 
   private static final String PROP_MULTIPATH_EBGP = "multipathEbgp";
@@ -79,6 +84,10 @@ public class BgpProcess implements Serializable {
   private static final long serialVersionUID = 1L;
 
   private Supplier<Set<Long>> _clusterIds;
+
+  @Nullable private Integer _defaultEbgpAdminDistance;
+
+  @Nullable private Integer _defaultIbgpAdminDistance;
 
   /**
    * The set of <i>neighbor-independent</i> generated routes that may be advertised by this process
@@ -121,6 +130,24 @@ public class BgpProcess implements Serializable {
    */
   public void addToOriginationSpace(PrefixSpace space) {
     _originationSpace.addSpace(space);
+  }
+
+  /** Returns the default administrative distance for routes learned from EBGP. */
+  @JsonProperty(PROP_DEFAULT_EBGP_ADMIN_DISTANCE)
+  @JsonPropertyDescription(
+      "The default administrative distance for EBGP routes learned from this BGP process")
+  @Nullable
+  public Integer getEbgpDefaultAdminDistance() {
+    return _defaultEbgpAdminDistance;
+  }
+
+  /** Returns the default administrative distance for routes learned from IBGP. */
+  @JsonProperty(PROP_DEFAULT_IBGP_ADMIN_DISTANCE)
+  @JsonPropertyDescription(
+      "The default administrative distance for IBGP routes learned from this BGP process")
+  @Nullable
+  public Integer getIbgpDefaultAdminDistance() {
+    return _defaultIbgpAdminDistance;
   }
 
   /**
@@ -177,6 +204,16 @@ public class BgpProcess implements Serializable {
   @JsonProperty(PROP_TIE_BREAKER)
   public BgpTieBreaker getTieBreaker() {
     return _tieBreaker;
+  }
+
+  @JsonProperty(PROP_DEFAULT_EBGP_ADMIN_DISTANCE)
+  public void setDefaultEbgpAdminDistance(@Nullable Integer defaultEbgpAdminDistance) {
+    _defaultEbgpAdminDistance = defaultEbgpAdminDistance;
+  }
+
+  @JsonProperty(PROP_DEFAULT_IBGP_ADMIN_DISTANCE)
+  public void setDefaultIbgpAdminDistance(@Nullable Integer defaultIbgpAdminDistance) {
+    _defaultIbgpAdminDistance = defaultIbgpAdminDistance;
   }
 
   @JsonProperty(PROP_GENERATED_ROUTES)

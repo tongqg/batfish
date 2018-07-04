@@ -658,8 +658,14 @@ public class VirtualRouter extends ComparableStructure<String> {
     ribDeltas.put(_ibgpStagingRib, new Builder<>(_ibgpStagingRib));
 
     // initialize admin costs for routes
-    int ebgpAdmin = RoutingProtocol.BGP.getDefaultAdministrativeCost(_c.getConfigurationFormat());
-    int ibgpAdmin = RoutingProtocol.IBGP.getDefaultAdministrativeCost(_c.getConfigurationFormat());
+    int ebgpAdmin =
+        proc.getEbgpDefaultAdminDistance() != null
+            ? proc.getEbgpDefaultAdminDistance()
+            : RoutingProtocol.BGP.getDefaultAdministrativeCost(_c.getConfigurationFormat());
+    int ibgpAdmin =
+        proc.getIbgpDefaultAdminDistance() != null
+            ? proc.getIbgpDefaultAdminDistance()
+            : RoutingProtocol.IBGP.getDefaultAdministrativeCost(_c.getConfigurationFormat());
 
     BgpRoute.Builder outgoingRouteBuilder = new BgpRoute.Builder();
     // Process each BGP advertisement
