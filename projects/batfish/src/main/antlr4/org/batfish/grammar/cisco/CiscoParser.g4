@@ -184,9 +184,11 @@ apsp_null
    NO?
    (
       BKUP_LMS_IP
+      | BKUP_PASSWORDS
       | DNS_DOMAIN
       | LMS_IP
       | LMS_PREEMPTION
+      | SHELL_PASSWD
    ) null_rest_of_line
 ;
 
@@ -4507,6 +4509,7 @@ wlan_ssid_profile_null
       | OPMODE
       | SSID_ENABLE
       | WMM
+      | WPA_PASSPHRASE
    ) null_rest_of_line
 ;
 

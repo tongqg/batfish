@@ -1466,6 +1466,11 @@ BKUP_LMS_IP
    'bkup-lms-ip'
 ;
 
+BKUP_PASSWORDS
+:
+   'bkup-passwords'
+;
+
 BLACKLIST
 :
    'blacklist'
@@ -10609,6 +10614,11 @@ SHELL
    'shell'
 ;
 
+SHELL_PASSWD
+:
+   'shell-passwd'
+;
+
 SHORT_TXT
 :
    'short-txt'
@@ -12991,6 +13001,11 @@ WMS_LOCAL_SYSTEM_PROFILE
 WPA_FAST_HANDOVER
 :
    'wpa-fast-handover'
+;
+
+WPA_PASSPHRASE
+:
+   'wpa-passphrase'
 ;
 
 WRED

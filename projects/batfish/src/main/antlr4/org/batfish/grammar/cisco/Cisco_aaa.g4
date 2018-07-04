@@ -634,6 +634,7 @@ aaa_authentication_server_radius_null
    NO?
    (
       HOST
+      | KEY
    ) null_rest_of_line
 ;
 
@@ -650,6 +651,7 @@ aaa_authentication_server_tacacs_null
    NO?
    (
       HOST
+      | KEY
       | SESSION_AUTHORIZATION
    ) null_rest_of_line
 ;
@@ -984,6 +986,9 @@ aaa_profile_null
 aaa_rfc_3576_server
 :
    RFC_3576_SERVER double_quoted_string NEWLINE
+   (
+      KEY key = variable_secret NEWLINE
+   )*
 ;
 
 aaa_server
