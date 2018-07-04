@@ -3612,6 +3612,16 @@ EBGP_MULTIHOP
    'ebgp-multihop'
 ;
 
+ECDSA_256
+:
+   'ecdsa-256'
+;
+
+ECDSA_384
+:
+   'ecdsa-384'
+;
+
 ECE
 :
    'ece'
@@ -8929,6 +8939,16 @@ PRF
    'prf'
 ;
 
+PRF_HMAC_SHA256
+:
+   'prf-hmac-sha256'
+;
+
+PRF_HMAC_SHA384
+:
+   'prf-hmac-sha384'
+;
+
 PRI_GROUP
 :
    'pri-group'
@@ -10547,6 +10567,11 @@ SHA1
 SHA2_256_128
 :
    'sha2-256-128'
+;
+
+SHA2_384_192
+:
+   'sha2-384-192'
 ;
 
 SHA512
@@ -13877,6 +13902,16 @@ M_Authentication_CONTROL_DIRECTION
 M_Authentication_DOT1X
 :
    'dot1x' -> type ( DOT1X ) , popMode
+;
+
+M_Authentication_ECDSA_256
+:
+   'ecdsa-256' -> type ( ECDSA_256 ) , popMode
+;
+
+M_Authentication_ECDSA_384
+:
+   'ecdsa-384' -> type ( ECDSA_384 ) , popMode
 ;
 
 M_Authentication_ENABLE

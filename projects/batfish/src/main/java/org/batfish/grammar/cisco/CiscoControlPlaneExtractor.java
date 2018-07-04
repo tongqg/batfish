@@ -1762,6 +1762,10 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
   public void exitCispol_authentication(Cispol_authenticationContext ctx) {
     if (ctx.PRE_SHARE() != null) {
       _currentIsakmpPolicy.setAuthenticationMethod(IkeAuthenticationMethod.PRE_SHARED_KEYS);
+    } else if (ctx.ECDSA_256() != null) {
+      _currentIsakmpPolicy.setAuthenticationMethod(IkeAuthenticationMethod.ECDSA_SIGNATURES);
+    } else if (ctx.ECDSA_384() != null) {
+      _currentIsakmpPolicy.setAuthenticationMethod(IkeAuthenticationMethod.ECDSA_SIGNATURES);
     } else if (ctx.RSA_SIG() != null) {
       _currentIsakmpPolicy.setAuthenticationMethod(IkeAuthenticationMethod.RSA_SIGNATURES);
     } else {
@@ -1793,6 +1797,8 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       _currentIsakmpPolicy.setHashAlgorithm(IkeHashingAlgorithm.SHA1);
     } else if (ctx.SHA2_256_128() != null) {
       _currentIsakmpPolicy.setHashAlgorithm(IkeHashingAlgorithm.SHA_256);
+    } else if (ctx.SHA2_384_192() != null) {
+      _currentIsakmpPolicy.setHashAlgorithm(IkeHashingAlgorithm.SHA_384);
     } else {
       throw new BatfishException("Unsupported authentication method in " + ctx.getText());
     }

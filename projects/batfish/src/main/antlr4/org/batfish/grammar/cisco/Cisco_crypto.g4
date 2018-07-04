@@ -382,7 +382,8 @@ cis_policy
       | cispol_group
       | cispol_hash
       | cispol_lifetime
-      | cispol_null
+      | cispol_prf
+      | cispol_version
    )*
 ;
 
@@ -402,7 +403,9 @@ cispol_authentication
 :
    AUTHENTICATION
    (
-      PRE_SHARE
+      ECDSA_256
+      | ECDSA_384
+      | PRE_SHARE
       | RSA_SIG
    ) NEWLINE
 ;
@@ -429,6 +432,7 @@ cispol_hash
       MD5
       | SHA
       | SHA2_256_128
+      | SHA2_384_192
    ) NEWLINE
 ;
 
@@ -437,13 +441,18 @@ cispol_lifetime
     LIFETIME DEC NEWLINE
 ;
 
-cispol_null
+cispol_prf
 :
-   NO?
+   PRF
    (
-      PRF
-      | VERSION
-   ) null_rest_of_line
+      PRF_HMAC_SHA256
+      | PRF_HMAC_SHA384
+   ) NEWLINE
+;
+
+cispol_version
+:
+   VERSION V2 NEWLINE
 ;
 
 cisprf_keyring
