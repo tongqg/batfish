@@ -4,10 +4,13 @@ import static org.batfish.common.util.CommonUtil.toImmutableMap;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -59,6 +62,8 @@ public class BDDReachabilityAnalysis {
 
   private final BDD _queryHeaderSpaceBdd;
 
+  private final Map<List<StateExpr>, BDD> _pathDB;
+
   BDDReachabilityAnalysis(
       BDDPacket packet,
       Set<StateExpr> ingressLocationStates,
@@ -69,6 +74,7 @@ public class BDDReachabilityAnalysis {
     _reverseEdges = computeReverseEdges(_edges);
     _ingressLocationStates = ImmutableSet.copyOf(ingressLocationStates);
     _queryHeaderSpaceBdd = queryHeaderSpaceBdd;
+    _pathDB = buildPathDB();
   }
 
   private static Map<StateExpr, Map<StateExpr, Edge>> computeReverseEdges(
@@ -93,6 +99,73 @@ public class BDDReachabilityAnalysis {
     backwardFixpoint(reverseReachableStates);
 
     return ImmutableMap.copyOf(reverseReachableStates);
+  }
+
+
+  public Map<IngressLocation, BDD> getLoopBDDs() {
+    Map<StateExpr, BDD> loopBDDs = new HashMap<>();
+
+    _pathDB
+        .entrySet()
+        .stream()
+        .filter(
+            entry -> {
+              List<StateExpr> path = entry.getKey();
+
+              StateExpr lastHop = path.get(path.size() - 1);
+              return path.subList(0, path.size()-1).contains(lastHop);
+            })
+        .forEach(
+            entry -> {
+              StateExpr firstNode = entry.getKey().get(0);
+              loopBDDs.putIfAbsent(firstNode, entry.getValue());
+            });
+
+    return getIngressLocationBDDs(loopBDDs);
+  }
+
+  public Map<List<StateExpr>, BDD> buildPathDB() {
+    HashMap<List<StateExpr>, BDD> pathDB = new HashMap<>();
+    // run DFS for each ingress location
+    for (StateExpr node : _ingressLocationStates) {
+      symbolicRun(_bddPacket.getFactory().one(), new ArrayList<>(), new HashSet<>(), node, pathDB);
+    }
+    // freeze
+    return toImmutableMap(pathDB, entry -> ImmutableList.copyOf(entry.getKey()), Entry::getValue);
+  }
+
+  private void symbolicRun(
+      BDD symbolicPacket,
+      List<StateExpr> history,
+      Set<StateExpr> visitedNodes,
+      StateExpr currentNode,
+      Map<List<StateExpr>, BDD> pathDB) {
+    if (visitedNodes.contains(currentNode)) {
+      // Loop detected
+      history.add(currentNode);
+      pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+      history.remove(history.size()-1);
+    } else {
+      history.add(currentNode);
+      visitedNodes.add(currentNode);
+      Map<StateExpr, Edge> postStateInEdges = _edges.get(currentNode);
+      if (postStateInEdges != null) {
+        for (StateExpr nextNode : postStateInEdges.keySet()) {
+          Edge edge = postStateInEdges.get(nextNode);
+          BDD nextSymbolicPacket = edge.traverseForward(symbolicPacket);
+
+          if (!nextSymbolicPacket.isZero()) {
+            symbolicRun(nextSymbolicPacket, history, visitedNodes, nextNode, pathDB);
+          } else {
+            pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+          }
+        }
+      } else {
+        pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+      }
+      history.remove(history.size()-1);
+      visitedNodes.remove(currentNode);
+    }
   }
 
   private void backwardFixpoint(Map<StateExpr, BDD> reverseReachableStates) {

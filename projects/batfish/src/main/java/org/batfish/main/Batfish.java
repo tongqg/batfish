@@ -228,6 +228,9 @@ import org.batfish.z3.Synthesizer;
 import org.batfish.z3.SynthesizerInputImpl;
 import org.batfish.z3.expr.BooleanExpr;
 import org.batfish.z3.expr.OrExpr;
+import org.batfish.z3.expr.StateExpr;
+import org.batfish.z3.state.OriginateInterfaceLink;
+import org.batfish.z3.state.OriginateVrf;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -3858,6 +3861,45 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
   @Override
   public Set<Flow> bddLoopDetection() {
+    BDDPacket pkt = new BDDPacket();
+    // TODO add ignoreAcls parameter
+    boolean ignoreAcls = false;
+    BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
+        getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
+    BDDReachabilityAnalysis analysis =
+        bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
+            getAllSourcesInferFromLocationIpSpaceAssignment());
+    Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
+
+    String flowTag = getFlowTag();
+    return loopBDDs
+        .entrySet()
+        .stream()
+        .map(
+            entry ->
+                pkt.getFlow(entry.getValue())
+                    .map(
+                        fb -> {
+                          IngressLocation loc = entry.getKey();
+                          fb.setTag(flowTag);
+                          fb.setIngressNode(loc.getNode());
+                          switch (loc.getType()) {
+                            case INTERFACE_LINK:
+                              fb.setIngressInterface(loc.getInterface());
+                              break;
+                            case VRF:
+                              fb.setIngressVrf(loc.getVrf());
+                              break;
+                            default:
+                              throw new BatfishException("Unknown Location Type: " + loc.getType());
+                          }
+                          return fb.build();
+                        }))
+        .flatMap(optional -> optional.map(Stream::of).orElse(Stream.empty()))
+        .collect(ImmutableSet.toImmutableSet());
+  }
+
+  public Set<Flow> bddLoopDetection2() {
     BDDPacket pkt = new BDDPacket();
     // TODO add ignoreAcls parameter
     boolean ignoreAcls = false;

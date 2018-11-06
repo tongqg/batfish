@@ -16,6 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import java.io.IOException;
@@ -31,6 +32,7 @@ import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.UniverseIpSpace;
 import org.batfish.main.Batfish;
 import org.batfish.main.BatfishTestUtils;
+import org.batfish.main.TestrigText;
 import org.batfish.specifier.InterfaceLocation;
 import org.batfish.specifier.IpSpaceAssignment;
 import org.batfish.z3.expr.StateExpr;
@@ -439,5 +441,41 @@ public final class BDDReachabilityAnalysisTest {
     assertThat(
         graph.getIngressLocationReachableBDDs(),
         equalTo(ImmutableMap.of(toIngressLocation(originateVrf), pkt.getFactory().zero())));
+  }
+
+  @Test
+  public void testPathDB() throws IOException {
+    Batfish batfish;
+    BDDPacket pkt = new BDDPacket();
+    String NODE1 = "node1";
+    String NODE2 = "node2";
+
+    String TESTRIGS_PREFIX =
+        "/Users/yifeiyuan/batfish/projects/allinone/target/test-classes/org/batfish/allinone/testrigs/";
+    String TESTRIG_NAME = "specifiers-reachability";
+    List<String> TESTRIG_NODE_NAMES = ImmutableList.of(NODE1, NODE2);
+
+    TemporaryFolder folder = new TemporaryFolder();
+
+    batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + TESTRIG_NAME, TESTRIG_NODE_NAMES)
+                .build(),
+            folder);
+
+    batfish.computeDataPlane(false);
+
+    BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
+        new BDDReachabilityAnalysisFactory(
+            pkt,
+            batfish.loadConfigurations(),
+            batfish.loadDataPlane().getForwardingAnalysis(),
+            false);
+    BDDReachabilityAnalysis analysis =
+        bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
+            batfish.getAllSourcesInferFromLocationIpSpaceAssignment());
+
+    analysis.buildPathDB();
   }
 }
