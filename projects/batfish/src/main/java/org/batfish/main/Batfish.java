@@ -228,9 +228,6 @@ import org.batfish.z3.Synthesizer;
 import org.batfish.z3.SynthesizerInputImpl;
 import org.batfish.z3.expr.BooleanExpr;
 import org.batfish.z3.expr.OrExpr;
-import org.batfish.z3.expr.StateExpr;
-import org.batfish.z3.state.OriginateInterfaceLink;
-import org.batfish.z3.state.OriginateVrf;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -3859,6 +3856,8 @@ public class Batfish extends PluginConsumer implements IBatfish {
     }
   }
 
+  private BDDReachabilityAnalysis _analysis = null;
+
   @Override
   public Set<Flow> bddLoopDetection() {
     BDDPacket pkt = new BDDPacket();
@@ -3869,7 +3868,9 @@ public class Batfish extends PluginConsumer implements IBatfish {
     BDDReachabilityAnalysis analysis =
         bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
             getAllSourcesInferFromLocationIpSpaceAssignment());
-    Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
+    //Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
+    Map<IngressLocation, BDD> loopBDDs = analysis.findLoops();
+    //Map<IngressLocation, BDD> loopBDDs = analysis.detectLoops();
 
     String flowTag = getFlowTag();
     return loopBDDs
@@ -3899,10 +3900,11 @@ public class Batfish extends PluginConsumer implements IBatfish {
         .collect(ImmutableSet.toImmutableSet());
   }
 
-  public Set<Flow> bddLoopDetection2() {
+  public Set<Flow> bddLoopDetection0() {
     BDDPacket pkt = new BDDPacket();
     // TODO add ignoreAcls parameter
     boolean ignoreAcls = false;
+
     BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
         getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
     BDDReachabilityAnalysis analysis =

@@ -10,6 +10,7 @@ import com.google.common.collect.ImmutableSet;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -74,7 +75,8 @@ public class BDDReachabilityAnalysis {
     _reverseEdges = computeReverseEdges(_edges);
     _ingressLocationStates = ImmutableSet.copyOf(ingressLocationStates);
     _queryHeaderSpaceBdd = queryHeaderSpaceBdd;
-    _pathDB = buildPathDB();
+    //_pathDB = buildPathDB();
+    _pathDB = null;
   }
 
   private static Map<StateExpr, Map<StateExpr, Edge>> computeReverseEdges(
@@ -101,6 +103,77 @@ public class BDDReachabilityAnalysis {
     return ImmutableMap.copyOf(reverseReachableStates);
   }
 
+  public Map<IngressLocation, BDD> findLoops() {
+    Map<StateExpr, BDD> loopBDDs = new HashMap<>();
+    // run DFS for each ingress location
+    for (StateExpr node : _ingressLocationStates) {
+      BDD loopBDD =
+          findLoopsPerSource(node);
+      if (loopBDD != null) loopBDDs.put(node, loopBDD);
+    }
+    // freeze
+    return getIngressLocationBDDs(loopBDDs);
+  }
+
+  private BDD findLoopsPerSource(
+      StateExpr root) {
+    List<StateExpr> history = new ArrayList<>();
+    Set<StateExpr> visitedNodes = new HashSet<>();
+    List<BDD> historyBDD = new ArrayList<>();
+
+    BDD symbolicPacket = _bddPacket.getFactory().one();
+    history.add(root);
+    historyBDD.add(_bddPacket.getFactory().one());
+    visitedNodes.add(root);
+
+    while (!history.isEmpty()) {
+      StateExpr currentNode = history.get(history.size()-1);
+
+      Map<StateExpr, Edge> postStateInEdges = _edges.get(currentNode);
+      if (postStateInEdges != null) {
+        Iterator<StateExpr> iterator = postStateInEdges.keySet().iterator();
+        StateExpr nextNode = iterator.next();
+        Edge edge = postStateInEdges.get(nextNode);
+        BDD nextSymbolicPacket = edge.traverseForward(symbolicPacket);
+
+        if (!nextSymbolicPacket.isZero()) {
+          if (visitedNodes.contains(nextNode)) {
+            // find a loop
+          } else {
+            history.add();
+          }
+        }
+      } else {
+
+      }
+    }
+
+
+    if (visitedNodes.contains(currentNode)) {
+      // Loop detected
+      return symbolicPacket;
+    } else {
+      history.add(currentNode);
+      visitedNodes.add(currentNode);
+      Map<StateExpr, Edge> postStateInEdges = _edges.get(currentNode);
+      if (postStateInEdges != null) {
+        for (StateExpr nextNode : postStateInEdges.keySet()) {
+          Edge edge = postStateInEdges.get(nextNode);
+          BDD nextSymbolicPacket = edge.traverseForward(symbolicPacket);
+
+          if (!nextSymbolicPacket.isZero()) {
+            BDD bdd = findLoopsPerSource(nextSymbolicPacket, history, visitedNodes, nextNode);
+            if (bdd != null) {
+              return bdd;
+            }
+          }
+        }
+      }
+      history.remove(history.size()-1);
+      visitedNodes.remove(currentNode);
+    }
+    return null;
+  }
 
   public Map<IngressLocation, BDD> getLoopBDDs() {
     Map<StateExpr, BDD> loopBDDs = new HashMap<>();
@@ -108,13 +181,13 @@ public class BDDReachabilityAnalysis {
     _pathDB
         .entrySet()
         .stream()
-        .filter(
-            entry -> {
-              List<StateExpr> path = entry.getKey();
-
-              StateExpr lastHop = path.get(path.size() - 1);
-              return path.subList(0, path.size()-1).contains(lastHop);
-            })
+//        .filter(
+//            entry -> {
+//              List<StateExpr> path = entry.getKey();
+//
+//              StateExpr lastHop = path.get(path.size() - 1);
+//              return path.subList(0, path.size()-1).contains(lastHop);
+//            })
         .forEach(
             entry -> {
               StateExpr firstNode = entry.getKey().get(0);
@@ -157,11 +230,11 @@ public class BDDReachabilityAnalysis {
           if (!nextSymbolicPacket.isZero()) {
             symbolicRun(nextSymbolicPacket, history, visitedNodes, nextNode, pathDB);
           } else {
-            pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+            //pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
           }
         }
       } else {
-        pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+        //pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
       }
       history.remove(history.size()-1);
       visitedNodes.remove(currentNode);
