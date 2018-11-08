@@ -63,7 +63,7 @@ public class BDDReachabilityAnalysis {
 
   private final BDD _queryHeaderSpaceBdd;
 
-  private final Map<List<StateExpr>, BDD> _pathDB;
+  private Map<List<StateExpr>, BDD> _pathDB;
 
   BDDReachabilityAnalysis(
       BDDPacket packet,
@@ -75,7 +75,6 @@ public class BDDReachabilityAnalysis {
     _reverseEdges = computeReverseEdges(_edges);
     _ingressLocationStates = ImmutableSet.copyOf(ingressLocationStates);
     _queryHeaderSpaceBdd = queryHeaderSpaceBdd;
-    //_pathDB = buildPathDB();
     _pathDB = null;
   }
 
@@ -103,6 +102,97 @@ public class BDDReachabilityAnalysis {
     return ImmutableMap.copyOf(reverseReachableStates);
   }
 
+  public Map<IngressLocation, BDD> findLoops2() {
+    Map<StateExpr, Map<StateExpr, BDD>> reachable = new HashMap<>();
+    Map<StateExpr, Set<StateExpr>> dirty = new HashMap<>();
+
+    for (StateExpr node1 : _edges.keySet()) {
+      Map<StateExpr, Edge> edgeMap = _edges.get(node1);
+      for (StateExpr node2 : edgeMap.keySet()) {
+        Edge edge = edgeMap.get(node2);
+        reachable.getOrDefault(node1, new HashMap<>())
+            .put(node2, edge.traverseForward(_bddPacket.getFactory().one()));
+        dirty.getOrDefault(node1, new HashSet<>()).add(node2);
+      }
+    }
+
+    BDD zero = _bddPacket.getFactory().zero();
+    while (!dirty.isEmpty()) {
+      Map<StateExpr, Map<StateExpr, BDD>> newReachable = new HashMap<>();
+      Map<StateExpr, Set<StateExpr>> newDirty = new HashMap<>();
+      for (StateExpr node1 : reachable.keySet()) {
+        Map<StateExpr, BDD> neighbors = reachable.get(node1);
+        for (StateExpr node2 : neighbors.keySet()) {
+          Map<StateExpr, Edge> node2Edges = _edges.get(node2);
+          if (node2Edges == null) {
+            continue;
+          }
+
+          BDD node1ToNode2 = reachable.get(node1).get(node2);
+          for (StateExpr node3 : node2Edges.keySet()) {
+            Edge edge = node2Edges.get(node3);
+            BDD addedNode1ToNode3 = edge.traverseForward(node1ToNode2);
+            if (!addedNode1ToNode3.isZero()) {
+              Map<StateExpr, BDD> node1Map =
+                  newReachable.getOrDefault(node1, new HashMap<>());
+              BDD node1ToNode3 = node1Map.getOrDefault(node3, zero);
+              BDD newNode1ToNode3 = node1ToNode3.or(addedNode1ToNode3);
+              node1Map.put(node3, newNode1ToNode3);
+              if (!reachable.get(node1).getOrDefault(node3, zero).equals(newNode1ToNode3)) {
+                newDirty.getOrDefault(node1, new HashSet<>()).add(node3);
+              }
+            }
+          }
+        }
+      }
+      dirty = newDirty;
+      reachable = newReachable;
+    }
+
+    /*
+    while (!dirty.isEmpty()) {
+      Map<StateExpr, Map<StateExpr, BDD>> newReachable = new HashMap<>();
+      Map<StateExpr, Set<StateExpr>> newDirty = new HashMap<>();
+      for (StateExpr node1 : dirty.keySet()) {
+        Set<StateExpr> neighbors = dirty.get(node1);
+        for (StateExpr node2 : neighbors) {
+          Map<StateExpr, Edge> node2Edges = _edges.get(node2);
+          if (node2Edges == null) {
+            continue;
+          }
+
+          BDD node1ToNode2 = reachable.get(node1).get(node2);
+          node2Edges.forEach(
+              (node3, edge) -> {
+                BDD addedNode1ToNode3 = edge.traverseForward(node1ToNode2);
+                if (!addedNode1ToNode3.isZero()) {
+                  Map<StateExpr, BDD> node1Map =
+                      newReachable.getOrDefault(node1, new HashMap<>());
+                  BDD node1ToNode3 = node1Map.getOrDefault(node3, zero);
+                  BDD newNode1ToNode3 = node1ToNode3.or(addedNode1ToNode3);
+                  if (!node1ToNode3.equals(newNode1ToNode3)) {
+                    node1Map.put(node3, newNode1ToNode3);
+                    newDirty.getOrDefault(node1, new HashSet<>()).add(node3);
+                  }
+                }
+              });
+        }
+      }
+      dirty = newDirty;
+      reachable = newReachable;
+    }
+    */
+
+    Map<StateExpr, BDD> loopBDDs = new HashMap<>();
+    for (StateExpr node : reachable.keySet()) {
+      BDD bdd = reachable.get(node).getOrDefault(node, null);
+      if (bdd != null && !bdd.isZero()) {
+        loopBDDs.put(node, bdd);
+      }
+    }
+    return getIngressLocationBDDs(loopBDDs);
+  }
+
   public Map<IngressLocation, BDD> findLoops() {
     Map<StateExpr, BDD> loopBDDs = new HashMap<>();
     // run DFS for each ingress location
@@ -115,67 +205,72 @@ public class BDDReachabilityAnalysis {
     return getIngressLocationBDDs(loopBDDs);
   }
 
-  private BDD findLoopsPerSource(
-      StateExpr root) {
-    List<StateExpr> history = new ArrayList<>();
-    Set<StateExpr> visitedNodes = new HashSet<>();
-    List<BDD> historyBDD = new ArrayList<>();
+  private BDD findLoopsPerSource(StateExpr root) {
+    BDD result = _bddPacket.getFactory().zero();
 
-    BDD symbolicPacket = _bddPacket.getFactory().one();
+    Set<StateExpr> visitedNodes = new HashSet<>();
+    List<StateExpr> history = new ArrayList<>();
+    List<BDD> historyBDD = new ArrayList<>();
+    List<Iterator<StateExpr>> historyIteraror = new ArrayList<>();
+
+    visitedNodes.add(root);
     history.add(root);
     historyBDD.add(_bddPacket.getFactory().one());
-    visitedNodes.add(root);
+    Map<StateExpr, Edge> postStateInEdges = _edges.get(root);
+    if (postStateInEdges != null) {
+      Iterator<StateExpr> iterator = postStateInEdges.keySet().iterator();
+      historyIteraror.add(iterator);
+    } else {
+      historyIteraror.add(null);
+    }
 
     while (!history.isEmpty()) {
       StateExpr currentNode = history.get(history.size()-1);
+      BDD symbolicPacket = historyBDD.get(historyBDD.size()-1);
+      Iterator<StateExpr> iterator = historyIteraror.get(historyIteraror.size()-1);
 
-      Map<StateExpr, Edge> postStateInEdges = _edges.get(currentNode);
-      if (postStateInEdges != null) {
-        Iterator<StateExpr> iterator = postStateInEdges.keySet().iterator();
+      if (iterator != null && iterator.hasNext()) {
+        // there is a next node to traverse
         StateExpr nextNode = iterator.next();
-        Edge edge = postStateInEdges.get(nextNode);
+        Edge edge = _edges.get(currentNode).get(nextNode);
         BDD nextSymbolicPacket = edge.traverseForward(symbolicPacket);
 
         if (!nextSymbolicPacket.isZero()) {
           if (visitedNodes.contains(nextNode)) {
             // find a loop
+            result = result.or(nextSymbolicPacket);
           } else {
-            history.add();
-          }
-        }
-      } else {
-
-      }
-    }
-
-
-    if (visitedNodes.contains(currentNode)) {
-      // Loop detected
-      return symbolicPacket;
-    } else {
-      history.add(currentNode);
-      visitedNodes.add(currentNode);
-      Map<StateExpr, Edge> postStateInEdges = _edges.get(currentNode);
-      if (postStateInEdges != null) {
-        for (StateExpr nextNode : postStateInEdges.keySet()) {
-          Edge edge = postStateInEdges.get(nextNode);
-          BDD nextSymbolicPacket = edge.traverseForward(symbolicPacket);
-
-          if (!nextSymbolicPacket.isZero()) {
-            BDD bdd = findLoopsPerSource(nextSymbolicPacket, history, visitedNodes, nextNode);
-            if (bdd != null) {
-              return bdd;
+            // new node should be added
+            visitedNodes.add(nextNode);
+            history.add(nextNode);
+            historyBDD.add(nextSymbolicPacket);
+            Map<StateExpr, Edge> nextPostStateInEdges = _edges.get(nextNode);
+            if (nextPostStateInEdges != null) {
+              Iterator<StateExpr> nextIterator = nextPostStateInEdges.keySet().iterator();
+              historyIteraror.add(nextIterator);
+            } else {
+              historyIteraror.add(null);
             }
           }
+        } else {
+          // no packets left; do nothing
         }
+      } else {
+        // no next node to traverse; need to back track
+        history.remove(history.size() - 1);
+        historyBDD.remove(historyBDD.size() - 1);
+        historyIteraror.remove(historyIteraror.size() - 1);
+        visitedNodes.remove(currentNode);
       }
-      history.remove(history.size()-1);
-      visitedNodes.remove(currentNode);
     }
-    return null;
+    return result;
   }
 
   public Map<IngressLocation, BDD> getLoopBDDs() {
+    if (_pathDB == null) {
+      _pathDB = buildPathDB();
+    }
+
     Map<StateExpr, BDD> loopBDDs = new HashMap<>();
 
     _pathDB

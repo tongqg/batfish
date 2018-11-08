@@ -3856,8 +3856,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     }
   }
 
-  private BDDReachabilityAnalysis _analysis = null;
-
   @Override
   public Set<Flow> bddLoopDetection() {
     BDDPacket pkt = new BDDPacket();
@@ -3868,9 +3866,11 @@ public class Batfish extends PluginConsumer implements IBatfish {
     BDDReachabilityAnalysis analysis =
         bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
             getAllSourcesInferFromLocationIpSpaceAssignment());
+
     //Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
-    Map<IngressLocation, BDD> loopBDDs = analysis.findLoops();
+    //Map<IngressLocation, BDD> loopBDDs = analysis.findLoops();
     //Map<IngressLocation, BDD> loopBDDs = analysis.detectLoops();
+    Map<IngressLocation, BDD> loopBDDs = analysis.findLoops2();
 
     String flowTag = getFlowTag();
     return loopBDDs
