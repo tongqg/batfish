@@ -102,7 +102,46 @@ public class BDDReachabilityAnalysis {
     return ImmutableMap.copyOf(reverseReachableStates);
   }
 
-  public Map<IngressLocation, BDD> findLoops2() {
+  public Map<IngressLocation, BDD> findLoops_allpair_dp() {
+    Map<StateExpr, Map<StateExpr, BDD>> reachable = new HashMap<>();
+
+    for (StateExpr node1 : _edges.keySet()) {
+      Map<StateExpr, Edge> edgeMap = _edges.get(node1);
+      for (StateExpr node2 : edgeMap.keySet()) {
+        Edge edge = edgeMap.get(node2);
+        reachable
+            .getOrDefault(node1, new HashMap<>())
+            .put(node2, edge.traverseForward(_bddPacket.getFactory().one()));
+      }
+    }
+
+    BDD zero = _bddPacket.getFactory().zero();
+    for (StateExpr nodeK : _edges.keySet()) {
+      for (StateExpr nodeI : _edges.keySet()) {
+        for (StateExpr nodeJ : _edges.keySet()) {
+          BDD bddNodeIToNodeK = reachable.getOrDefault(nodeI, new HashMap<>())
+              .getOrDefault(nodeK, zero);
+          BDD bddNodeIToNodeJ = reachable.getOrDefault(nodeI, new HashMap<>()).getOrDefault(nodeJ, zero);
+          BDD bddNodeJToNodeK = reachable.getOrDefault(nodeJ, new HashMap<>()).getOrDefault(nodeK, zero);
+          reachable.getOrDefault(nodeI, new HashMap<>())
+              .put(
+                  nodeK, bddNodeIToNodeK.or(bddNodeIToNodeJ.and(bddNodeJToNodeK))
+              );
+        }
+      }
+    }
+
+    Map<StateExpr, BDD> loopBDDs = new HashMap<>();
+    for (StateExpr node : reachable.keySet()) {
+      BDD bdd = reachable.get(node).getOrDefault(node, null);
+      if (bdd != null && !bdd.isZero()) {
+        loopBDDs.put(node, _bddPacket.getFactory().one());
+      }
+    }
+    return getIngressLocationBDDs(loopBDDs);
+  }
+
+  public Map<IngressLocation, BDD> findLoops_dp() {
     Map<StateExpr, Map<StateExpr, BDD>> reachable = new HashMap<>();
     Map<StateExpr, Set<StateExpr>> dirty = new HashMap<>();
 
@@ -110,19 +149,27 @@ public class BDDReachabilityAnalysis {
       Map<StateExpr, Edge> edgeMap = _edges.get(node1);
       for (StateExpr node2 : edgeMap.keySet()) {
         Edge edge = edgeMap.get(node2);
-        reachable.getOrDefault(node1, new HashMap<>())
-            .put(node2, edge.traverseForward(_bddPacket.getFactory().one()));
-        dirty.getOrDefault(node1, new HashSet<>()).add(node2);
+        reachable.computeIfAbsent(node1,
+            k -> new HashMap<>())
+        .put(node2, edge.traverseForward(_bddPacket.getFactory().one()));
+        dirty.computeIfAbsent(node1, k -> new HashSet<>()).add(node2);
       }
     }
 
     BDD zero = _bddPacket.getFactory().zero();
     while (!dirty.isEmpty()) {
       Map<StateExpr, Map<StateExpr, BDD>> newReachable = new HashMap<>();
+      for (StateExpr node1 : reachable.keySet()) {
+        for (StateExpr node2 : reachable.get(node1).keySet()) {
+          newReachable.computeIfAbsent(node1, k -> new HashMap<>())
+              .put(node2, reachable.get(node1).get(node2));
+        }
+      }
+
       Map<StateExpr, Set<StateExpr>> newDirty = new HashMap<>();
       for (StateExpr node1 : reachable.keySet()) {
-        Map<StateExpr, BDD> neighbors = reachable.get(node1);
-        for (StateExpr node2 : neighbors.keySet()) {
+        Map<StateExpr, BDD> reachableNodes = reachable.get(node1);
+        for (StateExpr node2 : reachableNodes.keySet()) {
           Map<StateExpr, Edge> node2Edges = _edges.get(node2);
           if (node2Edges == null) {
             continue;
@@ -133,13 +180,14 @@ public class BDDReachabilityAnalysis {
             Edge edge = node2Edges.get(node3);
             BDD addedNode1ToNode3 = edge.traverseForward(node1ToNode2);
             if (!addedNode1ToNode3.isZero()) {
-              Map<StateExpr, BDD> node1Map =
+              Map<StateExpr, BDD> newNode1Map =
                   newReachable.getOrDefault(node1, new HashMap<>());
-              BDD node1ToNode3 = node1Map.getOrDefault(node3, zero);
+              BDD node1ToNode3 = newNode1Map.getOrDefault(node3, zero);
               BDD newNode1ToNode3 = node1ToNode3.or(addedNode1ToNode3);
-              node1Map.put(node3, newNode1ToNode3);
+              newNode1Map.put(node3, newNode1ToNode3);
+              newReachable.put(node1, newNode1Map);
               if (!reachable.get(node1).getOrDefault(node3, zero).equals(newNode1ToNode3)) {
-                newDirty.getOrDefault(node1, new HashSet<>()).add(node3);
+                newDirty.computeIfAbsent(node1, k -> new HashSet<>()).add(node3);
               }
             }
           }
@@ -190,16 +238,30 @@ public class BDDReachabilityAnalysis {
         loopBDDs.put(node, bdd);
       }
     }
-    return getIngressLocationBDDs(loopBDDs);
+    Map<StateExpr, BDD> inLoopBDDs = new HashMap<>();
+    for (StateExpr ingressNode : _ingressLocationStates) {
+      for (StateExpr loopingNode : loopBDDs.keySet()) {
+        BDD bdd =
+            reachable
+                .getOrDefault(ingressNode, new HashMap<>())
+                .getOrDefault(loopingNode, zero)
+                .and(loopBDDs.get(loopingNode));
+        if (!bdd.isZero()) {
+          inLoopBDDs.put(ingressNode, bdd);
+        }
+      }
+    }
+    return getIngressLocationBDDs(inLoopBDDs);
   }
 
-  public Map<IngressLocation, BDD> findLoops() {
+  public Map<IngressLocation, BDD> findLoops_iterativeDFS() {
     Map<StateExpr, BDD> loopBDDs = new HashMap<>();
     // run DFS for each ingress location
     for (StateExpr node : _ingressLocationStates) {
-      BDD loopBDD =
-          findLoopsPerSource(node);
-      if (loopBDD != null) loopBDDs.put(node, loopBDD);
+      BDD loopBDD = findLoopsPerSource(node);
+      if (loopBDD != null) {
+        loopBDDs.put(node, loopBDD);
+      }
     }
     // freeze
     return getIngressLocationBDDs(loopBDDs);
@@ -209,11 +271,14 @@ public class BDDReachabilityAnalysis {
     BDD result = _bddPacket.getFactory().zero();
 
     Set<StateExpr> visitedNodes = new HashSet<>();
+
+    Set<StateExpr> inHistory = new HashSet<>();
     List<StateExpr> history = new ArrayList<>();
     List<BDD> historyBDD = new ArrayList<>();
     List<Iterator<StateExpr>> historyIteraror = new ArrayList<>();
 
     visitedNodes.add(root);
+    inHistory.add(root);
     history.add(root);
     historyBDD.add(_bddPacket.getFactory().one());
     Map<StateExpr, Edge> postStateInEdges = _edges.get(root);
@@ -234,14 +299,17 @@ public class BDDReachabilityAnalysis {
         StateExpr nextNode = iterator.next();
         Edge edge = _edges.get(currentNode).get(nextNode);
         BDD nextSymbolicPacket = edge.traverseForward(symbolicPacket);
+        //BDD nextSymbolicPacket = _bddPacket.getFactory().one();
 
         if (!nextSymbolicPacket.isZero()) {
-          if (visitedNodes.contains(nextNode)) {
+          if (inHistory.contains(nextNode)) {
             // find a loop
             result = result.or(nextSymbolicPacket);
-          } else {
-            // new node should be added
+            //return nextSymbolicPacket;
+          } else { //if (!visitedNodes.contains(nextNode)) {
             visitedNodes.add(nextNode);
+            // new node should be added
+            inHistory.add(nextNode);
             history.add(nextNode);
             historyBDD.add(nextSymbolicPacket);
             Map<StateExpr, Edge> nextPostStateInEdges = _edges.get(nextNode);
@@ -260,34 +328,40 @@ public class BDDReachabilityAnalysis {
         history.remove(history.size() - 1);
         historyBDD.remove(historyBDD.size() - 1);
         historyIteraror.remove(historyIteraror.size() - 1);
-        visitedNodes.remove(currentNode);
+        inHistory.remove(currentNode);
       }
     }
     return result;
   }
 
   public Map<IngressLocation, BDD> getLoopBDDs() {
+    long startTime = System.currentTimeMillis();
     if (_pathDB == null) {
       _pathDB = buildPathDB();
+      long endBuildingDB = System.currentTimeMillis();
+      System.out.println("pathDB building time (millisecond) = " + (endBuildingDB-startTime));
     }
 
     Map<StateExpr, BDD> loopBDDs = new HashMap<>();
 
+    long startSelectionTime = System.currentTimeMillis();
     _pathDB
         .entrySet()
         .stream()
-//        .filter(
-//            entry -> {
-//              List<StateExpr> path = entry.getKey();
-//
-//              StateExpr lastHop = path.get(path.size() - 1);
-//              return path.subList(0, path.size()-1).contains(lastHop);
-//            })
+        .filter(
+            entry -> {
+              List<StateExpr> path = entry.getKey();
+
+              StateExpr lastHop = path.get(path.size() - 1);
+              return path.subList(0, path.size()-1).contains(lastHop);
+            })
         .forEach(
             entry -> {
               StateExpr firstNode = entry.getKey().get(0);
               loopBDDs.putIfAbsent(firstNode, entry.getValue());
             });
+    long endSelectionTime = System.currentTimeMillis();
+    System.out.println("Seletction time (milliseconds) = " + (endSelectionTime-startSelectionTime));
 
     return getIngressLocationBDDs(loopBDDs);
   }
@@ -389,6 +463,7 @@ public class BDDReachabilityAnalysis {
    * Detect infinite routing loops in the network.
    */
   public Map<IngressLocation, BDD> detectLoops() {
+    long startTime = System.currentTimeMillis();
     /*
      * Run enough rounds to exceed the max TTL (255). It takes at most 5 iterations to go between
      * hops:
@@ -415,7 +490,8 @@ public class BDDReachabilityAnalysis {
      * Run backward to find the ingress locations/headerspaces that lead to loops.
      */
     backwardFixpoint(loopBDDs);
-
+    long endTime = System.currentTimeMillis();
+    System.out.println("detectLoops time (millisecond) = " + (endTime-startTime));
     /*
      * Extract the ingress location BDDs.
      */

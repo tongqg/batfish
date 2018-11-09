@@ -3856,21 +3856,31 @@ public class Batfish extends PluginConsumer implements IBatfish {
     }
   }
 
+  private BDDReachabilityAnalysis analysis = null;
+
   @Override
   public Set<Flow> bddLoopDetection() {
-    BDDPacket pkt = new BDDPacket();
-    // TODO add ignoreAcls parameter
-    boolean ignoreAcls = false;
-    BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
-        getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
-    BDDReachabilityAnalysis analysis =
-        bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
-            getAllSourcesInferFromLocationIpSpaceAssignment());
+    BDDPacket pkt;
+    if (analysis == null) {
+      pkt = new BDDPacket();
+      // TODO add ignoreAcls parameter
+      boolean ignoreAcls = false;
+      BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
+          getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
+      analysis =
+          bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
+              getAllSourcesInferFromLocationIpSpaceAssignment());
+      //BDDReachabilityAnalysis analysis =
+      //    bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
+      //        getAllSourcesInferFromLocationIpSpaceAssignment());
+    } else {
+      pkt = analysis.getBDDPacket();
+    }
 
-    //Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
-    //Map<IngressLocation, BDD> loopBDDs = analysis.findLoops();
+    Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
+    //Map<IngressLocation, BDD> loopBDDs = analysis.findLoops_iterativeDFS();
     //Map<IngressLocation, BDD> loopBDDs = analysis.detectLoops();
-    Map<IngressLocation, BDD> loopBDDs = analysis.findLoops2();
+    //Map<IngressLocation, BDD> loopBDDs = analysis.findLoops_dp();
 
     String flowTag = getFlowTag();
     return loopBDDs
