@@ -3867,7 +3867,11 @@ public class Batfish extends PluginConsumer implements IBatfish {
         bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
             getAllSourcesInferFromLocationIpSpaceAssignment());
 
-    Map<IngressLocation, BDD> loopBDDs = analysis.getLoopBDDs();
+    Map<IngressLocation, BDD> loopBDDs = null;
+    for (int i = 0; i < 3; i++) {
+      //loopBDDs = analysis.getLoopBDDs();
+      loopBDDs = analysis.detectLoops();
+    }
     //Map<IngressLocation, BDD> loopBDDs = analysis.findLoops_iterativeDFS();
     //Map<IngressLocation, BDD> loopBDDs = analysis.detectLoops();
     //Map<IngressLocation, BDD> loopBDDs = analysis.findLoops_dp();

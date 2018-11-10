@@ -540,27 +540,12 @@ public class Driver {
     } while (!registrationSuccess);
   }
 
-  private Batfish batfish = null;
-
   @SuppressWarnings("deprecation")
   private static String runBatfish(final Settings settings) {
 
     final BatfishLogger logger = settings.getLogger();
 
     try {
-      if (batfish == null) {
-        batfish =
-          new Batfish(
-              settings,
-              CACHED_COMPRESSED_TESTRIGS,
-              CACHED_TESTRIGS,
-              CACHED_COMPRESSED_DATA_PLANES,
-              CACHED_DATA_PLANES,
-              CACHED_ENVIRONMENT_BGP_TABLES,
-              CACHED_ENVIRONMENT_ROUTING_TABLES,
-              null,
-              null);
-      }
       final Batfish batfish =
           new Batfish(
               settings,

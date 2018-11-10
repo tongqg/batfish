@@ -361,7 +361,7 @@ public class BDDReachabilityAnalysis {
               loopBDDs.putIfAbsent(firstNode, entry.getValue());
             });
     long endSelectionTime = System.currentTimeMillis();
-    System.out.println("Seletction time (milliseconds) = " + (endSelectionTime-startSelectionTime));
+    System.out.println("Selection time (milliseconds) = " + (endSelectionTime-startSelectionTime));
 
     return getIngressLocationBDDs(loopBDDs);
   }
