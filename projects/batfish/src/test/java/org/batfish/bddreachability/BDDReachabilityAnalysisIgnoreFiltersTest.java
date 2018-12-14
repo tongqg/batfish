@@ -1,6 +1,5 @@
 package org.batfish.bddreachability;
 
-import static java.util.Objects.requireNonNull;
 import static org.batfish.datamodel.FlowDisposition.ACCEPTED;
 import static org.batfish.datamodel.acl.AclLineMatchExprs.matchDst;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -96,16 +95,13 @@ public class BDDReachabilityAnalysisIgnoreFiltersTest {
             .setVrf(vrf1)
             .setActive(true)
             .setAddress(NODE1_ADDR)
-            .setEgressNats(
-                new TransformationList(
-                    ImmutableList.of(
-                        requireNonNull(
-                            DynamicNatRule.builder()
-                                .setAction(RuleAction.SOURCE_INSIDE)
-                                .setAcl(natAcl)
-                                .setPoolIpFirst(NAT_POOL_IP)
-                                .setPoolIpLast(NAT_POOL_IP)
-                                .build()))))
+            .setSourceNats(
+                ImmutableList.of(
+                    SourceNat.builder()
+                        .setAcl(natAcl)
+                        .setPoolIpFirst(NAT_POOL_IP)
+                        .setPoolIpLast(NAT_POOL_IP)
+                        .build()))
             .setOutgoingFilter(outgoingFilter)
             .build();
 

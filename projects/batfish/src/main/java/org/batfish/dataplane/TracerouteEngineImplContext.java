@@ -1,6 +1,8 @@
 package org.batfish.dataplane;
 
 import static com.google.common.base.MoreObjects.firstNonNull;
+import static org.batfish.dataplane.traceroute.TracerouteUtils.applyEgressNats;
+import static org.batfish.dataplane.traceroute.TracerouteUtils.applyIngressNats;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
@@ -44,10 +46,7 @@ import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.LineAction;
 import org.batfish.datamodel.Route;
-import org.batfish.datamodel.TransformationList;
 import org.batfish.datamodel.collections.NodeInterfacePair;
-import org.batfish.datamodel.transformation.Transformation;
-import org.batfish.datamodel.transformation.Transformation.Direction;
 
 @ParametersAreNonnullByDefault
 class TracerouteEngineImplContext {
@@ -102,45 +101,6 @@ class TracerouteEngineImplContext {
       "traceroute_source_interface";
 
   private static final String TRACEROUTE_INGRESS_NODE_NAME = "traceroute_source_node";
-
-  /**
-   * Applies the given list of NAT rules to the given flow and returns the new transformed flow. If
-   * {@code egressNats} is null, empty, or does not contain any ACL rules matching the {@link Flow},
-   * the original flow is returned.
-   *
-   * <p>Each {@link Transformation} is expected to be valid
-   */
-  @VisibleForTesting
-  static Flow applyEgressNats(
-      Flow flow,
-      @Nullable String srcInterface,
-      Map<String, IpAccessList> aclDefinitions,
-      Map<String, IpSpace> namedIpSpaces,
-      @Nullable TransformationList egressNats) {
-    if (egressNats != null) {
-      return egressNats.apply(flow, Direction.EGRESS, srcInterface, aclDefinitions, namedIpSpaces);
-    }
-    return flow;
-  }
-
-  /**
-   * Applies the given list of NAT rules to the given flow and returns the new transformed flow. If
-   * {@code ingressNats} is null, empty, or does not contain any ACL rules matching the {@link
-   * Flow}, the original flow is returned.
-   *
-   * <p>Each {@link Transformation} is expected to be valid
-   */
-  private static Flow applyIngressNats(
-      Flow flow,
-      Map<String, IpAccessList> aclDefinitions,
-      NavigableMap<String, IpSpace> namedIpSpaces,
-      @Nullable TransformationList ingressNats) {
-    if (ingressNats != null) {
-      return ingressNats.apply(flow, Direction.INGRESS, null, aclDefinitions, namedIpSpaces);
-    } else {
-      return flow;
-    }
-  }
 
   @VisibleForTesting
   static boolean interfaceRepliesToArpRequestForIp(Interface iface, Fib ifaceFib, Ip arpIp) {

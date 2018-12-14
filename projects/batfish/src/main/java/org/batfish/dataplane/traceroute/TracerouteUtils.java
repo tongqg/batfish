@@ -12,6 +12,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.SortedSet;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.FilterResult;
@@ -24,6 +25,7 @@ import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.LineAction;
+import org.batfish.datamodel.TransformationList;
 import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.datamodel.flow.EnterInputIfaceStep;
 import org.batfish.datamodel.flow.EnterInputIfaceStep.EnterInputIfaceStepDetail;
@@ -33,9 +35,11 @@ import org.batfish.datamodel.flow.StepAction;
 import org.batfish.datamodel.flow.TransformationStep;
 import org.batfish.datamodel.flow.TransformationStep.TransformationStepDetail;
 import org.batfish.datamodel.flow.TransformationStep.TransformationType;
+import org.batfish.datamodel.transformation.Transformation;
+import org.batfish.datamodel.transformation.Transformation.Direction;
 
 @ParametersAreNonnullByDefault
-final class TracerouteUtils {
+public final class TracerouteUtils {
 
   /**
    * Does a basic validation of input to {@link TracerouteEngineImplContext#buildFlows()}
@@ -174,5 +178,43 @@ final class TracerouteUtils {
     return flowDiffs.isEmpty()
         ? new TransformationStep(detail, StepAction.PERMITTED)
         : new TransformationStep(detail, StepAction.TRANSFORMED);
+  }
+
+  /**
+   * Applies the given list of NAT rules to the given flow and returns the new transformed flow. If
+   * {@code ingressNats} is null, empty, or does not contain any ACL rules matching the {@link
+   * Flow}, the original flow is returned.
+   *
+   * <p>Each {@link Transformation} is expected to be valid
+   */
+  public static Flow applyIngressNats(
+      Flow flow,
+      Map<String, IpAccessList> aclDefinitions,
+      NavigableMap<String, IpSpace> namedIpSpaces,
+      @Nullable TransformationList ingressNats) {
+    if (ingressNats != null) {
+      return ingressNats.apply(flow, Direction.INGRESS, null, aclDefinitions, namedIpSpaces);
+    } else {
+      return flow;
+    }
+  }
+
+  /**
+   * Applies the given list of NAT rules to the given flow and returns the new transformed flow. If
+   * {@code egressNats} is null, empty, or does not contain any ACL rules matching the {@link Flow},
+   * the original flow is returned.
+   *
+   * <p>Each {@link Transformation} is expected to be valid
+   */
+  public static Flow applyEgressNats(
+      Flow flow,
+      @Nullable String srcInterface,
+      Map<String, IpAccessList> aclDefinitions,
+      Map<String, IpSpace> namedIpSpaces,
+      @Nullable TransformationList egressNats) {
+    if (egressNats != null) {
+      return egressNats.apply(flow, Direction.EGRESS, srcInterface, aclDefinitions, namedIpSpaces);
+    }
+    return flow;
   }
 }

@@ -4,6 +4,7 @@ import static java.util.Collections.singletonList;
 import static org.batfish.datamodel.FlowDisposition.ACCEPTED;
 import static org.batfish.datamodel.FlowDisposition.NO_ROUTE;
 import static org.batfish.datamodel.matchers.FlowTraceMatchers.hasDisposition;
+import static org.batfish.dataplane.traceroute.TracerouteUtils.applyEgressNats;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
@@ -86,7 +87,7 @@ public class TracerouteEngineTest {
     assertThat(nat, notNullValue());
 
     Flow transformed =
-        TracerouteEngineImplContext.applyEgressNats(
+        applyEgressNats(
             flow,
             null,
             ImmutableMap.of(),
@@ -109,7 +110,7 @@ public class TracerouteEngineTest {
     assertThat(nat, notNullValue());
 
     Flow transformed =
-        TracerouteEngineImplContext.applyEgressNats(
+        applyEgressNats(
             flow,
             null,
             ImmutableMap.of(),
@@ -141,7 +142,7 @@ public class TracerouteEngineTest {
     assertThat(secondNat, notNullValue());
 
     Flow transformed =
-        TracerouteEngineImplContext.applyEgressNats(
+        applyEgressNats(
             flow,
             null,
             ImmutableMap.of(),
@@ -173,7 +174,7 @@ public class TracerouteEngineTest {
     assertThat(secondNat, notNullValue());
 
     Flow transformed =
-        TracerouteEngineImplContext.applyEgressNats(
+        applyEgressNats(
             flow,
             null,
             ImmutableMap.of(),

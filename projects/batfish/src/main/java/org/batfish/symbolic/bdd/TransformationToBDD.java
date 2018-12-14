@@ -4,7 +4,8 @@ import java.util.Map;
 import java.util.function.Supplier;
 import javax.annotation.Nullable;
 import net.sf.javabdd.BDD;
-import org.batfish.bddreachability.BDDSourceNat;
+import org.batfish.bddreachability.BDDNat;
+import org.batfish.common.BatfishException;
 import org.batfish.common.bdd.BDDPacket;
 import org.batfish.datamodel.transformation.DynamicNatRule;
 import org.batfish.datamodel.transformation.GenericTransformationRuleVisitor;
@@ -13,7 +14,7 @@ import org.batfish.datamodel.transformation.Transformation;
 import org.batfish.datamodel.transformation.Transformation.RuleAction;
 
 /** Visitor that converts a {@link Transformation} to a @{link BDDSourceNat}. */
-public class TransformationToBDD implements GenericTransformationRuleVisitor<BDDSourceNat> {
+public class TransformationToBDD implements GenericTransformationRuleVisitor<BDDNat> {
 
   private final Map<String, Map<String, Supplier<BDD>>> _aclPermitBDDs;
   private final BDDPacket _bddPacket;
@@ -29,12 +30,12 @@ public class TransformationToBDD implements GenericTransformationRuleVisitor<BDD
   // Static NAT not implemented
   @Nullable
   @Override
-  public BDDSourceNat visitStaticTransformationRule(StaticNatRule rule) {
-    return null;
+  public BDDNat visitStaticTransformationRule(StaticNatRule rule) {
+    throw new BatfishException("Static NAT not currently supported in BDD reachability");
   }
 
   @Override
-  public BDDSourceNat visitDynamicTransformationRule(DynamicNatRule rule) {
+  public BDDNat visitDynamicTransformationRule(DynamicNatRule rule) {
     // Source interface matching not implemented
 
     if (rule.getAcl() == null) {
@@ -54,6 +55,6 @@ public class TransformationToBDD implements GenericTransformationRuleVisitor<BDD
             .getSrcIp()
             .geq(rule.getPoolIpFirst().asLong())
             .and(_bddPacket.getSrcIp().leq(rule.getPoolIpLast().asLong()));
-    return new BDDSourceNat(match, setSrcIp);
+    return new BDDNat(match, setSrcIp);
   }
 }

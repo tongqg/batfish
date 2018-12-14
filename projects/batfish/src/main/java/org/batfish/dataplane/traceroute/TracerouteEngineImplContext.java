@@ -4,6 +4,8 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
 import static org.batfish.datamodel.flow.StepAction.DENIED;
 import static org.batfish.datamodel.flow.StepAction.PERMITTED;
+import static org.batfish.dataplane.traceroute.TracerouteUtils.applyEgressNats;
+import static org.batfish.dataplane.traceroute.TracerouteUtils.applyIngressNats;
 import static org.batfish.dataplane.traceroute.TracerouteUtils.createEnterSrcIfaceStep;
 import static org.batfish.dataplane.traceroute.TracerouteUtils.getFinalActionForDisposition;
 import static org.batfish.dataplane.traceroute.TracerouteUtils.isArpSuccessful;
@@ -47,6 +49,7 @@ import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.LineAction;
 import org.batfish.datamodel.Route;
+import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.datamodel.flow.EnterInputIfaceStep;
 import org.batfish.datamodel.flow.ExitOutputIfaceStep;
@@ -496,6 +499,16 @@ public class TracerouteEngineImplContext {
         return;
       }
 
+      // Apply ingress NATs
+      dstNatFlow =
+          applyIngressNats(
+              inputFlow,
+              aclDefinitions,
+              namedIpSpaces,
+              currentConfiguration.getAllInterfaces().get(inputIfaceName).getIngressNats());
+
+      // TODO: if static NAT applied, don't apply destination nat
+
       List<DestinationNat> destinationNats =
           currentConfiguration.getAllInterfaces().get(inputIfaceName).getDestinationNats();
       if (destinationNats != null && !destinationNats.isEmpty()) {
@@ -558,20 +571,6 @@ public class TracerouteEngineImplContext {
         transmissionContext._flowTraces.add(trace);
         return;
       }
-
-      // Apply ingress NATs
-      Flow currentFlow;
-      if (inputIfaceName != null) {
-        currentFlow =
-            applyIngressNats(
-                ingressFlow,
-                aclDefinitions,
-                namedIpSpaces,
-                currentConfiguration.getAllInterfaces().get(inputIfaceName).getIngressNats());
-      } else {
-        currentFlow = ingressFlow;
-      }
-      Ip dstIp = currentFlow.getDstIp();
 
       // .. and what the next hops are based on the FIB.
       Fib currentFib = _fibs.get(currentNodeName).get(vrfName);
@@ -724,7 +723,6 @@ public class TracerouteEngineImplContext {
 
                   // Apply any relevant source NAT rules.
                   List<SourceNat> sourceNats = outgoingInterface.getSourceNats();
-                  Flow newTransformedFlow = currentFlow;
                   if (sourceNats != null && !sourceNats.isEmpty()) {
                     newTransformedFlow =
                         applySourceNat(
