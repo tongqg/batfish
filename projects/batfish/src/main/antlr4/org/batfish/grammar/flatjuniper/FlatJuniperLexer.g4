@@ -591,6 +591,11 @@ BUNDLE
    'bundle'
 ;
 
+C
+:
+    'c'
+;
+
 CATEGORIES
 :
    'categories'
@@ -3792,6 +3797,11 @@ NO_EXPORT
    'no-export'
 ;
 
+NO_EXPORT_SUBCONFED
+:
+   'no-export-subconfed'
+;
+
 NO_FLOW_CONTROL
 :
    'no-flow-control'
@@ -6613,6 +6623,11 @@ M_Members_NO_EXPORT
    'no-export' -> type ( NO_EXPORT )
 ;
 
+M_Members_NO_EXPORT_SUBCONFED
+:
+   'no-export-subconfed' -> type ( NO_EXPORT_SUBCONFED )
+;
+
 M_Members_OPEN_BRACE
 :
    '{' -> type ( OPEN_BRACE )
@@ -6690,6 +6705,11 @@ mode M_Bandwidth;
 M_Bandwidth_DEC
 :
   F_Digit+ -> type ( DEC )
+;
+
+M_Bandwidth_C
+:
+  'c' -> type ( C ) , popMode
 ;
 
 M_Bandwidth_G

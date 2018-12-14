@@ -26,6 +26,7 @@ import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.errorprone.annotations.MustBeClosed;
 import io.opentracing.ActiveSpan;
 import io.opentracing.References;
 import io.opentracing.SpanContext;
@@ -120,6 +121,7 @@ import org.batfish.datamodel.flow.Step;
 import org.batfish.datamodel.flow.Trace;
 import org.batfish.datamodel.pojo.Node;
 import org.batfish.datamodel.pojo.Topology;
+import org.batfish.datamodel.questions.BgpPeerPropertySpecifier;
 import org.batfish.datamodel.questions.BgpProcessPropertySpecifier;
 import org.batfish.datamodel.questions.InterfacePropertySpecifier;
 import org.batfish.datamodel.questions.NamedStructureSpecifier;
@@ -400,7 +402,12 @@ public class WorkMgr extends AbstractCoordinator {
       int maxSuggestions)
       throws IOException {
     switch (completionType) {
-      case BGP_PROPERTY:
+      case BGP_PEER_PROPERTY:
+        {
+          List<AutocompleteSuggestion> suggestions = BgpPeerPropertySpecifier.autoComplete(query);
+          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+        }
+      case BGP_PROCESS_PROPERTY:
         {
           List<AutocompleteSuggestion> suggestions =
               BgpProcessPropertySpecifier.autoComplete(query);
@@ -984,8 +991,17 @@ public class WorkMgr extends AbstractCoordinator {
         analysisQuestions.isEmpty() ? listAnalysisQuestions(network, analysis) : analysisQuestions;
     ImmutableSortedMap.Builder<String, String> result = ImmutableSortedMap.naturalOrder();
     for (String questionName : questions) {
-      result.put(
-          questionName, getAnswer(network, snapshot, questionName, referenceSnapshot, analysis));
+      try {
+        result.put(
+            questionName, getAnswer(network, snapshot, questionName, referenceSnapshot, analysis));
+      } catch (Exception e) {
+        _logger.errorf(
+            "Got exception in getAnalysisAnswers: %s\n", Throwables.getStackTraceAsString(e));
+        result.put(
+            questionName,
+            BatfishObjectMapper.mapper()
+                .writeValueAsString(Answer.failureAnswer(e.getMessage(), null)));
+      }
     }
     return result.build();
   }
@@ -1001,8 +1017,15 @@ public class WorkMgr extends AbstractCoordinator {
         analysisQuestions.isEmpty() ? listAnalysisQuestions(network, analysis) : analysisQuestions;
     ImmutableSortedMap.Builder<String, AnswerMetadata> result = ImmutableSortedMap.naturalOrder();
     for (String question : questions) {
-      result.put(
-          question, getAnswerMetadata(network, snapshot, question, referenceSnapshot, analysis));
+      try {
+        result.put(
+            question, getAnswerMetadata(network, snapshot, question, referenceSnapshot, analysis));
+      } catch (Exception e) {
+        _logger.errorf(
+            "Got exception in getAnalysisAnswersMetadata: %s\n",
+            Throwables.getStackTraceAsString(e));
+        result.put(question, AnswerMetadata.forStatus(AnswerStatus.FAILURE));
+      }
     }
     return result.build();
   }
@@ -2758,7 +2781,9 @@ public class WorkMgr extends AbstractCoordinator {
    *
    * @throws IOException if there is an error reading the object
    */
-  public @Nullable InputStream getNetworkObject(@Nonnull String network, @Nonnull String key)
+  @MustBeClosed
+  @Nullable
+  public InputStream getNetworkObject(@Nonnull String network, @Nonnull String key)
       throws IOException {
     NetworkId networkId = _idManager.getNetworkId(network);
     try {
@@ -2829,7 +2854,9 @@ public class WorkMgr extends AbstractCoordinator {
    *
    * @throws IOException if there is an error reading the object
    */
-  public @Nullable InputStream getSnapshotObject(
+  @MustBeClosed
+  @Nullable
+  public InputStream getSnapshotObject(
       @Nonnull String network, @Nonnull String snapshot, @Nonnull String key) throws IOException {
     if (!_idManager.hasNetworkId(network)) {
       return null;
@@ -2922,6 +2949,7 @@ public class WorkMgr extends AbstractCoordinator {
    *
    * @throws IOException if there is an error reading the object
    */
+  @MustBeClosed
   public InputStream getSnapshotInputObject(String network, String snapshot, String key)
       throws IOException {
     if (!_idManager.hasNetworkId(network)) {

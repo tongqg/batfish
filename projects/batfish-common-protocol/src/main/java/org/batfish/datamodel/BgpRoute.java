@@ -35,7 +35,7 @@ public class BgpRoute extends AbstractRoute {
     @Nonnull private ImmutableSortedSet.Builder<Long> _clusterList;
     @Nonnull private SortedSet<Long> _communities;
     private boolean _discard;
-    private int _localPreference;
+    private long _localPreference;
     @Nullable private Ip _originatorIp;
     @Nullable private OriginType _originType;
     @Nullable private RoutingProtocol _protocol;
@@ -68,7 +68,9 @@ public class BgpRoute extends AbstractRoute {
           _protocol,
           _receivedFromIp,
           _srcProtocol,
-          _weight);
+          _weight,
+          getNonForwarding(),
+          getNonRouting());
     }
 
     @Nonnull
@@ -86,7 +88,7 @@ public class BgpRoute extends AbstractRoute {
       return _communities;
     }
 
-    public int getLocalPreference() {
+    public long getLocalPreference() {
       return _localPreference;
     }
 
@@ -169,7 +171,7 @@ public class BgpRoute extends AbstractRoute {
       return getThis();
     }
 
-    public Builder setLocalPreference(int localPreference) {
+    public Builder setLocalPreference(long localPreference) {
       _localPreference = localPreference;
       return getThis();
     }
@@ -211,7 +213,7 @@ public class BgpRoute extends AbstractRoute {
   }
 
   /** Default local preference for a BGP route if one is not set explicitly */
-  public static final int DEFAULT_LOCAL_PREFERENCE = 100;
+  public static final long DEFAULT_LOCAL_PREFERENCE = 100L;
 
   private static final String PROP_AS_PATH = "asPath";
 
@@ -256,7 +258,7 @@ public class BgpRoute extends AbstractRoute {
   @Nonnull private final SortedSet<Long> _clusterList;
   @Nonnull private final SortedSet<Long> _communities;
   private final boolean _discard;
-  private final int _localPreference;
+  private final long _localPreference;
   private final long _med;
   @Nonnull private final Ip _nextHopIp;
   @Nonnull private final Ip _originatorIp;
@@ -269,14 +271,14 @@ public class BgpRoute extends AbstractRoute {
   private final int _weight;
 
   @JsonCreator
-  private BgpRoute(
+  private static BgpRoute jsonCreator(
       @Nullable @JsonProperty(PROP_NETWORK) Prefix network,
       @Nullable @JsonProperty(PROP_NEXT_HOP_IP) Ip nextHopIp,
       @JsonProperty(PROP_ADMINISTRATIVE_COST) int admin,
       @Nullable @JsonProperty(PROP_AS_PATH) AsPath asPath,
       @Nullable @JsonProperty(PROP_COMMUNITIES) SortedSet<Long> communities,
       @JsonProperty(PROP_DISCARD) boolean discard,
-      @JsonProperty(PROP_LOCAL_PREFERENCE) int localPreference,
+      @JsonProperty(PROP_LOCAL_PREFERENCE) long localPreference,
       @JsonProperty(PROP_METRIC) long med,
       @Nullable @JsonProperty(PROP_ORIGINATOR_IP) Ip originatorIp,
       @Nullable @JsonProperty(PROP_CLUSTER_LIST) SortedSet<Long> clusterList,
@@ -287,10 +289,53 @@ public class BgpRoute extends AbstractRoute {
       @Nullable @JsonProperty(PROP_RECEIVED_FROM_IP) Ip receivedFromIp,
       @Nullable @JsonProperty(PROP_SRC_PROTOCOL) RoutingProtocol srcProtocol,
       @JsonProperty(PROP_WEIGHT) int weight) {
-    super(network);
     checkArgument(originatorIp != null, "Missing %s", PROP_ORIGINATOR_IP);
     checkArgument(originType != null, "Missing %s", PROP_ORIGIN_TYPE);
     checkArgument(protocol != null, "Missing %s", PROP_PROTOCOL);
+    return new BgpRoute(
+        network,
+        nextHopIp,
+        admin,
+        asPath,
+        communities,
+        discard,
+        localPreference,
+        med,
+        originatorIp,
+        clusterList,
+        receivedFromRouteReflectorClient,
+        originType,
+        protocol,
+        receivedFromIp,
+        srcProtocol,
+        weight,
+        false,
+        false);
+  }
+
+  private BgpRoute(
+      @Nullable Prefix network,
+      @Nullable Ip nextHopIp,
+      int admin,
+      @Nullable AsPath asPath,
+      @Nullable SortedSet<Long> communities,
+      boolean discard,
+      long localPreference,
+      long med,
+      Ip originatorIp,
+      @Nullable SortedSet<Long> clusterList,
+      @JsonProperty(PROP_RECEIVED_FROM_ROUTE_REFLECTOR_CLIENT)
+          boolean receivedFromRouteReflectorClient,
+      OriginType originType,
+      RoutingProtocol protocol,
+      @Nullable Ip receivedFromIp,
+      @Nullable RoutingProtocol srcProtocol,
+      int weight,
+      boolean nonForwarding,
+      boolean nonRouting) {
+    super(network);
+    setNonForwarding(nonForwarding);
+    setNonRouting(nonRouting);
     _admin = admin;
     _asPath = firstNonNull(asPath, AsPath.empty());
     _clusterList =
@@ -392,7 +437,7 @@ public class BgpRoute extends AbstractRoute {
   }
 
   @JsonProperty(PROP_LOCAL_PREFERENCE)
-  public int getLocalPreference() {
+  public long getLocalPreference() {
     return _localPreference;
   }
 

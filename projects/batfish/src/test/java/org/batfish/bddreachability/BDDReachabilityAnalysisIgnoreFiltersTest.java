@@ -2,6 +2,7 @@ package org.batfish.bddreachability;
 
 import static java.util.Objects.requireNonNull;
 import static org.batfish.datamodel.FlowDisposition.ACCEPTED;
+import static org.batfish.datamodel.acl.AclLineMatchExprs.matchDst;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -28,13 +29,10 @@ import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpAccessListLine;
 import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.NetworkFactory;
-import org.batfish.datamodel.TransformationList;
-import org.batfish.datamodel.UniverseIpSpace;
+import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.Vrf;
 import org.batfish.datamodel.acl.AclLineMatchExprs;
 import org.batfish.datamodel.flow.TraceWrapperAsAnswerElement;
-import org.batfish.datamodel.transformation.DynamicNatRule;
-import org.batfish.datamodel.transformation.Transformation.RuleAction;
 import org.batfish.main.Batfish;
 import org.batfish.main.BatfishTestUtils;
 import org.batfish.question.ReachabilityParameters;
@@ -142,21 +140,12 @@ public class BDDReachabilityAnalysisIgnoreFiltersTest {
 
   BDDReachabilityAnalysis initAnalysis(
       IpSpace initialSrcIp, FlowDisposition disposition, boolean ignoreFilters) {
-    return initAnalysis(initialSrcIp, UniverseIpSpace.INSTANCE, disposition, ignoreFilters);
-  }
-
-  BDDReachabilityAnalysis initAnalysis(
-      IpSpace initialSrcIp,
-      IpSpace finalSrcIp,
-      FlowDisposition disposition,
-      boolean ignoreFilters) {
     Map<String, Configuration> configs = batfish.loadConfigurations();
     return new BDDReachabilityAnalysisFactory(
             PKT, configs, batfish.loadDataPlane().getForwardingAnalysis(), ignoreFilters)
         .bddReachabilityAnalysis(
             IpSpaceAssignment.builder().assign(IFACE1_LOCATION, initialSrcIp).build(),
-            AclLineMatchExprs.matchDst(NODE2_ADDR.getIp().toIpSpace()),
-            finalSrcIp,
+            matchDst(NODE2_ADDR.getIp().toIpSpace()),
             ImmutableSet.of(),
             ImmutableSet.of(),
             configs.keySet(),
@@ -191,19 +180,6 @@ public class BDDReachabilityAnalysisIgnoreFiltersTest {
   public void dontIgnoreOutAcl() {
     Map<IngressLocation, BDD> reachableBDDs =
         initAnalysis(DENIED_OUT_SRC_IP.toIpSpace(), ACCEPTED, false)
-            .getIngressLocationReachableBDDs();
-    assertThat(reachableBDDs, hasEntry(equalTo(INGRESS_LOCATION), equalTo(ZERO)));
-  }
-
-  @Test
-  public void neverIgnoreSourceNatAcls() {
-    Map<IngressLocation, BDD> reachableBDDs =
-        initAnalysis(NAT_MATCH_IP.toIpSpace(), NAT_POOL_IP.toIpSpace(), ACCEPTED, true)
-            .getIngressLocationReachableBDDs();
-    assertThat(reachableBDDs, hasEntry(equalTo(INGRESS_LOCATION), not(equalTo(ZERO))));
-
-    reachableBDDs =
-        initAnalysis(NAT_MATCH_IP.toIpSpace(), NAT_MATCH_IP.toIpSpace(), ACCEPTED, true)
             .getIngressLocationReachableBDDs();
     assertThat(reachableBDDs, hasEntry(equalTo(INGRESS_LOCATION), equalTo(ZERO)));
   }

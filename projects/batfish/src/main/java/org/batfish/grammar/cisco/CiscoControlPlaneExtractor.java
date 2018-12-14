@@ -940,6 +940,7 @@ import org.batfish.grammar.cisco.CiscoParser.S_lineContext;
 import org.batfish.grammar.cisco.CiscoParser.S_loggingContext;
 import org.batfish.grammar.cisco.CiscoParser.S_mac_access_listContext;
 import org.batfish.grammar.cisco.CiscoParser.S_mac_access_list_extendedContext;
+import org.batfish.grammar.cisco.CiscoParser.S_mtuContext;
 import org.batfish.grammar.cisco.CiscoParser.S_no_access_list_extendedContext;
 import org.batfish.grammar.cisco.CiscoParser.S_no_access_list_standardContext;
 import org.batfish.grammar.cisco.CiscoParser.S_ntpContext;
@@ -5515,18 +5516,9 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
   public void exitAsa_ag_interface(Asa_ag_interfaceContext ctx) {
     String ifaceName = ctx.iface.getText();
     // Interface iface = _configuration.getInterfaces().get(ifaceName);
-    Optional<Interface> optionalIface =
-        _configuration
-            .getInterfaces()
-            .values()
-            .stream()
-            .filter(i -> i.getAlias().equals(ifaceName))
-            .findFirst();
-    Interface iface;
-    if (optionalIface.isPresent()) {
-      iface = optionalIface.get();
-    } else {
-      // Should never get here with valid config, ASA prevents referencing a non-existant iface here
+    Interface iface = getAsaInterfaceByAlias(ifaceName);
+    if (iface == null) {
+      // Should never get here with valid config, ASA prevents referencing a nonexistent iface here
       _w.redFlag(
           String.format("Access-group refers to interface '%s' which does not exist", ifaceName));
       return;
@@ -5869,15 +5861,18 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
               .build());
       iface.setAlias(alias);
 
-      switch (alias) {
-        case TRUST_SECURITY_LEVEL_ALIAS:
-          setIfaceSecurityLevel(iface, TRUST_SECURITY_LEVEL);
-          break;
-        case NO_TRUST_SECURITY_LEVEL_ALIAS:
-          setIfaceSecurityLevel(iface, NO_TRUST_SECURITY_LEVEL);
-          break;
-        default:
-          // don't set a level
+      // Only set level to default if it is not already set
+      if (iface.getSecurityLevel() == null) {
+        switch (alias) {
+          case TRUST_SECURITY_LEVEL_ALIAS:
+            setIfaceSecurityLevel(iface, TRUST_SECURITY_LEVEL);
+            break;
+          case NO_TRUST_SECURITY_LEVEL_ALIAS:
+            setIfaceSecurityLevel(iface, NO_TRUST_SECURITY_LEVEL);
+            break;
+          default:
+            // don't set a level
+        }
       }
     }
   }
@@ -8597,6 +8592,18 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
   }
 
   @Override
+  public void exitS_mtu(S_mtuContext ctx) {
+    String ifaceName = ctx.iface.getText();
+    Interface iface = getAsaInterfaceByAlias(ifaceName);
+    if (iface == null) {
+      // Should never get here with valid config, ASA prevents referencing a nonexistent iface here
+      _w.redFlag(String.format("mtu refers to interface '%s' which does not exist", ifaceName));
+      return;
+    }
+    iface.setMtu(toInteger(ctx.bytes));
+  }
+
+  @Override
   public void exitS_no_access_list_extended(S_no_access_list_extendedContext ctx) {
     String name = ctx.ACL_NUM_EXTENDED().getText();
     _configuration.getExtendedAcls().remove(name);
@@ -8656,9 +8663,19 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       todo(ctx);
       return;
     }
-    String iface = getCanonicalInterfaceName(ifaceName);
+    Interface iface = getAsaInterfaceByAlias(ifaceName);
+    if (iface == null) {
+      // Should never get here with valid config, ASA prevents referencing a nonexistent iface here
+      _w.redFlag(
+          String.format("service-policy refers to interface '%s' which does not exist", ifaceName));
+      return;
+    }
+
     _configuration.referenceStructure(
-        INTERFACE, iface, SERVICE_POLICY_INTERFACE, ctx.iface.getStart().getLine());
+        INTERFACE,
+        getCanonicalInterfaceName(ifaceName),
+        SERVICE_POLICY_INTERFACE,
+        ctx.iface.getStart().getLine());
   }
 
   @Override
@@ -8835,7 +8852,7 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
 
   @Override
   public void exitSet_local_preference_rm_stanza(Set_local_preference_rm_stanzaContext ctx) {
-    IntExpr localPreference = toLocalPreferenceIntExpr(ctx.pref);
+    LongExpr localPreference = toLocalPreferenceLongExpr(ctx.pref);
     RouteMapSetLocalPreferenceLine line = new RouteMapSetLocalPreferenceLine(localPreference);
     _currentRouteMapClause.addSetLine(line);
   }
@@ -9323,6 +9340,17 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
     } else {
       return null;
     }
+  }
+
+  @Nullable
+  private Interface getAsaInterfaceByAlias(String alias) {
+    return _configuration
+        .getInterfaces()
+        .values()
+        .stream()
+        .filter(i -> alias.equals(i.getAlias()))
+        .findFirst()
+        .orElse(null);
   }
 
   private String getCanonicalInterfaceName(String ifaceName) {
@@ -9951,7 +9979,7 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
     }
   }
 
-  private IntExpr toLocalPreferenceIntExpr(Int_exprContext ctx) {
+  private LongExpr toLocalPreferenceLongExpr(Int_exprContext ctx) {
     if (ctx.DEC() != null) {
       int val = toInteger(ctx.DEC());
       if (ctx.PLUS() != null) {
@@ -9959,10 +9987,10 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       } else if (ctx.DASH() != null) {
         return new DecrementLocalPreference(val);
       } else {
-        return new LiteralInt(val);
+        return new LiteralLong(val);
       }
     } else if (ctx.RP_VARIABLE() != null) {
-      return new VarInt(ctx.RP_VARIABLE().getText());
+      return new VarLong(ctx.RP_VARIABLE().getText());
     } else {
       /*
        * Unsupported local-preference integer expression - do not add cases
@@ -10097,6 +10125,8 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       return NamedPort.BOOTPS_OR_DHCP;
     } else if (ctx.CHARGEN() != null) {
       return NamedPort.CHARGEN;
+    } else if (ctx.CIFS() != null) {
+      return NamedPort.CIFS;
     } else if (ctx.CITRIX_ICA() != null) {
       return NamedPort.CITRIX_ICA;
     } else if (ctx.CMD() != null) {
@@ -10125,6 +10155,8 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       return NamedPort.GOPHER;
     } else if (ctx.H323() != null) {
       return NamedPort.H323;
+    } else if (ctx.HTTP() != null) {
+      return NamedPort.HTTP;
     } else if (ctx.HTTPS() != null) {
       return NamedPort.HTTPS;
     } else if (ctx.HOSTNAME() != null) {
@@ -10173,6 +10205,8 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       return NamedPort.NETBIOS_SSN;
     } else if (ctx.NETBIOS_SSN() != null) {
       return NamedPort.NETBIOS_SSN;
+    } else if (ctx.NFS() != null) {
+      return NamedPort.NFSD;
     } else if (ctx.NNTP() != null) {
       return NamedPort.NNTP;
     } else if (ctx.NON500_ISAKMP() != null) {
@@ -10197,8 +10231,14 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       return NamedPort.RADIUS_ACCT_CISCO;
     } else if (ctx.RIP() != null) {
       return NamedPort.RIP;
+    } else if (ctx.RSH() != null) {
+      return NamedPort.CMDtcp_OR_SYSLOGudp;
+    } else if (ctx.RTSP() != null) {
+      return NamedPort.RTSP;
     } else if (ctx.SECUREID_UDP() != null) {
       return NamedPort.SECUREID_UDP;
+    } else if (ctx.SIP() != null) {
+      return NamedPort.SIP_5060;
     } else if (ctx.SMTP() != null) {
       return NamedPort.SMTP;
     } else if (ctx.SNMP() != null) {
@@ -10229,6 +10269,8 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
       return NamedPort.TIME;
     } else if (ctx.UUCP() != null) {
       return NamedPort.UUCP;
+    } else if (ctx.VXLAN() != null) {
+      return NamedPort.VXLAN;
     } else if (ctx.WHO() != null) {
       return NamedPort.LOGINtcp_OR_WHOudp;
     } else if (ctx.WHOIS() != null) {
@@ -10728,7 +10770,7 @@ public class CiscoControlPlaneExtractor extends CiscoParserBaseListener
   }
 
   private RoutePolicyStatement toRoutePolicyStatement(Set_local_preference_rp_stanzaContext ctx) {
-    return new RoutePolicySetLocalPref(toLocalPreferenceIntExpr(ctx.pref));
+    return new RoutePolicySetLocalPref(toLocalPreferenceLongExpr(ctx.pref));
   }
 
   private RoutePolicyStatement toRoutePolicyStatement(Set_med_rp_stanzaContext ctx) {

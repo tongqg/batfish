@@ -2812,7 +2812,7 @@ s_monitor_session
 
 s_mtu
 :
-   MTU variable DEC NEWLINE
+   MTU iface = variable bytes = DEC NEWLINE
 ;
 
 s_name
