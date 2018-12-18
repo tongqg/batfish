@@ -1,15 +1,12 @@
 package org.batfish.grammar.host;
 
-import static org.batfish.datamodel.matchers.DynamicNatRuleMatchers.hasPoolIpFirst;
-import static org.batfish.datamodel.matchers.DynamicNatRuleMatchers.hasPoolIpLast;
-import static org.batfish.datamodel.matchers.DynamicNatRuleMatchers.isDynamicNatRuleThat;
-import static org.batfish.datamodel.matchers.InterfaceMatchers.hasEgressSrcNats;
+import static org.batfish.datamodel.matchers.InterfaceMatchers.hasSourceNats;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.isProxyArp;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
 
 import java.io.IOException;
@@ -22,6 +19,7 @@ import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.NetworkFactory;
 import org.batfish.datamodel.Prefix;
+import org.batfish.datamodel.matchers.SourceNatMatchers;
 import org.batfish.representation.host.HostInterface;
 import org.hamcrest.FeatureMatcher;
 import org.junit.Before;
@@ -112,12 +110,12 @@ public class HostInterfaceTest {
      */
     assertThat(
         sharedInterface,
-        hasEgressSrcNats(
+        hasSourceNats(
             hasItem(
                 allOf(
-                    isDynamicNatRuleThat(hasPoolIpFirst(sharedIp)),
-                    isDynamicNatRuleThat(hasPoolIpLast(sharedIp))))));
-    assertThat(nonShared1Interface, hasEgressSrcNats(nullValue()));
-    assertThat(nonShared2Interface, hasEgressSrcNats(nullValue()));
+                    SourceNatMatchers.hasPoolIpFirst(sharedIp),
+                    SourceNatMatchers.hasPoolIpLast(sharedIp)))));
+    assertThat(nonShared1Interface, hasSourceNats(empty()));
+    assertThat(nonShared2Interface, hasSourceNats(empty()));
   }
 }

@@ -10,6 +10,7 @@ import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpAccessList;
+import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.SwitchportMode;
 import org.batfish.datamodel.TransformationList.Transformed;
 import org.batfish.datamodel.Vrf;
@@ -314,6 +315,17 @@ final class InterfaceMatchersImpl {
         return null;
       }
       return actual.getEgressNats().getTransformations(Direction.EGRESS, Transformed.SOURCE_ADDR);
+    }
+  }
+
+  static final class HasSourceNats extends FeatureMatcher<Interface, List<SourceNat>> {
+    HasSourceNats(@Nonnull Matcher<? super List<SourceNat>> subMatcher) {
+      super(subMatcher, "an Interface with sourceNats:", "sourceNats");
+    }
+
+    @Override
+    protected List<SourceNat> featureValueOf(Interface actual) {
+      return actual.getSourceNats();
     }
   }
 
