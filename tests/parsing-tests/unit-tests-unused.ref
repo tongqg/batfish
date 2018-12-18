@@ -2041,7 +2041,7 @@
         "Source_Lines" : {
           "filename" : "configs/juniper_firewall",
           "lines" : [
-            34
+            38
           ]
         }
       },
@@ -2073,7 +2073,9 @@
             24,
             25,
             26,
-            27
+            27,
+            30,
+            31
           ]
         }
       },
@@ -2083,9 +2085,9 @@
         "Source_Lines" : {
           "filename" : "configs/juniper_firewall",
           "lines" : [
-            29,
-            30,
-            31
+            33,
+            34,
+            35
           ]
         }
       },
@@ -2249,12 +2251,25 @@
         }
       },
       {
+        "Structure_Type" : "policy-statement",
+        "Structure_Name" : "POLICY-NAME",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_routing_policy",
+          "lines" : [
+            7,
+            8,
+            9,
+            10
+          ]
+        }
+      },
+      {
         "Structure_Type" : "ike policy",
         "Structure_Name" : "1.2.3.4",
         "Source_Lines" : {
           "filename" : "configs/juniper_security",
           "lines" : [
-            9
+            12
           ]
         }
       },
