@@ -1,7 +1,5 @@
 package org.batfish.representation.host;
 
-import static java.util.Objects.requireNonNull;
-
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -15,9 +13,8 @@ import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
+import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.Vrf;
-import org.batfish.datamodel.transformation.DynamicNatRule;
-import org.batfish.datamodel.transformation.Transformation.RuleAction;
 
 public class HostInterface implements Serializable {
 
@@ -147,15 +144,11 @@ public class HostInterface implements Serializable {
             .setProxyArp(false)
             .setVrf(configuration.getDefaultVrf());
     if (_shared) {
+      SourceNat sourceNat = new SourceNat();
       Ip publicIp = _address.getIp();
-      iface.setEgressNats(
-          ImmutableList.of(
-              requireNonNull(
-                  DynamicNatRule.builder()
-                      .setAction(RuleAction.SOURCE_INSIDE)
-                      .setPoolIpFirst(publicIp)
-                      .setPoolIpLast(publicIp)
-                      .build())));
+      sourceNat.setPoolIpFirst(publicIp);
+      sourceNat.setPoolIpLast(publicIp);
+      iface.setSourceNats(ImmutableList.of(sourceNat));
     }
     return iface.build();
   }
