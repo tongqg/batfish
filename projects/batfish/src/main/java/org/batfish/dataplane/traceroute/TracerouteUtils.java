@@ -186,7 +186,7 @@ public final class TracerouteUtils {
   public static Flow applyIngressNats(
       Flow flow,
       Map<String, IpAccessList> aclDefinitions,
-      NavigableMap<String, IpSpace> namedIpSpaces,
+      Map<String, IpSpace> namedIpSpaces,
       @Nullable TransformationList ingressNats) {
     if (ingressNats != null) {
       return ingressNats.apply(flow, Direction.INGRESS, null, aclDefinitions, namedIpSpaces);
