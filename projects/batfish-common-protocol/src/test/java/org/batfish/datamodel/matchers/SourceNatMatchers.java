@@ -4,7 +4,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 import javax.annotation.Nonnull;
 import org.batfish.datamodel.Ip;
-import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.matchers.SourceNatMatchersImpl.HasAclName;
 import org.batfish.datamodel.matchers.SourceNatMatchersImpl.HasPoolIpFirst;
 import org.batfish.datamodel.matchers.SourceNatMatchersImpl.HasPoolIpLast;
