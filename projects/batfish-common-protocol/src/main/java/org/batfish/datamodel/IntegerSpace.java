@@ -1,23 +1,25 @@
 package org.batfish.datamodel;
 
-import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkArgument;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Strings;
 import com.google.common.collect.DiscreteDomain;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableRangeSet;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Range;
 import com.google.common.collect.RangeSet;
 import com.google.common.collect.TreeRangeSet;
+import java.io.Serializable;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
@@ -28,8 +30,7 @@ import javax.annotation.ParametersAreNonnullByDefault;
  * <i>immutable</i>, but can be altered by converting {@link #toBuilder()} and recreated again.
  */
 @ParametersAreNonnullByDefault
-public final class IntegerSpace {
-
+public final class IntegerSpace implements Serializable {
   /** Empty integer space */
   public static final IntegerSpace EMPTY = builder().build();
 
@@ -52,22 +53,7 @@ public final class IntegerSpace {
   @VisibleForTesting
   @Nonnull
   static IntegerSpace create(@Nullable String s) {
-    return firstNonNull(IntegerSpace.Builder.create(s), builder()).build();
-  }
-
-  @JsonValue
-  private String value() {
-    return String.join(
-        ",",
-        getRanges()
-            .stream()
-            .map(
-                r ->
-                    String.join(
-                        "-",
-                        ImmutableList.of(
-                            r.lowerEndpoint().toString(), String.valueOf(r.upperEndpoint() - 1))))
-            .collect(ImmutableList.toImmutableList()));
+    return IntegerSpace.Builder.create(s).build();
   }
 
   /** This space as a set of included {@link Range}s */
@@ -129,6 +115,11 @@ public final class IntegerSpace {
     return _rangeset.asRanges().iterator().next().lowerEndpoint();
   }
 
+  /** Returns a stream of the included integers. */
+  public IntStream stream() {
+    return enumerate().stream().mapToInt(Integer::intValue);
+  }
+
   /** Intersect two integer spaces together. */
   public IntegerSpace intersection(IntegerSpace other) {
     return new IntegerSpace(
@@ -185,8 +176,13 @@ public final class IntegerSpace {
     return builder().including(range).build();
   }
 
-  /** Create a new integer space from a {@link SubRange} */
+  /** Create a new integer space containing the union of the given {@link SubRange ranges}. */
   public static IntegerSpace unionOf(SubRange... ranges) {
+    return unionOf(Arrays.asList(ranges));
+  }
+
+  /** Create a new integer space containing the union of the given {@link SubRange ranges}. */
+  public static IntegerSpace unionOf(Iterable<SubRange> ranges) {
     Builder b = builder();
     for (SubRange range : ranges) {
       b.including(range);
@@ -232,6 +228,17 @@ public final class IntegerSpace {
       return this;
     }
 
+    /** Include all given {@link SubRange} */
+    public Builder includingAll(Iterable<SubRange> ranges) {
+      ranges.forEach(this::including);
+      return this;
+    }
+
+    /** Include an integer. */
+    public Builder including(@Nonnull Integer range) {
+      return including(Range.singleton(range));
+    }
+
     /** Include a range. The {@link Range} must be a finite range. */
     public Builder including(Range<Integer> range) {
       checkArgument(
@@ -246,6 +253,11 @@ public final class IntegerSpace {
     public Builder including(IntegerSpace space) {
       space._rangeset.asRanges().forEach(this::including);
       return this;
+    }
+
+    /** Exclude an integer. */
+    public Builder excluding(@Nonnull Integer range) {
+      return excluding(Range.singleton(range));
     }
 
     /** Exclude a {@link SubRange} */
@@ -291,14 +303,13 @@ public final class IntegerSpace {
     }
 
     @JsonCreator
-    @Nullable
+    @Nonnull
     @VisibleForTesting
     static Builder create(@Nullable String s) {
-      if (s == null) {
-        return null;
+      if (Strings.isNullOrEmpty(s)) {
+        return builder();
       }
-      String[] atoms = s.trim().split(",");
-      checkArgument(atoms.length != 0, ERROR_MESSAGE_TEMPLATE, s);
+      String[] atoms = s.trim().split(",", -1);
       Builder builder = builder();
       Arrays.stream(atoms).forEach(atom -> processStringAtom(atom.trim(), builder));
       return builder;
@@ -344,8 +355,20 @@ public final class IntegerSpace {
     return Objects.hash(_rangeset);
   }
 
+  private static String toRangeString(Range<Integer> r) {
+    int lower = r.lowerEndpoint();
+    int upper = r.upperEndpoint() - 1;
+    if (lower == upper) {
+      return Integer.toString(lower);
+    }
+    return lower + "-" + upper;
+  }
+
+  @JsonValue
   @Override
   public String toString() {
-    return _rangeset.toString();
+    return getRanges().stream().map(IntegerSpace::toRangeString).collect(Collectors.joining(","));
   }
+
+  private static final long serialVersionUID = 1L;
 }

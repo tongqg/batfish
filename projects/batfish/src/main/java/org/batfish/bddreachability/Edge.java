@@ -4,6 +4,7 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.ParametersAreNonnullByDefault;
 import net.sf.javabdd.BDD;
+import org.batfish.bddreachability.transition.Transition;
 import org.batfish.z3.expr.StateExpr;
 
 /** An edge in the graph modeling network behavior. */
@@ -13,6 +14,13 @@ final class Edge {
   private final @Nonnull StateExpr _preState;
   private final @Nonnull Function<BDD, BDD> _traverseBackward;
   private final @Nonnull Function<BDD, BDD> _traverseForward;
+
+  Edge(StateExpr preState, StateExpr postState) {
+    _preState = preState;
+    _postState = postState;
+    _traverseBackward = Function.identity();
+    _traverseForward = Function.identity();
+  }
 
   Edge(StateExpr preState, StateExpr postState, BDD constraint) {
     _preState = preState;
@@ -30,6 +38,13 @@ final class Edge {
     _preState = preState;
     _traverseBackward = traverseBackward;
     _traverseForward = traverseForward;
+  }
+
+  public Edge(StateExpr preState, StateExpr postState, Transition transition) {
+    _preState = preState;
+    _postState = postState;
+    _traverseBackward = transition::transitBackward;
+    _traverseForward = transition::transitForward;
   }
 
   @Nonnull

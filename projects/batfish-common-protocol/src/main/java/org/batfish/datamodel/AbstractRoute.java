@@ -1,6 +1,6 @@
 package org.batfish.datamodel;
 
-import static java.util.Objects.requireNonNull;
+import static com.google.common.base.Preconditions.checkArgument;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
@@ -35,18 +35,30 @@ public abstract class AbstractRoute implements Serializable, Comparable<Abstract
   static final String PROP_NETWORK = "network";
   static final String PROP_NEXT_HOP_INTERFACE = "nextHopInterface";
   static final String PROP_NEXT_HOP_IP = "nextHopIp";
-  private static final String PROP_NEXT_HOP = "nextHop";
+  static final String PROP_NON_ROUTING = "nonRouting";
+  static final String PROP_NON_FORWARDING = "nonForwarding";
   static final String PROP_PROTOCOL = "protocol";
   static final String PROP_TAG = "tag";
 
   @Nonnull protected final Prefix _network;
-  @Nullable private String _nextHop;
-  private boolean _nonRouting;
-  private boolean _nonForwarding;
+  protected final int _admin;
+  private final boolean _nonRouting;
+  private final boolean _nonForwarding;
 
   @JsonCreator
-  protected AbstractRoute(@Nullable @JsonProperty(PROP_NETWORK) Prefix network) {
-    _network = requireNonNull(network, "Cannot crate a route without a network");
+  protected AbstractRoute(
+      @Nullable Prefix network, int admin, boolean nonRouting, boolean nonForwarding) {
+    checkArgument(network != null, "Cannot create a route without a %s", PROP_NETWORK);
+    checkArgument(admin >= 0, "Invalid admin distance for a route: %d", admin);
+    _network = network;
+    _admin = admin;
+    _nonForwarding = nonForwarding;
+    _nonRouting = nonRouting;
+  }
+
+  /** Backwards compatible API */
+  protected AbstractRoute(@Nonnull Prefix network) {
+    this(network, 1, false, false);
   }
 
   @Override
@@ -58,14 +70,20 @@ public abstract class AbstractRoute implements Serializable, Comparable<Abstract
         .thenComparing(AbstractRoute::getNextHopIp)
         .thenComparing(AbstractRoute::getNextHopInterface)
         .thenComparingInt(AbstractRoute::getTag)
+        .thenComparing(AbstractRoute::getNonRouting)
+        .thenComparing(AbstractRoute::getNonForwarding)
         .compare(this, rhs);
   }
 
   @Override
   public abstract boolean equals(Object o);
 
-  @JsonIgnore
-  public abstract int getAdministrativeCost();
+  @Override
+  public abstract int hashCode();
+
+  public final int getAdministrativeCost() {
+    return _admin;
+  }
 
   @JsonIgnore
   public abstract Long getMetric();
@@ -75,13 +93,6 @@ public abstract class AbstractRoute implements Serializable, Comparable<Abstract
   @Nonnull
   public final Prefix getNetwork() {
     return _network;
-  }
-
-  /** Next hop node, if known */
-  @JsonProperty(PROP_NEXT_HOP)
-  @Nullable
-  public String getNextHop() {
-    return _nextHop;
   }
 
   /**
@@ -122,14 +133,10 @@ public abstract class AbstractRoute implements Serializable, Comparable<Abstract
   @JsonIgnore
   public abstract int getTag();
 
-  @Override
-  public abstract int hashCode();
-
-  protected abstract String protocolRouteString();
-
   /**
    * Helps implement the {@link Comparable} interface. Implement this function to establish ordering
-   * for a particular type of route (presumably with more properties than only {@link #_network}).
+   * for a particular type of route (presumably with more properties than only {@link #_network} and
+   * {@link #_admin}).
    *
    * <p>Guiding principle: comparison with routes of a different type should return 0.
    *
@@ -137,21 +144,6 @@ public abstract class AbstractRoute implements Serializable, Comparable<Abstract
    * GenericRib}.
    */
   public abstract int routeCompare(@Nonnull AbstractRoute rhs);
-
-  @JsonProperty(PROP_NEXT_HOP)
-  public void setNextHop(String nextHop) {
-    _nextHop = nextHop;
-  }
-
-  @JsonIgnore
-  public final void setNonForwarding(boolean nonForwarding) {
-    _nonForwarding = nonForwarding;
-  }
-
-  @JsonIgnore
-  public final void setNonRouting(boolean nonRouting) {
-    _nonRouting = nonRouting;
-  }
 
   @Override
   public String toString() {

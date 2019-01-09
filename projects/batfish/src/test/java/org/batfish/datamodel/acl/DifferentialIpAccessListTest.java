@@ -3,7 +3,6 @@ package org.batfish.datamodel.acl;
 import static org.batfish.datamodel.IpAccessListLine.accepting;
 import static org.batfish.datamodel.IpAccessListLine.rejecting;
 import static org.batfish.datamodel.acl.AclLineMatchExprs.permittedByAcl;
-import static org.batfish.datamodel.acl.DifferentialIpAccessList.DENY_ACL_NAME;
 import static org.batfish.datamodel.acl.DifferentialIpAccessList.DIFFERENTIAL_ACL_NAME;
 import static org.batfish.datamodel.acl.DifferentialIpAccessList.RENAMER;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -45,6 +44,7 @@ public class DifferentialIpAccessListTest {
     String denyAclReferenceName = "deny named acl";
     String denyIpSpace = "deny named ip space";
 
+    String renamedDenyAclName = RENAMER.apply(denyAclName);
     String renamedDenyAclReferenceName = RENAMER.apply(denyAclReferenceName);
     String renamedDenyIpSpace = RENAMER.apply(denyIpSpace);
 
@@ -86,8 +86,8 @@ public class DifferentialIpAccessListTest {
             .setName(DIFFERENTIAL_ACL_NAME)
             .setLines(
                 ImmutableList.<IpAccessListLine>builder()
-                    .add(rejecting(permittedByAcl(DENY_ACL_NAME)))
-                    .addAll(permitAclLines)
+                    .add(rejecting(permittedByAcl(renamedDenyAclName)))
+                    .add(accepting(permittedByAcl(permitAcl.getName())))
                     .build())
             .build();
 
@@ -96,13 +96,13 @@ public class DifferentialIpAccessListTest {
     /*
      * Test named ACLs
      */
-    assertThat(differential.getNamedAcls().entrySet(), hasSize(3));
+    assertThat(differential.getNamedAcls().entrySet(), hasSize(4));
     // the deny ACL itself is present and renamed
     assertThat(
         differential.getNamedAcls(),
         hasEntry(
-            DENY_ACL_NAME,
-            createAcl(DENY_ACL_NAME, renamedDenyAclReferenceName, renamedDenyIpSpace)));
+            renamedDenyAclName,
+            createAcl(renamedDenyAclName, renamedDenyAclReferenceName, renamedDenyIpSpace)));
     // denyNamedAcls are present and renamed
     assertThat(
         differential.getNamedAcls(),
@@ -110,6 +110,8 @@ public class DifferentialIpAccessListTest {
             renamedDenyAclReferenceName,
             createAcl(
                 renamedDenyAclReferenceName, renamedDenyAclReferenceName, renamedDenyIpSpace)));
+    // permitAcl is present and not renamed
+    assertThat(differential.getNamedAcls(), hasEntry(permitAcl.getName(), permitAcl));
     // permitNamedAcls are present and not renamed
     assertThat(
         differential.getNamedAcls(), hasEntry(permitAclReferenceName, permitAclReferenceAcl));
@@ -126,5 +128,41 @@ public class DifferentialIpAccessListTest {
     assertThat(
         differential.getNamedIpSpaces(),
         hasEntry(permitNamedIpSpace, new IpSpaceReference(permitNamedIpSpace)));
+
+    /*
+     * Test literals to lines map
+     */
+    assertThat(differential.getLiteralsToLines().entrySet(), hasSize(4));
+    // literals from renamed deny Acls are present and map back to the original deny Acls
+    assertThat(
+        differential.getLiteralsToLines(),
+        hasEntry(
+            differential
+                .getNamedAcls()
+                .get(renamedDenyAclName)
+                .getLines()
+                .get(1)
+                .getMatchCondition(),
+            new IpAccessListLineIndex(denyAcl, 1)));
+    assertThat(
+        differential.getLiteralsToLines(),
+        hasEntry(
+            differential
+                .getNamedAcls()
+                .get(renamedDenyAclReferenceName)
+                .getLines()
+                .get(1)
+                .getMatchCondition(),
+            new IpAccessListLineIndex(denyNamedAcls.get(denyAclReferenceName), 1)));
+    // literals from permit Acls are present and not renamed
+    assertThat(
+        differential.getLiteralsToLines(),
+        hasEntry(
+            permitAclLines.get(0).getMatchCondition(), new IpAccessListLineIndex(permitAcl, 0)));
+    assertThat(
+        differential.getLiteralsToLines(),
+        hasEntry(
+            permitAclReferenceAcl.getLines().get(1).getMatchCondition(),
+            new IpAccessListLineIndex(permitAclReferenceAcl, 1)));
   }
 }

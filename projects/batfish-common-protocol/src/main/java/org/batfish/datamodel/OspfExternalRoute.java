@@ -1,14 +1,14 @@
 package org.batfish.datamodel;
 
-import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.Nonnull;
 import org.batfish.datamodel.ospf.OspfMetricType;
 
+/** Base class for OSPF external routes */
 public abstract class OspfExternalRoute extends OspfRoute {
 
-  public static class Builder extends AbstractRouteBuilder<Builder, OspfExternalRoute> {
+  public static final class Builder extends AbstractRouteBuilder<Builder, OspfExternalRoute> {
 
     private String _advertiser;
 
@@ -34,7 +34,9 @@ public abstract class OspfExternalRoute extends OspfRoute {
                 _lsaMetric,
                 _area,
                 _costToAdvertiser,
-                _advertiser);
+                _advertiser,
+                getNonForwarding(),
+                getNonRouting());
       } else {
         route =
             new OspfExternalType2Route(
@@ -45,7 +47,9 @@ public abstract class OspfExternalRoute extends OspfRoute {
                 _lsaMetric,
                 _area,
                 _costToAdvertiser,
-                _advertiser);
+                _advertiser,
+                getNonForwarding(),
+                getNonRouting());
       }
       return route;
     }
@@ -67,25 +71,32 @@ public abstract class OspfExternalRoute extends OspfRoute {
       return this;
     }
 
-    public void setAdvertiser(String advertiser) {
+    public Builder setAdvertiser(String advertiser) {
       _advertiser = advertiser;
+      return getThis();
     }
 
-    public void setArea(long area) {
+    public Builder setArea(long area) {
       _area = area;
+      return getThis();
     }
 
-    public void setCostToAdvertiser(long costToAdvertiser) {
+    public Builder setCostToAdvertiser(long costToAdvertiser) {
       _costToAdvertiser = costToAdvertiser;
+      return getThis();
     }
 
-    public void setLsaMetric(long lsaMetric) {
+    public Builder setLsaMetric(long lsaMetric) {
       _lsaMetric = lsaMetric;
+      return getThis();
     }
 
-    public void setOspfMetricType(OspfMetricType ospfMetricType) {
+    public Builder setOspfMetricType(OspfMetricType ospfMetricType) {
       _ospfMetricType = ospfMetricType;
+      return getThis();
     }
+
+    private Builder() {} // only for use by #builder()
   }
 
   protected static final String PROP_ADVERTISER = "advertiser";
@@ -94,28 +105,28 @@ public abstract class OspfExternalRoute extends OspfRoute {
 
   protected static final String PROP_LSA_METRIC = "lsaMetric";
 
-  protected static final String PROP_OSPF_METRIC_TYPE = "ospfMetricType";
-
-  /** */
   private static final long serialVersionUID = 1L;
 
   private final String _advertiser;
-
   private final long _costToAdvertiser;
-
   private final long _lsaMetric;
 
-  @JsonCreator
-  public OspfExternalRoute(
-      @JsonProperty(PROP_NETWORK) Prefix prefix,
-      @JsonProperty(PROP_NEXT_HOP_IP) Ip nextHopIp,
-      @JsonProperty(PROP_ADMINISTRATIVE_COST) int admin,
-      @JsonProperty(PROP_METRIC) long metric,
-      @JsonProperty(PROP_LSA_METRIC) long lsaMetric,
-      @JsonProperty(PROP_AREA) long area,
-      @JsonProperty(PROP_ADVERTISER) String advertiser,
-      @JsonProperty(PROP_COST_TO_ADVERTISER) long costToAdvertiser) {
-    super(prefix, nextHopIp, admin, metric, area);
+  public static Builder builder() {
+    return new Builder();
+  }
+
+  OspfExternalRoute(
+      Prefix prefix,
+      Ip nextHopIp,
+      int admin,
+      long metric,
+      long lsaMetric,
+      long area,
+      String advertiser,
+      long costToAdvertiser,
+      boolean nonForwarding,
+      boolean nonRouting) {
+    super(prefix, nextHopIp, admin, metric, area, nonRouting, nonForwarding);
     _advertiser = advertiser;
     _costToAdvertiser = costToAdvertiser;
     _lsaMetric = lsaMetric;
@@ -199,18 +210,5 @@ public abstract class OspfExternalRoute extends OspfRoute {
     result = prime * result + Long.hashCode(_lsaMetric);
     result = prime * result + ((getOspfMetricType() == null) ? 0 : getOspfMetricType().ordinal());
     return result;
-  }
-
-  protected abstract String ospfExternalRouteString();
-
-  @Override
-  protected final String protocolRouteString() {
-    return " ospfMetricType:"
-        + getOspfMetricType()
-        + " lsaMetric:"
-        + _lsaMetric
-        + " advertiser:"
-        + _advertiser
-        + ospfExternalRouteString();
   }
 }

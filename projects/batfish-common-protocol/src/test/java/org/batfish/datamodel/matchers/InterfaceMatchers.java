@@ -9,11 +9,11 @@ import java.util.Set;
 import java.util.SortedSet;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import org.batfish.datamodel.IntegerSpace;
 import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.SourceNat;
-import org.batfish.datamodel.SubRange;
 import org.batfish.datamodel.SwitchportMode;
 import org.batfish.datamodel.Vrf;
 import org.batfish.datamodel.eigrp.EigrpInterfaceSettings;
@@ -23,6 +23,7 @@ import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasAccessVlan;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasAdditionalArpIps;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasAllAddresses;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasAllowedVlans;
+import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasBandwidth;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasDeclaredNames;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasDescription;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasEigrp;
@@ -73,7 +74,7 @@ public final class InterfaceMatchers {
   /**
    * Provides a matcher that matches if the provided value matches the interface's Allowed VLANs.
    */
-  public static HasAllowedVlans hasAllowedVlans(List<SubRange> value) {
+  public static HasAllowedVlans hasAllowedVlans(IntegerSpace value) {
     return hasAllowedVlans(equalTo(value));
   }
 
@@ -81,7 +82,7 @@ public final class InterfaceMatchers {
    * Provides a matcher that matches if the provided {@code subMatcher} matches the interface's
    * Allowed VLANs.
    */
-  public static HasAllowedVlans hasAllowedVlans(Matcher<? super List<SubRange>> subMatcher) {
+  public static HasAllowedVlans hasAllowedVlans(Matcher<? super IntegerSpace> subMatcher) {
     return new HasAllowedVlans(subMatcher);
   }
 
@@ -92,6 +93,14 @@ public final class InterfaceMatchers {
   public static HasAdditionalArpIps hasAdditionalArpIps(
       @Nonnull Matcher<? super SortedSet<Ip>> subMatcher) {
     return new HasAdditionalArpIps(subMatcher);
+  }
+
+  /**
+   * Provides a matcher that matches if the provided {@code subMatcher} matches the interface's
+   * bandwidth.
+   */
+  public static HasBandwidth hasBandwidth(@Nonnull Matcher<? super Double> subMatcher) {
+    return new HasBandwidth(subMatcher);
   }
 
   /**
@@ -139,7 +148,7 @@ public final class InterfaceMatchers {
   }
 
   /**
-   * Provides a matcher that matches if the provided {@link subMatcher} matches the {@link
+   * Provides a matcher that matches if the provided {@code subMatcher} matches the {@link
    * Interface}'s hsrpGroup with the specified {@code number}.
    */
   public static @Nonnull Matcher<Interface> hasHsrpGroup(
@@ -190,7 +199,7 @@ public final class InterfaceMatchers {
   }
 
   /**
-   * Provides a matcher that matches if the the interface's OSPF area ID is {@link expectedArea}.
+   * Provides a matcher that matches if the the interface's OSPF area ID is {@code expectedArea}.
    */
   public static @Nonnull Matcher<Interface> hasOspfAreaName(long expectedArea) {
     return new HasOspfAreaName(equalTo(expectedArea));

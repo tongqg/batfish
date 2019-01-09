@@ -53,6 +53,7 @@ public class BfConsts {
   public static final String ARG_HALT_ON_CONVERT_ERROR = "haltonconverterror";
   public static final String ARG_HALT_ON_PARSE_ERROR = "haltonparseerror";
   public static final String ARG_IGNORE_FILES_WITH_STRINGS = "ignorefileswithstrings";
+  public static final String ARG_IGNORE_MANAGEMENT_INTERFACES = "ignoremanagementinterfaces";
   public static final String ARG_LOG_LEVEL = "loglevel";
   public static final String ARG_PEDANTIC_SUPPRESS = "pedanticsuppress";
   public static final String ARG_PRETTY_PRINT_ANSWER = "ppa";
@@ -66,7 +67,6 @@ public class BfConsts {
   public static final String ARG_SSL_TRUSTSTORE_FILE = "ssltruststorefile";
   public static final String ARG_SSL_TRUSTSTORE_PASSWORD = "ssltruststorepassword";
   public static final String ARG_STORAGE_BASE = "storagebase";
-  public static final String ARG_SYNTHESIZE_JSON_TOPOLOGY = "synthesizejsontopology";
   public static final String ARG_SYNTHESIZE_TOPOLOGY = "synthesizetopology";
   public static final String ARG_TASK_PLUGIN = "taskplugin";
   public static final String ARG_TESTRIG = "testrig";
@@ -79,7 +79,7 @@ public class BfConsts {
   public static final String COMMAND_INIT_INFO = "initinfo";
   public static final String COMMAND_PARSE_VENDOR_INDEPENDENT = "si";
   public static final String COMMAND_PARSE_VENDOR_SPECIFIC = "sv";
-  public static final String COMMAND_VALIDATE_SNAPSHOT = "venv";
+  @Deprecated public static final String COMMAND_VALIDATE_SNAPSHOT = "venv";
 
   /*
    * JSON key names
@@ -102,6 +102,7 @@ public class BfConsts {
   public static final String PROP_DISPLAY_NAME = "displayName";
   public static final String PROP_EXCLUSIONS = "exclusions";
   public static final String PROP_EMPTY_COLUMNS = "emptyColumns";
+  public static final String PROP_FIELDS = "fields";
   public static final String PROP_FILTERS = "filters";
   public static final String PROP_INCLUDE_ONE_TABLE_KEYS = "includeOneTableKeys";
   public static final String PROP_INNER_QUESTION = "innerQuestion";

@@ -26,6 +26,7 @@ import com.google.common.collect.Multiset;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.stream.Collectors;
+import org.batfish.common.NetworkSnapshot;
 import org.batfish.common.plugin.IBatfish;
 import org.batfish.common.plugin.IBatfishTestAdapter;
 import org.batfish.datamodel.Configuration;
@@ -71,7 +72,7 @@ public class FilterLineReachabilityTest {
     _c1 = cb.setHostname("c1").build();
     _c2 = cb.setHostname("c2").build();
     _aclb = nf.aclBuilder().setOwner(_c1);
-    _c1.setIpSpaces(ImmutableSortedMap.of("ipSpace", new Ip("1.2.3.4").toIpSpace()));
+    _c1.setIpSpaces(ImmutableSortedMap.of("ipSpace", Ip.parse("1.2.3.4").toIpSpace()));
     _c1.setInterfaces(
         ImmutableSortedMap.of(
             "iface",
@@ -88,10 +89,10 @@ public class FilterLineReachabilityTest {
     List<IpAccessListLine> lines =
         ImmutableList.of(
             IpAccessListLine.acceptingHeaderSpace(
-                HeaderSpace.builder().setSrcIps(new Ip("1.2.3.4").toIpSpace()).build()),
+                HeaderSpace.builder().setSrcIps(Ip.parse("1.2.3.4").toIpSpace()).build()),
             IpAccessListLine.acceptingHeaderSpace(
                 HeaderSpace.builder()
-                    .setSrcIps(new Ip("1.2.3.4").toIpSpace())
+                    .setSrcIps(Ip.parse("1.2.3.4").toIpSpace())
                     .setIpProtocols(ImmutableSet.of(IpProtocol.ICMP))
                     .setIcmpTypes(ImmutableList.of(new SubRange(8)))
                     .build()));
@@ -122,15 +123,15 @@ public class FilterLineReachabilityTest {
         ImmutableList.of(
             IpAccessListLine.acceptingHeaderSpace(
                 HeaderSpace.builder()
-                    .setSrcIps(new IpWildcard(new Prefix(new Ip("1.2.3.4"), 30)).toIpSpace())
+                    .setSrcIps(new IpWildcard(Prefix.create(Ip.parse("1.2.3.4"), 30)).toIpSpace())
                     .build()),
             IpAccessListLine.acceptingHeaderSpace(
                 HeaderSpace.builder()
-                    .setSrcIps(new IpWildcard(new Prefix(new Ip("1.2.3.4"), 32)).toIpSpace())
+                    .setSrcIps(new IpWildcard(Prefix.create(Ip.parse("1.2.3.4"), 32)).toIpSpace())
                     .build()),
             IpAccessListLine.acceptingHeaderSpace(
                 HeaderSpace.builder()
-                    .setSrcIps(new IpWildcard(new Prefix(new Ip("1.2.3.4"), 28)).toIpSpace())
+                    .setSrcIps(new IpWildcard(Prefix.create(Ip.parse("1.2.3.4"), 28)).toIpSpace())
                     .build()));
     _aclb.setLines(lines).setName("acl").build();
     List<String> lineNames = lines.stream().map(Object::toString).collect(Collectors.toList());
@@ -295,8 +296,7 @@ public class FilterLineReachabilityTest {
      Will test that both give the same result.
     */
     TableAnswerElement generalAnswer = answer(new FilterLineReachabilityQuestion());
-    TableAnswerElement specificAnswer =
-        answer(new FilterLineReachabilityQuestion(null, acl.getName(), null, null));
+    TableAnswerElement specificAnswer = answer(new FilterLineReachabilityQuestion(acl.getName()));
 
     // Construct the expected result. Should find line 1 to be blocked by line 0 in main ACL.
     Multiset<Row> expected =
@@ -484,6 +484,11 @@ public class FilterLineReachabilityTest {
         new IBatfishTestAdapter() {
           @Override
           public SortedMap<String, Configuration> loadConfigurations() {
+            return ImmutableSortedMap.of(_c1.getHostname(), _c1, _c2.getHostname(), _c2);
+          }
+
+          @Override
+          public SortedMap<String, Configuration> loadConfigurations(NetworkSnapshot snapshot) {
             return ImmutableSortedMap.of(_c1.getHostname(), _c1, _c2.getHostname(), _c2);
           }
         };

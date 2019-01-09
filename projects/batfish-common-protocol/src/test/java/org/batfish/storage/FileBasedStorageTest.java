@@ -1,26 +1,46 @@
 package org.batfish.storage;
 
 import static org.batfish.common.Version.INCOMPATIBLE_VERSION;
+import static org.batfish.storage.FileBasedStorage.mkdirs;
 import static org.batfish.storage.FileBasedStorage.objectKeyToRelativePath;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.io.FileMatchers.anExistingDirectory;
 import static org.junit.Assert.assertThat;
 
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.batfish.common.BatfishException;
 import org.batfish.common.BatfishLogger;
+import org.batfish.common.CompletionMetadata;
 import org.batfish.common.Version;
+import org.batfish.common.util.CommonUtil;
+import org.batfish.common.util.UnzipUtility;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.ConfigurationFormat;
 import org.batfish.datamodel.answers.ConvertConfigurationAnswerElement;
 import org.batfish.datamodel.answers.MajorIssueConfig;
 import org.batfish.datamodel.answers.MinorIssueConfig;
+import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.identifiers.IssueSettingsId;
 import org.batfish.identifiers.NetworkId;
 import org.batfish.identifiers.QuestionSettingsId;
@@ -161,5 +181,183 @@ public final class FileBasedStorageTest {
   public void testObjectKeyToRelativePathValid() throws IOException {
     // no exception should be thrown
     objectKeyToRelativePath("foo/bar");
+  }
+
+  @Test
+  public void testLoadWorkLog() throws IOException {
+    // setup: pretend a worker logger has written a file
+    NetworkId network = new NetworkId("network");
+    SnapshotId snapshot = new SnapshotId("snapshot");
+    Path dir = _storage.getDirectoryProvider().getSnapshotOutputDir(network, snapshot);
+    final boolean mkdirs = dir.toFile().mkdirs();
+    assertThat(mkdirs, equalTo(true));
+    CommonUtil.writeFile(dir.resolve("workid.log"), "testoutput");
+
+    // Test: read log using storage API
+    assertThat(_storage.loadWorkLog(network, snapshot, "workid"), equalTo("testoutput"));
+  }
+
+  @Test
+  public void testLoadWorkLogMissing() throws IOException {
+    // setup: pretend a worker logger has written a file
+    NetworkId network = new NetworkId("network");
+    SnapshotId snapshot = new SnapshotId("snapshot");
+
+    _thrown.expect(FileNotFoundException.class);
+    assertThat(_storage.loadWorkLog(network, snapshot, "workid"), equalTo("testoutput"));
+  }
+
+  @Test
+  public void testMkdirs() throws IOException {
+    Path dir = _folder.newFolder().toPath().resolve("parentDir").resolve("subDir");
+
+    // Confirm mkdirs creates the non-existent dir
+    mkdirs(dir);
+    assertThat(dir.toFile(), anExistingDirectory());
+  }
+
+  /**
+   * Run multiple threads trying to create the same dir, many times. Goal here is for mkdirs to not
+   * throw an exception.
+   */
+  @Test
+  public void testMkdirsConcurrency() throws Exception {
+    int numThreads = 2;
+    // Try many times, since false negatives are possible
+    int numTries = 100;
+
+    final Path dir = _folder.newFolder().toPath().resolve("testDir");
+    final CyclicBarrier barrier = new CyclicBarrier(numThreads);
+    final AtomicInteger exceptions = new AtomicInteger(0);
+    List<Thread> threads = new ArrayList<>();
+
+    for (int i = 0; i < numTries; i++) {
+      for (int j = 0; j < numThreads; j++) {
+        Thread thread =
+            new Thread(
+                () -> {
+                  try {
+                    // Wait until all threads are at the barrier
+                    barrier.await();
+                    mkdirs(dir);
+                  } catch (Exception e) {
+                    // Track exceptions with int since they are not directly surfaced
+                    exceptions.addAndGet(1);
+                    throw new BatfishException(e.getMessage());
+                  }
+                });
+        threads.add(thread);
+        thread.start();
+      }
+      for (Thread thread : threads) {
+        thread.join();
+      }
+      Files.delete(dir);
+    }
+
+    // Confirm mkdirs runs successfully even with multiple concurrent calls
+    assertThat(exceptions.get(), equalTo(0));
+  }
+
+  @Test
+  public void testMkdirsExists() throws IOException {
+    Path dir = _folder.newFolder().toPath();
+
+    // Confirm mkdirs succeeds when the dir already exists
+    mkdirs(dir);
+    assertThat(dir.toFile(), anExistingDirectory());
+  }
+
+  @Test
+  public void testMkdirsFail() throws IOException {
+    File parentDir = _folder.newFolder();
+    parentDir.setReadOnly();
+    Path dir = parentDir.toPath().resolve("testDir");
+
+    // Confirm mkdirs throws when creating a dir within a read-only dir
+    _thrown.expectMessage(containsString("Unable to create directory"));
+    mkdirs(dir);
+  }
+
+  @Test
+  public void testLoadSnapshotInputObjectFile() throws IOException {
+    NetworkId network = new NetworkId("network");
+    SnapshotId snapshot = new SnapshotId("snapshot");
+    String testSting = "what is life";
+
+    FileUtils.copyInputStreamToFile(
+        new ByteArrayInputStream(testSting.getBytes()),
+        _storage.getSnapshotInputObjectPath(network, snapshot, "test").toFile());
+
+    try (InputStream inputStream = _storage.loadSnapshotInputObject(network, snapshot, "test")) {
+      assertThat(IOUtils.toString(inputStream, StandardCharsets.UTF_8.name()), equalTo(testSting));
+    }
+  }
+
+  @Test
+  public void testLoadSnapshotInputObjectDirectory() throws IOException {
+    NetworkId network = new NetworkId("network");
+    SnapshotId snapshot = new SnapshotId("snapshot");
+    String testSting = "this is life";
+
+    Path testdir = _storage.getSnapshotInputObjectPath(network, snapshot, "testkey");
+    testdir.toFile().mkdirs();
+    Files.write(testdir.resolve("testfile"), testSting.getBytes());
+
+    Path tmpzip = _folder.getRoot().toPath().resolve("tmp.zip");
+    try (InputStream inputStream = _storage.loadSnapshotInputObject(network, snapshot, "testkey")) {
+      FileUtils.copyInputStreamToFile(inputStream, tmpzip.toFile());
+    }
+
+    Path unzipDir = _folder.getRoot().toPath().resolve("tmp");
+    UnzipUtility.unzip(tmpzip, unzipDir);
+
+    // the top level entry in the zip should be testkey
+    String[] toplevel = unzipDir.toFile().list();
+    assertThat(toplevel, equalTo(new String[] {"testkey"}));
+
+    // then, there should be testfile
+    String[] secondlevel = unzipDir.resolve(toplevel[0]).toFile().list();
+    assertThat(secondlevel, equalTo(new String[] {"testfile"}));
+
+    // the content of the testfile should match what we wrote
+    assertThat(
+        new String(
+            Files.readAllBytes(unzipDir.resolve(toplevel[0]).resolve(secondlevel[0])),
+            StandardCharsets.UTF_8),
+        equalTo(testSting));
+  }
+
+  @Test
+  public void testCompletionMetadataRoundtrip() throws IOException {
+    NetworkId networkId = new NetworkId("network");
+    SnapshotId snapshotId = new SnapshotId("snapshot");
+
+    CompletionMetadata completionMetadata =
+        new CompletionMetadata(
+            ImmutableSet.of("addressBook1"),
+            ImmutableSet.of("addressGroup1"),
+            ImmutableSet.of("filter1"),
+            ImmutableSet.of(new NodeInterfacePair("node", "iface")),
+            ImmutableSet.of("1.1.1.1"),
+            ImmutableSet.of("1.1.1.1/30"),
+            ImmutableSet.of("structure1"),
+            ImmutableSet.of("vrf1"),
+            ImmutableSet.of("zone1"));
+
+    _storage.storeCompletionMetadata(completionMetadata, networkId, snapshotId);
+
+    assertThat(_storage.loadCompletionMetadata(networkId, snapshotId), equalTo(completionMetadata));
+  }
+
+  @Test
+  public void testLoadCompletionMetadataMissing() throws IOException {
+    NetworkId networkId = new NetworkId("network");
+    SnapshotId snapshotId = new SnapshotId("snapshot");
+
+    // if CompletionMetadata file is missing, should return a CompletionMetadata object with all
+    // fields empty
+    assertThat(
+        _storage.loadCompletionMetadata(networkId, snapshotId), equalTo(CompletionMetadata.EMPTY));
   }
 }

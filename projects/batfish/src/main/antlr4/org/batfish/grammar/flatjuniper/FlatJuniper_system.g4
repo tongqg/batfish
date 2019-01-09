@@ -10,7 +10,8 @@ s_system
 :
    SYSTEM
    (
-      sy_authentication_order
+      apply
+      | sy_authentication_order
       | sy_default_address_selection
       | sy_domain_name
       | sy_host_name
@@ -19,6 +20,7 @@ s_system
       | sy_null
       | sy_ports
       | sy_root_authentication
+      | sy_security_profile
       | sy_services
       | sy_syslog
       | sy_tacplus_server
@@ -89,7 +91,10 @@ sy_null
       | MAX_CONFIGURATIONS_ON_FLASH
       | MAX_CONFIGURATION_ROLLBACKS
       | NAME_RESOLUTION
+      | NO_PING_RECORD_ROUTE
+      | NO_PING_TIME_STAMP
       | NO_REDIRECTS
+      | NO_REDIRECTS_IPV6
       | PROCESSES
       | RADIUS_OPTIONS
       | RADIUS_SERVER
@@ -136,6 +141,16 @@ sy_syslog
    )
 ;
 
+sy_security_profile
+:
+  SECURITY_PROFILE name = variable
+  (
+    apply
+    | sysp_logical_system
+    | sysp_null
+  )
+;
+
 sy_services
 :
    SERVICES
@@ -164,6 +179,7 @@ sy_services_null
 :
    (
       DATABASE_REPLICATION
+      | DHCP
       | DHCP_LOCAL_SERVER
       | DNS
       | DTCP_ONLY
@@ -187,10 +203,11 @@ sy_services_null
 
 sy_tacplus_server
 :
-   TACPLUS_SERVER hostname =
+   TACPLUS_SERVER
    (
-      IP_ADDRESS
-      | IPV6_ADDRESS
+      hostname = IP_ADDRESS
+      | hostname = IPV6_ADDRESS
+      | wildcard
    )
    (
       apply
@@ -211,7 +228,27 @@ syn_null
 
 syn_server
 :
-   SERVER hostname = variable PREFER?
+   SERVER hostname = variable
+   (
+       syn_server_key
+       | syn_server_version
+       | syn_server_prefer
+   )*
+;
+
+syn_server_key
+:
+    KEY DEC
+;
+
+syn_server_prefer
+:
+    PREFER
+;
+
+syn_server_version
+:
+    VERSION VERSION_STRING
 ;
 
 syp_disable
@@ -256,7 +293,9 @@ sys_null
 sysh_null
 :
    (
-      ANY
+      ALLOW_DUPLICATES
+      | ANY
+      | CHANGE_LOG
       | DAEMON
       | EXPLICIT_PRIORITY
       | FACILITY_OVERRIDE
@@ -297,9 +336,25 @@ sysl_null
    ) null_filler
 ;
 
+sysp_logical_system
+:
+  LOGICAL_SYSTEM name = variable
+;
+
+sysp_null
+:
+  (
+    FLOW_GATE
+    | FLOW_SESSION
+    | POLICY
+    | SCHEDULER
+    | ZONE
+  ) null_filler
+;
+
 syt_secret
 :
-   SECRET secret = DOUBLE_QUOTED_STRING
+  SECRET secret
 ;
 
 syt_source_address

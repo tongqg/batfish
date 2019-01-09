@@ -1,24 +1,35 @@
 package org.batfish.datamodel;
 
-import java.util.Objects;
-
+/** A base class for OSPF inter-area and intra-area routes */
 public abstract class OspfInternalRoute extends OspfRoute {
 
-  /** */
   private static final long serialVersionUID = 1L;
 
-  public static class Builder extends AbstractRouteBuilder<Builder, OspfInternalRoute> {
+  public static final class Builder extends AbstractRouteBuilder<Builder, OspfInternalRoute> {
 
     private Long _area;
-
     private RoutingProtocol _protocol;
 
     @Override
     public OspfInternalRoute build() {
       if (_protocol == RoutingProtocol.OSPF) {
-        return new OspfIntraAreaRoute(getNetwork(), getNextHopIp(), getAdmin(), getMetric(), _area);
+        return new OspfIntraAreaRoute(
+            getNetwork(),
+            getNextHopIp(),
+            getAdmin(),
+            getMetric(),
+            _area,
+            getNonForwarding(),
+            getNonRouting());
       } else {
-        return new OspfInterAreaRoute(getNetwork(), getNextHopIp(), getAdmin(), getMetric(), _area);
+        return new OspfInterAreaRoute(
+            getNetwork(),
+            getNextHopIp(),
+            getAdmin(),
+            getMetric(),
+            _area,
+            getNonForwarding(),
+            getNonRouting());
       }
     }
 
@@ -36,19 +47,22 @@ public abstract class OspfInternalRoute extends OspfRoute {
       _protocol = protocol;
       return this;
     }
+
+    private Builder() {} // Only used in this OspfInternalRoute.builder()
   }
 
-  public OspfInternalRoute(Prefix network, Ip nextHopIp, int admin, long metric, long area) {
-    super(network, nextHopIp, admin, metric, area);
+  public static Builder builder() {
+    return new Builder();
   }
 
-  @Override
-  protected final String protocolRouteString() {
-    return " area:" + _area;
-  }
-
-  @Override
-  public final int hashCode() {
-    return Objects.hash(_admin, _area, _metric, _network, _nextHopIp);
+  OspfInternalRoute(
+      Prefix network,
+      Ip nextHopIp,
+      int admin,
+      long metric,
+      long area,
+      boolean nonForwarding,
+      boolean nonRouting) {
+    super(network, nextHopIp, admin, metric, area, nonRouting, nonForwarding);
   }
 }

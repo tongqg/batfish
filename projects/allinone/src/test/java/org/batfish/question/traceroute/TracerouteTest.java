@@ -1,5 +1,6 @@
 package org.batfish.question.traceroute;
 
+import static org.batfish.common.util.TracePruner.DEFAULT_MAX_TRACES;
 import static org.batfish.datamodel.matchers.EdgeMatchers.hasNode1;
 import static org.batfish.datamodel.matchers.FlowMatchers.hasDstIp;
 import static org.batfish.datamodel.matchers.FlowMatchers.hasIngressInterface;
@@ -15,11 +16,11 @@ import static org.batfish.datamodel.matchers.FlowTraceMatchers.hasHops;
 import static org.batfish.datamodel.matchers.RowMatchers.hasColumn;
 import static org.batfish.datamodel.matchers.TableAnswerElementMatchers.hasRows;
 import static org.batfish.question.traceroute.TracerouteAnswerer.COL_TRACES;
-import static org.batfish.question.traceroute.TracerouteQuestion.DEFAULT_MAX_TRACES;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItem;
@@ -50,12 +51,12 @@ import org.batfish.datamodel.StaticRoute;
 import org.batfish.datamodel.StaticRoute.Builder;
 import org.batfish.datamodel.Vrf;
 import org.batfish.datamodel.answers.Schema;
+import org.batfish.datamodel.matchers.TraceMatchers;
 import org.batfish.datamodel.table.TableAnswerElement;
 import org.batfish.main.Batfish;
 import org.batfish.main.BatfishTestUtils;
 import org.batfish.main.TestrigText;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -69,10 +70,10 @@ public class TracerouteTest {
   private static final String LOOPBACK = "Loopback0";
   private static final String NODE1 = "node1";
   private static final String NODE2 = "node2";
-  private static final Ip NODE1_FAST_ETHERNET_IP = new Ip("1.1.1.2");
-  private static final Ip NODE1_LOOPBACK_IP = new Ip("1.1.1.1");
-  private static final Ip NODE2_FAST_ETHERNET_IP = new Ip("1.1.1.3");
-  private static final Ip NODE2_LOOPBACK_IP = new Ip("2.2.2.2");
+  private static final Ip NODE1_FAST_ETHERNET_IP = Ip.parse("1.1.1.2");
+  private static final Ip NODE1_LOOPBACK_IP = Ip.parse("1.1.1.1");
+  private static final Ip NODE2_FAST_ETHERNET_IP = Ip.parse("1.1.1.3");
+  private static final Ip NODE2_LOOPBACK_IP = Ip.parse("2.2.2.2");
   private static final String TESTRIGS_PREFIX = "org/batfish/allinone/testrigs/";
   private static final String TESTRIG_NAME = "specifiers-reachability";
   private static final List<String> TESTRIG_NODE_NAMES = ImmutableList.of(NODE1, NODE2);
@@ -164,7 +165,7 @@ public class TracerouteTest {
                 hasIngressInterface(LOOPBACK),
                 hasIngressNode("node1"),
                 hasIngressVrf(nullValue()),
-                hasSrcIp(new Ip("1.1.1.0")),
+                hasSrcIp(Ip.parse("1.1.1.0")),
                 hasIpProtocol(IpProtocol.UDP),
                 hasTag(TAG))));
     assertThat(
@@ -174,7 +175,7 @@ public class TracerouteTest {
                 hasIngressInterface(FAST_ETHERNET),
                 hasIngressNode("node1"),
                 hasIngressVrf(nullValue()),
-                hasSrcIp(new Ip("1.1.1.0")),
+                hasSrcIp(Ip.parse("1.1.1.0")),
                 hasIpProtocol(IpProtocol.UDP),
                 hasTag(TAG))));
   }
@@ -226,7 +227,7 @@ public class TracerouteTest {
   }
 
   @Test
-  public void testIgnoreAcls() throws IOException {
+  public void testIgnoreFilters() throws IOException {
     SortedMap<String, Configuration> configs = aclNetwork();
     Batfish batfish = BatfishTestUtils.getBatfish(configs, _folder);
     batfish.getSettings().setDebugFlags(ImmutableList.of("oldtraceroute"));
@@ -235,7 +236,7 @@ public class TracerouteTest {
 
     TracerouteQuestion question = new TracerouteQuestion(".*", header, false, DEFAULT_MAX_TRACES);
 
-    // without ignoreAcls we get DENIED_OUT
+    // without ignoreFilters we get DENIED_OUT
     TracerouteAnswerer answerer = new TracerouteAnswerer(question, batfish);
     TableAnswerElement answer = (TableAnswerElement) answerer.answer();
     assertThat(answer.getRows().getData(), hasSize(1));
@@ -247,7 +248,7 @@ public class TracerouteTest {
                 everyItem(hasDisposition(FlowDisposition.DENIED_OUT)),
                 Schema.set(Schema.FLOW_TRACE))));
 
-    // with ignoreAcls we get DELIVERED_TO_SUBNET, since the dst ip is in the interface subnet
+    // with ignoreFilters we get DELIVERED_TO_SUBNET, since the dst ip is in the interface subnet
     question = new TracerouteQuestion(".*", header, true, DEFAULT_MAX_TRACES);
     answerer = new TracerouteAnswerer(question, batfish);
     answer = (TableAnswerElement) answerer.answer();
@@ -387,7 +388,7 @@ public class TracerouteTest {
         ImmutableSortedSet.of(
             StaticRoute.builder()
                 .setNextHopInterface(i1.getName())
-                .setNextHopIp(new Ip("1.0.0.2"))
+                .setNextHopIp(Ip.parse("1.0.0.2"))
                 .setNetwork(Prefix.parse("1.0.0.128/26"))
                 .setAdministrativeCost(1)
                 .build()));
@@ -445,10 +446,9 @@ public class TracerouteTest {
    *
    * traceroute R1 -> 1.0.0.130
    *
-   * Case 1: mask < 24 : R1 -> DELIVERED_TO_SUBNET
-   * Case 2: mask = 24 : same above,
-   * since connected route has higher priority than static route
-   * Case 3: mask > 24 : DELIVERED_TO_SUBNET with trace R1 -> R2
+   * Case 1: mask <= 24 : R1 -> DELIVERED_TO_SUBNET
+   *  since connected route has higher priority than static route
+   * Case 2: mask > 24 : DELIVERED_TO_SUBNET with trace R1 -> R2
    *
    * Note: in practice, R2 would complain about overlapping interfaces
    */
@@ -526,28 +526,8 @@ public class TracerouteTest {
     return answer;
   }
 
-  @Ignore("https://github.com/batfish/batfish/issues/2528")
   @Test
   public void testDeliveredToSubnetVSStaticRoute1() throws IOException {
-    TableAnswerElement answer = testDeliveredToSubnetVSStaticRoute("22");
-    assertThat(answer.getRows().getData(), hasSize(1));
-
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(COL_TRACES, everyItem(hasHops(hasSize(1))), Schema.set(Schema.FLOW_TRACE))));
-
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(
-                COL_TRACES,
-                everyItem(hasDisposition(FlowDisposition.DELIVERED_TO_SUBNET)),
-                Schema.set(Schema.FLOW_TRACE))));
-  }
-
-  @Test
-  public void testDeliveredToSubnetVSStaticRoute2() throws IOException {
     TableAnswerElement answer = testDeliveredToSubnetVSStaticRoute("24");
     assertThat(answer.getRows().getData(), hasSize(1));
 
@@ -566,7 +546,7 @@ public class TracerouteTest {
   }
 
   @Test
-  public void testDeliveredToSubnetVSStaticRoute3() throws IOException {
+  public void testDeliveredToSubnetVSStaticRoute2() throws IOException {
     TableAnswerElement answer = testDeliveredToSubnetVSStaticRoute("26");
     assertThat(answer.getRows().getData(), hasSize(1));
 
@@ -605,11 +585,6 @@ public class TracerouteTest {
    * R2: 1.0.0.128/24 -> interface2
    *
    * Traceroute: R1 -> 1.0.0.131
-   *
-   * Case 1: mask < 24: DELIVERD_TO_SUBNET (to R2)
-   * Case 2: mask = 24: DELIVERD_TO_SUBNET (to R1)
-   * Case 3: mask > 24: DELIVERD_TO_SUBNET (to R1)
-   *
    */
   private TableAnswerElement testDispositionMultiInterfaces(String mask) throws IOException {
     NetworkFactory nf = new NetworkFactory();
@@ -692,57 +667,11 @@ public class TracerouteTest {
     return answer;
   }
 
-  @Ignore("https://github.com/batfish/batfish/issues/2528")
+  /*
+   * If mask > 24: DELIVERD_TO_SUBNET (to R1)
+   */
   @Test
-  public void testDispositionMultiInterfaces1() throws IOException {
-    TableAnswerElement answer = testDispositionMultiInterfaces("22");
-    assertThat(answer.getRows().getData(), hasSize(2));
-
-    // check that packet should reach R1 and R2
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(COL_TRACES, everyItem(hasHops(hasSize(2))), Schema.set(Schema.FLOW_TRACE))));
-
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(
-                COL_TRACES,
-                everyItem(hasHop(1, hasEdge(hasNode1(equalTo("~Configuration_1~"))))),
-                Schema.set(Schema.FLOW_TRACE))));
-
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(
-                COL_TRACES,
-                everyItem(hasDisposition(FlowDisposition.DELIVERED_TO_SUBNET)),
-                Schema.set(Schema.FLOW_TRACE))));
-  }
-
-  @Test
-  public void testDispositionMultiInterfaces2() throws IOException {
-    TableAnswerElement answer = testDispositionMultiInterfaces("24");
-    assertThat(answer.getRows().getData(), hasSize(2));
-
-    // check that packet should reach R1 but R2 no response
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(COL_TRACES, everyItem(hasHops(hasSize(1))), Schema.set(Schema.FLOW_TRACE))));
-
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(
-                COL_TRACES,
-                everyItem(hasDisposition(FlowDisposition.DELIVERED_TO_SUBNET)),
-                Schema.set(Schema.FLOW_TRACE))));
-  }
-
-  @Test
-  public void testDispositionMultiInterfaces3() throws IOException {
+  public void testDispositionMultiInterfaces() throws IOException {
     TableAnswerElement answer = testDispositionMultiInterfaces("25");
     assertThat(answer.getRows().getData(), hasSize(2));
 
@@ -777,12 +706,10 @@ public class TracerouteTest {
    *
    * Traceroute: R1 -> 1.0.0.4
    *
-   * Case 1: mask < 24: Delivered To Subnet (out of R3)
-   *    This is because R3 forwards packets through its static route, and no next hop found
-   * Case 2: mask = 24: LOOP (R1->R2->R3->R2), since packets
+   * Case 1: mask = 24: LOOP (R1->R2->R3->R2), since packets
    *   take interface1 on R1, and then R2 followed by R3 before coming back to R2.
    *   Note that R1 does not reply arp request from R3, but R2 does.
-   * Case 3: mask >= 25: NEIGHBOR_UNREACHABLE
+   * Case 2: mask >= 25: NEIGHBOR_UNREACHABLE
    *    since the connected route is taken, and R1 should deliver the packet to subnet
    */
   private TableAnswerElement testDispositionMultipleRouters(String mask) throws IOException {
@@ -887,38 +814,8 @@ public class TracerouteTest {
     return answer;
   }
 
-  @Ignore("https://github.com/batfish/batfish/issues/2528")
   @Test
   public void testDispositionMultipleRouters1() throws IOException {
-    TableAnswerElement answer = testDispositionMultipleRouters("22");
-    assertThat(answer.getRows().getData(), hasSize(1));
-
-    // check that packet should be reach R3
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(COL_TRACES, everyItem(hasHops(hasSize(3))), Schema.set(Schema.FLOW_TRACE))));
-
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(
-                COL_TRACES,
-                everyItem(hasHop(2, hasEdge(hasNode1(equalTo("~Configuration_2~"))))),
-                Schema.set(Schema.FLOW_TRACE))));
-
-    // check disposition
-    assertThat(
-        answer.getRows().getData(),
-        everyItem(
-            hasColumn(
-                COL_TRACES,
-                everyItem(hasDisposition(FlowDisposition.DELIVERED_TO_SUBNET)),
-                Schema.set(Schema.FLOW_TRACE))));
-  }
-
-  @Test
-  public void testDispositionMultipleRouters2() throws IOException {
     TableAnswerElement answer = testDispositionMultipleRouters("24");
     assertThat(answer.getRows().getData(), hasSize(1));
 
@@ -947,7 +844,7 @@ public class TracerouteTest {
   }
 
   @Test
-  public void testDispositionMultipleRouters3() throws IOException {
+  public void testDispositionMultipleRouters2() throws IOException {
     TableAnswerElement answer = testDispositionMultipleRouters("25");
     assertThat(answer.getRows().getData(), hasSize(1));
 
@@ -1031,5 +928,142 @@ public class TracerouteTest {
                 allOf(
                     hasColumn(TracerouteAnswerer.COL_TRACES, hasSize(1), Schema.set(Schema.TRACE)),
                     hasColumn(TracerouteAnswerer.COL_TRACE_COUNT, equalTo(2), Schema.INTEGER)))));
+  }
+
+  /*
+   *  Test setup: Send packets with destination 8.8.8.8 to the next hop 1.0.0.2.
+   *  Since the destination Ip 8.8.8.8 is outside the network and next hop Ip 1.0.0.2 is not
+   *  owned by any device, so this is EXITS_NETWORK.
+   */
+  @Test
+  public void testInsufficientInfoVsExitsNetwork1() throws IOException {
+    NetworkFactory nf = new NetworkFactory();
+    Configuration.Builder cb =
+        nf.configurationBuilder().setConfigurationFormat(ConfigurationFormat.CISCO_IOS);
+
+    ImmutableSortedMap.Builder<String, Configuration> configs =
+        new ImmutableSortedMap.Builder<>(Comparator.naturalOrder());
+    Configuration c1 = cb.build();
+    configs.put(c1.getHostname(), c1);
+
+    Vrf v1 = nf.vrfBuilder().setOwner(c1).build();
+
+    // set up interface
+    nf.interfaceBuilder()
+        .setAddress(new InterfaceAddress("1.0.0.1/30"))
+        .setOwner(c1)
+        .setVrf(v1)
+        .build();
+
+    // set up static route "8.8.8.0/24" -> 1.0.0.2
+    v1.setStaticRoutes(
+        ImmutableSortedSet.of(
+            StaticRoute.builder()
+                .setNextHopIp(Ip.parse("1.0.0.2"))
+                .setNetwork(Prefix.parse("8.8.8.0/24"))
+                .setAdministrativeCost(1)
+                .build()));
+
+    Batfish batfish = BatfishTestUtils.getBatfish(configs.build(), _folder);
+    batfish.computeDataPlane(false);
+
+    TracerouteQuestion question =
+        new TracerouteQuestion(
+            c1.getHostname(),
+            PacketHeaderConstraints.builder().setDstIp("8.8.8.8").build(),
+            false,
+            DEFAULT_MAX_TRACES);
+
+    TracerouteAnswerer answerer = new TracerouteAnswerer(question, batfish);
+    TableAnswerElement answer = (TableAnswerElement) answerer.answer();
+
+    // should only have one trace with disposition EXITS_NETWORK
+    assertThat(
+        answer,
+        hasRows(
+            contains(
+                allOf(
+                    hasColumn(TracerouteAnswerer.COL_TRACES, hasSize(1), Schema.set(Schema.TRACE)),
+                    hasColumn(
+                        TracerouteAnswerer.COL_TRACES,
+                        containsInAnyOrder(
+                            ImmutableList.of(
+                                TraceMatchers.hasDisposition(FlowDisposition.EXITS_NETWORK))),
+                        Schema.set(Schema.TRACE))))));
+  }
+
+  /*
+   *  Test setup: Send packets with destination 8.8.8.8 to the next hop 2.0.0.2.
+   *  Since the destination Ip 8.8.8.8 is outside the network and next hop Ip 2.0.0.2 is
+   *  owned by a device, so this is INSUFFICIENT_INFO.
+   */
+  @Test
+  public void testInsufficientInfoVsExitsNetwork2() throws IOException {
+    NetworkFactory nf = new NetworkFactory();
+    Configuration.Builder cb =
+        nf.configurationBuilder().setConfigurationFormat(ConfigurationFormat.CISCO_IOS);
+
+    ImmutableSortedMap.Builder<String, Configuration> configs =
+        new ImmutableSortedMap.Builder<>(Comparator.naturalOrder());
+    Configuration c1 = cb.build();
+    configs.put(c1.getHostname(), c1);
+
+    Vrf v1 = nf.vrfBuilder().setOwner(c1).build();
+
+    // set up interface
+    Interface i1 =
+        nf.interfaceBuilder()
+            .setAddress(new InterfaceAddress("1.0.0.1/30"))
+            .setOwner(c1)
+            .setVrf(v1)
+            .build();
+
+    // set up another node
+    Configuration c2 = cb.build();
+    configs.put(c2.getHostname(), c2);
+
+    Vrf v2 = nf.vrfBuilder().setOwner(c2).build();
+    nf.interfaceBuilder()
+        .setAddresses(new InterfaceAddress("2.0.0.2/31"))
+        .setOwner(c2)
+        .setVrf(v2)
+        .build();
+
+    // set up static route "8.8.8.0/24" -> 2.0.0.2
+    v1.setStaticRoutes(
+        ImmutableSortedSet.of(
+            StaticRoute.builder()
+                .setNextHopIp(Ip.parse("2.0.0.2"))
+                .setNextHopInterface(i1.getName())
+                .setNetwork(Prefix.parse("8.8.8.0/24"))
+                .setAdministrativeCost(1)
+                .build()));
+
+    Batfish batfish = BatfishTestUtils.getBatfish(configs.build(), _folder);
+    batfish.computeDataPlane(false);
+
+    TracerouteQuestion question =
+        new TracerouteQuestion(
+            c1.getHostname(),
+            PacketHeaderConstraints.builder().setDstIp("8.8.8.8").build(),
+            false,
+            DEFAULT_MAX_TRACES);
+
+    TracerouteAnswerer answerer = new TracerouteAnswerer(question, batfish);
+    TableAnswerElement answer = (TableAnswerElement) answerer.answer();
+
+    // should only have one trace with disposition INSUFFICIENT_INFO
+    assertThat(
+        answer,
+        hasRows(
+            contains(
+                allOf(
+                    hasColumn(TracerouteAnswerer.COL_TRACES, hasSize(1), Schema.set(Schema.TRACE)),
+                    hasColumn(
+                        TracerouteAnswerer.COL_TRACES,
+                        containsInAnyOrder(
+                            ImmutableList.of(
+                                TraceMatchers.hasDisposition(FlowDisposition.INSUFFICIENT_INFO))),
+                        Schema.set(Schema.TRACE))))));
   }
 }

@@ -1,10 +1,11 @@
 package org.batfish.question.ipsecsessionstatus;
 
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IKE_PHASE1_FAILED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IPSEC_SESSION_ESTABLISHED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.MISSING_END_POINT;
+import static com.google.common.base.MoreObjects.firstNonNull;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_SESSION_ESTABLISHED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.MISSING_END_POINT;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
@@ -88,7 +89,7 @@ class IpsecSessionStatusAnswerer extends Answerer {
     Multiset<IpsecSessionInfo> ipsecSessionInfos = HashMultiset.create();
 
     for (IpsecPeerConfigId node : ipsecTopology.nodes()) {
-      IpsecPeerConfig ipsecPeerConfig = networkConfigurations.getIpecPeerConfig(node);
+      IpsecPeerConfig ipsecPeerConfig = networkConfigurations.getIpsecPeerConfig(node);
       if (ipsecPeerConfig == null
           || ipsecPeerConfig instanceof IpsecDynamicPeerConfig
           || !initiatorNodes.contains(node.getHostName())) {
@@ -117,7 +118,8 @@ class IpsecSessionStatusAnswerer extends Answerer {
         if (ipsecSession == null) {
           continue;
         }
-        IpsecPeerConfig ipsecPeerConfigNeighbor = networkConfigurations.getIpecPeerConfig(neighbor);
+        IpsecPeerConfig ipsecPeerConfigNeighbor =
+            networkConfigurations.getIpsecPeerConfig(neighbor);
         if (ipsecPeerConfigNeighbor == null) {
           continue;
         }
@@ -179,11 +181,12 @@ class IpsecSessionStatusAnswerer extends Answerer {
         .put(COL_RESPONDER_IP, info.getResponderIp())
         .put(
             COL_TUNNEL_INTERFACES,
-            info.getInitiatorTunnelInterface() != null && info.getResponderTunnelInterface() != null
-                ? String.format(
-                    "%s->%s",
-                    info.getInitiatorTunnelInterface(), info.getResponderTunnelInterface())
-                : NOT_APPLICABLE)
+            info.getInitiatorTunnelInterface() == null && info.getResponderTunnelInterface() == null
+                ? NOT_APPLICABLE
+                : String.format(
+                    "%s -> %s",
+                    firstNonNull(info.getInitiatorTunnelInterface(), "Missing Initiator"),
+                    firstNonNull(info.getResponderTunnelInterface(), "Missing Responder")))
         .put(COL_STATUS, info.getIpsecSessionStatus());
     return row.build();
   }

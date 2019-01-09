@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.regex.Pattern;
+import org.batfish.common.util.TracePruner;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.Configuration.Builder;
 import org.batfish.datamodel.Flow;
@@ -51,9 +52,9 @@ import org.junit.rules.TemporaryFolder;
 public class ReducedReachabilityTest {
   private static final String LOOPBACK = "Loopback0";
   private static final String NODE1 = "node1";
-  private static final Ip NODE1_LOOPBACK_IP = new Ip("1.1.1.1");
+  private static final Ip NODE1_LOOPBACK_IP = Ip.parse("1.1.1.1");
   private static final String NODE2 = "node2";
-  private static final Ip NODE2_ALTERNATE_IP = new Ip("2.2.2.2");
+  private static final Ip NODE2_ALTERNATE_IP = Ip.parse("2.2.2.2");
   private static final String PHYSICAL = "FastEthernet0/0";
 
   private Builder _cb;
@@ -155,8 +156,10 @@ public class ReducedReachabilityTest {
         batfish.loadConfigurations().keySet(),
         TRUE,
         false,
+        false,
         InferFromLocationIpSpaceSpecifier.INSTANCE.resolve(
             ALL_LOCATIONS.resolve(batfish.specifierContext()), batfish.specifierContext()),
+        TracePruner.DEFAULT_MAX_TRACES,
         ImmutableSet.of());
   }
 

@@ -6,25 +6,23 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyDescription;
-import com.kjetland.jackson.jsonSchema.annotations.JsonSchemaDescription;
+import com.google.common.collect.ImmutableSortedSet;
 import java.util.Collections;
+import java.util.Set;
 import java.util.SortedSet;
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
+import org.batfish.common.util.CommonUtil;
 
-@JsonSchemaDescription("A generated/aggregate IPV4 route.")
+/** A generated/aggregate IPV4 route. */
 public final class GeneratedRoute extends AbstractRoute {
 
   public static class Builder extends AbstractRouteBuilder<Builder, GeneratedRoute> {
 
-    @Nullable private AsPath _asPath;
-
+    private AsPath _asPath;
     private String _attributePolicy;
-
+    private SortedSet<Long> _communities;
     private boolean _discard;
-
     private String _generationPolicy;
-
     private String _nextHopInterface;
 
     public Builder() {
@@ -39,10 +37,13 @@ public final class GeneratedRoute extends AbstractRoute {
           getNextHopIp(),
           _asPath,
           _attributePolicy,
+          _communities,
           _discard,
           _generationPolicy,
           getMetric(),
-          _nextHopInterface);
+          _nextHopInterface,
+          getNonForwarding(),
+          getNonRouting());
     }
 
     @Override
@@ -50,7 +51,7 @@ public final class GeneratedRoute extends AbstractRoute {
       return this;
     }
 
-    public static Builder fromRoute(GeneratedRoute route) {
+    public static Builder fromRoute(@Nonnull GeneratedRoute route) {
       return new Builder()
           // General route properties
           .setNetwork(route.getNetwork())
@@ -59,18 +60,24 @@ public final class GeneratedRoute extends AbstractRoute {
           // GeneratedRoute properties
           .setAsPath(route.getAsPath())
           .setAttributePolicy(route.getAttributePolicy())
+          .setCommunities(route.getCommunities())
           .setDiscard(route.getDiscard())
           .setGenerationPolicy(route.getGenerationPolicy())
           .setNextHopInterface(route.getNextHopInterface());
     }
 
-    public Builder setAsPath(AsPath asPath) {
+    public Builder setAsPath(@Nonnull AsPath asPath) {
       _asPath = asPath;
       return this;
     }
 
     public Builder setAttributePolicy(String attributePolicy) {
       _attributePolicy = attributePolicy;
+      return this;
+    }
+
+    public Builder setCommunities(Set<Long> communities) {
+      _communities = ImmutableSortedSet.copyOf(communities);
       return this;
     }
 
@@ -96,6 +103,8 @@ public final class GeneratedRoute extends AbstractRoute {
 
   private static final String PROP_ATTRIBUTE_POLICY_SOURCES = "attributePolicySources";
 
+  private static final String PROP_COMMUNITIES = "communities";
+
   private static final String PROP_DISCARD = "discard";
 
   private static final String PROP_GENERATION_POLICY = "generationPolicy";
@@ -106,13 +115,13 @@ public final class GeneratedRoute extends AbstractRoute {
 
   private static final long serialVersionUID = 1L;
 
-  private final int _administrativeCost;
-
   private final AsPath _asPath;
 
   private final String _attributePolicy;
 
   private SortedSet<String> _attributePolicySources;
+
+  @Nonnull private final SortedSet<Long> _communities;
 
   private final boolean _discard;
 
@@ -127,21 +136,50 @@ public final class GeneratedRoute extends AbstractRoute {
   private final Ip _nextHopIp;
 
   @JsonCreator
-  public GeneratedRoute(
+  private static GeneratedRoute jsonCreator(
       @JsonProperty(PROP_NETWORK) Prefix network,
       @JsonProperty(PROP_ADMINISTRATIVE_COST) int administrativeCost,
       @JsonProperty(PROP_NEXT_HOP_IP) Ip nextHopIp,
       @JsonProperty(PROP_AS_PATH) AsPath asPath,
       @JsonProperty(PROP_ATTRIBUTE_POLICY) String attributePolicy,
+      @JsonProperty(PROP_COMMUNITIES) SortedSet<Long> communities,
       @JsonProperty(PROP_DISCARD) boolean discard,
       @JsonProperty(PROP_GENERATION_POLICY) String generationPolicy,
       @JsonProperty(PROP_METRIC) Long metric,
       @JsonProperty(PROP_NEXT_HOP_INTERFACE) String nextHopInterface) {
-    super(network);
-    _administrativeCost = administrativeCost;
+    return new GeneratedRoute(
+        network,
+        administrativeCost,
+        nextHopIp,
+        asPath,
+        attributePolicy,
+        communities,
+        discard,
+        generationPolicy,
+        metric,
+        nextHopInterface,
+        false,
+        false);
+  }
+
+  private GeneratedRoute(
+      Prefix network,
+      int administrativeCost,
+      Ip nextHopIp,
+      AsPath asPath,
+      String attributePolicy,
+      SortedSet<Long> communities,
+      boolean discard,
+      String generationPolicy,
+      Long metric,
+      String nextHopInterface,
+      boolean nonForwarding,
+      boolean nonRouting) {
+    super(network, administrativeCost, nonRouting, nonForwarding);
     _asPath = asPath;
     _attributePolicy = attributePolicy;
     _attributePolicySources = Collections.emptySortedSet();
+    _communities = firstNonNull(communities, ImmutableSortedSet.of());
     _discard = discard;
     _generationPolicy = generationPolicy;
     _generationPolicySources = Collections.emptySortedSet();
@@ -161,13 +199,6 @@ public final class GeneratedRoute extends AbstractRoute {
     return _network.equals(rhs._network);
   }
 
-  @JsonIgnore(false)
-  @JsonProperty(PROP_ADMINISTRATIVE_COST)
-  @Override
-  public int getAdministrativeCost() {
-    return _administrativeCost;
-  }
-
   @JsonProperty(PROP_AS_PATH)
   @JsonPropertyDescription("A BGP AS-path attribute to associate with this generated route")
   public AsPath getAsPath() {
@@ -183,6 +214,13 @@ public final class GeneratedRoute extends AbstractRoute {
   @JsonProperty(PROP_ATTRIBUTE_POLICY_SOURCES)
   public SortedSet<String> getAttributePolicySources() {
     return _attributePolicySources;
+  }
+
+  @Nonnull
+  @JsonProperty(PROP_COMMUNITIES)
+  @JsonPropertyDescription("The communities attached to this route")
+  public SortedSet<Long> getCommunities() {
+    return _communities;
   }
 
   @JsonProperty(PROP_DISCARD)
@@ -240,23 +278,12 @@ public final class GeneratedRoute extends AbstractRoute {
   }
 
   @Override
-  protected String protocolRouteString() {
-    return " asPath:"
-        + _asPath
-        + " attributePolicy:"
-        + _attributePolicy
-        + " discard:"
-        + _discard
-        + " generationPolicy:"
-        + _generationPolicy;
-  }
-
-  @Override
   public int routeCompare(@Nonnull AbstractRoute rhs) {
     if (getClass() != rhs.getClass()) {
       return 0;
     }
     GeneratedRoute castRhs = (GeneratedRoute) rhs;
+
     int ret;
     if (_asPath == null) {
       if (castRhs._asPath != null) {
@@ -283,6 +310,10 @@ public final class GeneratedRoute extends AbstractRoute {
     } else {
       ret = _attributePolicy.compareTo(castRhs._attributePolicy);
     }
+    if (ret != 0) {
+      return ret;
+    }
+    ret = CommonUtil.compareCollection(_communities, castRhs._communities);
     if (ret != 0) {
       return ret;
     }

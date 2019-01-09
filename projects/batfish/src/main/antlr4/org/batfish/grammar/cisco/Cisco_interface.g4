@@ -15,6 +15,60 @@ eos_bandwidth_specifier
    | ONE_THOUSAND_FULL
 ;
 
+eos_vxlan_if_inner
+:
+   (
+      VXLAN
+      (
+         eos_vxif_vxlan_flood
+         | eos_vxif_vxlan_multicast_group
+         | eos_vxif_vxlan_source_interface
+         | eos_vxif_vxlan_udp_port
+         | eos_vxif_vxlan_vlan
+      )
+   )
+   | eos_vxif_description
+;
+
+eos_vxif_description
+:
+   description_line
+;
+
+eos_vxif_vxlan_flood
+:
+   FLOOD VTEP (ADD | REMOVE)? (hosts += IP_ADDRESS)+ NEWLINE
+;
+
+eos_vxif_vxlan_multicast_group
+:
+   MULTICAST_GROUP group = IP_ADDRESS NEWLINE
+;
+
+eos_vxif_vxlan_source_interface
+:
+   SOURCE_INTERFACE iface = interface_name NEWLINE
+;
+
+eos_vxif_vxlan_udp_port
+:
+   UDP_PORT num = DEC NEWLINE
+;
+
+eos_vxif_vxlan_vlan
+:
+   VLAN num = DEC
+   (
+      eos_vxif_vxlan_flood
+      | eos_vxif_vxlan_vlan_vni
+   )
+;
+
+eos_vxif_vxlan_vlan_vni
+:
+   VNI num = DEC NEWLINE
+;
+
 if_autostate
 :
    NO? AUTOSTATE NEWLINE
@@ -464,6 +518,27 @@ if_ip_vrf_sitemap
    IP VRF SITEMAP map = variable NEWLINE
 ;
 
+if_ipv6
+:
+   IPV6 if_ipv6_inner
+;
+
+if_ipv6_inner
+:
+   if_ipv6_enable
+   | if_ipv6_traffic_filter
+;
+
+if_ipv6_enable
+:
+   ENABLE NEWLINE
+;
+
+if_ipv6_traffic_filter
+:
+   TRAFFIC_FILTER acl = variable_aclname (IN | OUT) NEWLINE
+;
+
 if_isis_circuit_type
 :
    ISIS CIRCUIT_TYPE
@@ -517,6 +592,11 @@ if_load_interval
    LOAD_INTERVAL li = DEC NEWLINE
 ;
 
+if_eos_mlag
+:
+   MLAG id = DEC NEWLINE
+;
+
 if_mtu
 :
    MTU mtu_size = DEC NEWLINE
@@ -549,6 +629,16 @@ if_no_ip_address
 if_no_nameif
 :
    NO NAMEIF NEWLINE
+;
+
+if_no_routing_dynamic
+:
+   NO ROUTING DYNAMIC NEWLINE
+;
+
+if_no_security_level
+:
+   NO SECURITY_LEVEL NEWLINE
 ;
 
 if_null_block
@@ -777,7 +867,6 @@ if_null_block
       | MEDIUM
       | MEMBER
       | MINIMUM_LINKS
-      | MLAG
       | MLS
       | MOBILITY
       | MOP
@@ -901,7 +990,6 @@ if_null_block
       | VMTRACER
       | VPC
       | VTP
-      | VXLAN
       | WEIGHTING
       | WRR_QUEUE
       | X25
@@ -967,6 +1055,11 @@ if_port_security
 if_private_vlan
 :
    PRIVATE_VLAN MAPPING (ADD | REMOVE)? null_rest_of_line
+;
+
+if_routing_dynamic
+:
+   ROUTING DYNAMIC NEWLINE
 ;
 
 if_service_instance
@@ -1366,7 +1459,7 @@ ifvrrpno_preempt
 
 if_zone_member
 :
-   ZONE_MEMBER SECURITY name = variable_permissive NEWLINE
+   ZONE_MEMBER SECURITY? name = variable_permissive NEWLINE
 ;
 
 if_security_level
@@ -1576,6 +1669,12 @@ ifvrrp_priority
    PRIORITY priority = DEC NEWLINE
 ;
 
+s_eos_vxlan_interface
+:
+   INTERFACE iname = eos_vxlan_interface_name NEWLINE
+   eos_vxlan_if_inner*
+;
+
 s_interface
 :
    INTERFACE PRECONFIGURE? iname = interface_name
@@ -1604,6 +1703,7 @@ if_inner
    | if_default_gw
    | if_delay
    | if_description
+   | if_eos_mlag
    | if_flow_sampler
    | if_hsrp
    | if_hsrp6
@@ -1643,6 +1743,7 @@ if_inner
    | if_ip_vrf_receive
    | if_ip_vrf_select
    | if_ip_vrf_sitemap
+   | if_ipv6
    | if_isis_circuit_type
    | if_isis_enable
    | if_isis_hello_interval
@@ -1656,8 +1757,11 @@ if_inner
    | if_no_bfd
    | if_no_ip_address
    | if_no_nameif
+   | if_no_routing_dynamic
+   | if_no_security_level
    | if_port_security
    | if_private_vlan
+   | if_routing_dynamic
    | if_service_instance
    | if_service_policy
    | if_shutdown

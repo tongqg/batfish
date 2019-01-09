@@ -58,7 +58,9 @@ private void setWildcard() {
 tokens {
    ACK,
    BANG,
+   DYNAMIC_DB,
    FIN,
+   INTERFACE_NAME,
    ISO_ADDRESS,
    PIPE,
    RST,
@@ -255,6 +257,11 @@ ALLOW
    'allow'
 ;
 
+ALLOW_DUPLICATES
+:
+   'allow-duplicates'
+;
+
 ALLOW_SNOOPED_CLIENTS
 :
    'allow-snooped-clients'
@@ -397,7 +404,7 @@ AS_PATH_EXPAND
 
 AS_PATH_GROUP
 :
-   'as-path-group'
+   'as-path-group' -> pushMode ( M_AsPathGroup )
 ;
 
 AS_PATH_PREPEND
@@ -470,6 +477,11 @@ AUTHORIZED_KEYS_COMMAND_USER
    'authorized-keys-command-user'
 ;
 
+AUTO
+:
+   'auto'
+;
+
 AUTO_EXPORT
 :
    'auto-export'
@@ -502,7 +514,7 @@ BACKUP_ROUTER
 
 BANDWIDTH
 :
-   'bandwidth'
+   'bandwidth' -> pushMode ( M_Bandwidth )
 ;
 
 BASIC
@@ -585,6 +597,11 @@ BUNDLE
    'bundle'
 ;
 
+C
+:
+    'c'
+;
+
 CATEGORIES
 :
    'categories'
@@ -598,6 +615,11 @@ CCC
 CERTIFICATES
 :
    'certificates'
+;
+
+CHANGE_LOG
+:
+    'change-log'
 ;
 
 CHASSIS
@@ -623,6 +645,11 @@ CLASS_OF_SERVICE
 CLEAR
 :
    'clear'
+;
+
+CLIENT
+:
+   'client'
 ;
 
 CLIENT_ALIVE_COUNT_MAX
@@ -702,6 +729,11 @@ COMPRESS_CONFIGURATION_FILES
 CONDITION
 :
    'condition'
+;
+
+CONFEDERATION
+:
+   'confederation'
 ;
 
 CONNECTIONS
@@ -804,6 +836,11 @@ DEFAULT_ADDRESS_SELECTION
    'default-address-selection'
 ;
 
+DEFAULT_GATEWAY
+:
+   'default-gateway'
+;
+
 DEFAULT_LSA
 :
    'default-lsa'
@@ -854,6 +891,16 @@ DESCRIPTION
    'description' -> pushMode ( M_Description )
 ;
 
+DESIGNATED_FORWARDER_ELECTION_HOLD_TIME
+:
+   'designated-forwarder-election-hold-time'
+;
+
+DESTINATION
+:
+   'destination'
+;
+
 DESTINATION_ADDRESS
 :
    'destination-address'
@@ -862,6 +909,11 @@ DESTINATION_ADDRESS
 DESTINATION_ADDRESS_EXCLUDED
 :
    'destination-address-excluded'
+;
+
+DESTINATION_ADDRESS_NAME
+:
+    'destination-address-name'
 ;
 
 DESTINATION_HOST_PROHIBITED
@@ -877,6 +929,11 @@ DESTINATION_HOST_UNKNOWN
 DESTINATION_IP
 :
    'destination-ip'
+;
+
+DESTINATION_NAT
+:
+   'destination-nat'
 ;
 
 DESTINATION_NETWORK_PROHIBITED
@@ -974,6 +1031,11 @@ DOMAIN_SEARCH
    'domain-search'
 ;
 
+DROP_PATH_ATTRIBUTES
+:
+   'drop-path-attributes'
+;
+
 DSA_SIGNATURES
 :
    'dsa-signatures'
@@ -1054,6 +1116,11 @@ EKSHELL
    'ekshell'
 ;
 
+ELIGIBLE
+:
+   'eligible'
+;
+
 ENABLE
 :
    'enable'
@@ -1099,6 +1166,11 @@ ETHER_OPTIONS
    'ether-options'
 ;
 
+ETHER_TYPE
+:
+   'ether-type'
+;
+
 ETHERNET_SWITCHING
 :
    'ethernet-switching'
@@ -1112,6 +1184,11 @@ ETHERNET_SWITCHING_OPTIONS
 EVENT_OPTIONS
 :
    'event-options'
+;
+
+EVPN
+:
+   'evpn'
 ;
 
 EXACT
@@ -1154,6 +1231,11 @@ EXPRESSION
    'expression'
 ;
 
+EXTENDED_VNI_LIST
+:
+   'extended-vni-list'
+;
+
 EXTENSIBLE_SUBSCRIBER
 :
    'extensible-subscriber'
@@ -1182,6 +1264,11 @@ EXTERNAL_PREFERENCE
 EXTERNAL_ROUTER_ID
 :
    'external-router-id'
+;
+
+EXTENSION_HEADER
+:
+    'extension-header'
 ;
 
 EXTENSIONS
@@ -1229,6 +1316,16 @@ FILTER
    'filter'
 ;
 
+FILTER_DUPLICATES
+:
+    'filter-duplicates'
+;
+
+FILTER_INTERFACES
+:
+    'filter-interfaces'
+;
+
 FINGER
 :
    'finger'
@@ -1262,6 +1359,16 @@ FLOW
 FLOW_CONTROL
 :
    'flow-control'
+;
+
+FLOW_GATE
+:
+   'flow-gate'
+;
+
+FLOW_SESSION
+:
+   'flow-session'
 ;
 
 FORCE_UP
@@ -1739,6 +1846,11 @@ INET_MVPN
    'inet-mvpn'
 ;
 
+INET6_MVPN
+:
+   'inet6-mvpn'
+;
+
 INET_VPN
 :
    'inet-vpn'
@@ -1762,6 +1874,11 @@ INFO_REQUEST
 INGRESS
 :
   'ingress'
+;
+
+INGRESS_REPLICATION
+:
+  'ingress-replication'
 ;
 
 INNER
@@ -1952,6 +2069,11 @@ ISIS_ENHANCED
 ISO
 :
    'iso' -> pushMode ( M_ISO )
+;
+
+ISO_VPN
+:
+   'iso-vpn'
 ;
 
 JUNOS_AOL
@@ -3028,7 +3150,7 @@ L2VPN
 
 L2_INTERFACE
 :
-  'l2-interface'
+  'l2-interface' -> pushMode(M_Interface)
 ;
 
 L2_LEARNING
@@ -3038,7 +3160,7 @@ L2_LEARNING
 
 L3_INTERFACE
 :
-   'l3-interface'
+   'l3-interface' -> pushMode(M_Interface)
 ;
 
 LABEL_SWITCHED_PATH
@@ -3186,6 +3308,11 @@ LOG_UPDOWN
    'log-updown'
 ;
 
+LOGICAL_SYSTEM
+:
+   'logical-system'
+;
+
 LOGICAL_SYSTEMS
 :
    'logical-systems'
@@ -3239,6 +3366,11 @@ LSP_INTERVAL
 LSP_LIFETIME
 :
    'lsp-lifetime'
+;
+
+LSP_TELEMETRY
+:
+   'lsp-telemetry'
 ;
 
 LSPING
@@ -3348,7 +3480,12 @@ MEDIUM_LOW
 
 MEMBER
 :
-   'member'
+   'member' -> pushMode(M_Interface)
+;
+
+MEMBER_RANGE
+:
+   'member-range' -> pushMode(M_MemberRange)
 ;
 
 MEMBERS
@@ -3456,6 +3593,11 @@ MULTICAST_MAC
    'multicast-mac' -> pushMode ( M_MacAddress )
 ;
 
+MULTICAST_MODE
+:
+   'multicast-mode'
+;
+
 MULTIHOP
 :
    'multihop'
@@ -3486,6 +3628,11 @@ MVPN
    'mvpn'
 ;
 
+NAME
+:
+   'name'
+;
+
 NAME_RESOLUTION
 :
    'name-resolution'
@@ -3504,6 +3651,11 @@ NAT
 NATIVE_VLAN_ID
 :
    'native-vlan-id'
+;
+
+NBMA
+:
+   'nbma'
 ;
 
 NEAREST
@@ -3671,9 +3823,19 @@ NO_EXPORT
    'no-export'
 ;
 
+NO_EXPORT_SUBCONFED
+:
+   'no-export-subconfed'
+;
+
 NO_FLOW_CONTROL
 :
    'no-flow-control'
+;
+
+NO_GATEWAY_COMMUNITY
+:
+   'no-gateway-community'
 ;
 
 NO_INSTALL
@@ -3711,6 +3873,16 @@ NO_PEER_LOOP_CHECK
    'no-peer-loop-check'
 ;
 
+NO_PING_RECORD_ROUTE
+:
+   'no-ping-record-route'
+;
+
+NO_PING_TIME_STAMP
+:
+   'no-ping-time-stamp'
+;
+
 NO_READVERTISE
 :
    'no-readvertise'
@@ -3719,6 +3891,11 @@ NO_READVERTISE
 NO_REDIRECTS
 :
    'no-redirects'
+;
+
+NO_REDIRECTS_IPV6
+:
+   'no-redirects-ipv6'
 ;
 
 NO_RESOLVE
@@ -3864,6 +4041,16 @@ OVERRIDE_METRIC
 OVERRIDES
 :
    'overrides'
+;
+
+P2MP
+:
+   'p2mp'
+;
+
+P2MP_OVER_LAN
+:
+   'p2mp-over-lan'
 ;
 
 P2P
@@ -4024,6 +4211,11 @@ POLL_INTERVAL
 POOL
 :
    'pool'
+;
+
+POOL_UTILIZATION_ALARM
+:
+    'pool-utilization-alarm'
 ;
 
 POP3
@@ -4251,6 +4443,11 @@ PROXY_IDENTITY
    'proxy-identity'
 ;
 
+PROXY_MACIP_ADVERTISEMENT
+:
+   'proxy-macip-advertisement'
+;
+
 PSH
 :
    'psh'
@@ -4368,7 +4565,7 @@ REDUNDANT_PARENT
 
 REFERENCE_BANDWIDTH
 :
-   'reference-bandwidth' -> pushMode ( M_ReferenceBandwidth )
+   'reference-bandwidth' -> pushMode ( M_Bandwidth )
 ;
 
 REJECT
@@ -4511,9 +4708,19 @@ ROUTE_DISTINGUISHER
    'route-distinguisher' -> pushMode ( M_RouteDistinguisher )
 ;
 
+ROUTE_DISTINGUISHER_ID
+:
+   'route-distinguisher-id'
+;
+
 ROUTE_FILTER
 :
    'route-filter'
+;
+
+ROUTE_TARGET
+:
+   'route-target'
 ;
 
 ROUTE_TYPE
@@ -4636,6 +4843,11 @@ SCCP
    'sccp'
 ;
 
+SCHEDULER
+:
+   'scheduler'
+;
+
 SCREEN
 :
    'screen'
@@ -4651,6 +4863,11 @@ SCTP
    'sctp'
 ;
 
+SCRUBBED
+:
+  '<SCRUBBED>'
+;
+
 SECRET
 :
    'secret'
@@ -4659,6 +4876,11 @@ SECRET
 SECURITY
 :
    'security'
+;
+
+SECURITY_PROFILE
+:
+   'security-profile'
 ;
 
 SECURITY_ZONE
@@ -4739,6 +4961,11 @@ SHARED_IKE_ID
 SHORTCUTS
 :
    'shortcuts'
+;
+
+SIGNALING
+:
+   'signaling'
 ;
 
 SIMPLE
@@ -4826,6 +5053,11 @@ SOURCE_ADDRESS_FILTER
    'source-address-filter'
 ;
 
+SOURCE_ADDRESS_NAME
+:
+    'source-address-name'
+;
+
 SOURCE_HOST_ISOLATED
 :
    'source-host-isolated'
@@ -4838,7 +5070,7 @@ SOURCE_IDENTITY
 
 SOURCE_INTERFACE
 :
-   'source-interface'
+   'source-interface' -> pushMode(M_Interface)
 ;
 
 SOURCE_MAC_ADDRESS
@@ -4919,6 +5151,11 @@ STATION_ADDRESS
 STATION_PORT
 :
    'station-port'
+;
+
+STATS_CACHE_LIFETIME
+:
+   'stats-cache-lifetime'
 ;
 
 STORM_CONTROL
@@ -5290,6 +5527,11 @@ UNTRUST_SCREEN
    'untrust-screen'
 ;
 
+UPLINK_FAILURE_DETECTION
+:
+   'uplink-failure-detection'
+;
+
 UPTO
 :
    'upto'
@@ -5380,6 +5622,16 @@ VLAN_TAGGING
    'vlan-tagging'
 ;
 
+VNI
+:
+   'vni'
+;
+
+VNI_OPTIONS
+:
+   'vni-options'
+;
+
 VPLS
 :
    'vpls'
@@ -5433,6 +5685,16 @@ VRRP_GROUP
 VSTP
 :
    'vstp'
+;
+
+VTEP_SOURCE_INTERFACE
+:
+   'vtep-source-interface' -> pushMode(M_Interface)
+;
+
+VXLAN
+:
+   'vxlan'
 ;
 
 WEB_MANAGEMENT
@@ -5819,6 +6081,81 @@ F_HexDigit
 ;
 
 fragment
+F_InterfaceMediaType
+:
+   ('ae' |
+   'as' |
+   'at' |
+   'bcm' |
+   'cau4' |
+   'ca1' |
+   'ci' |
+   'coc1' |
+   'coc3' |
+   'coc12' |
+   'coc48' |
+   'cp' |
+   'cstm1' |
+   'cstm4' |
+   'cstm16' |
+   'ct1' |
+   'ct3' |
+   'demux' |
+   'dfc' |
+   'ds' |
+   'dsc' |
+   'e1' |
+   'e3' |
+   'em' |
+   'es' |
+   'et' |
+   'fe' |
+   'fxp' |
+   'ge' |
+   'gr' |
+   'gre' |
+   'ip' |
+   'ipip' |
+   'ixgbe' |
+   'iw' |
+   'lc' |
+   'lo' |
+   'ls' |
+   'lsi' |
+   'lm' |
+   'mo' |
+   'ms' |
+   'mt' |
+   'mtun' |
+   'oc3' |
+   'pd' |
+   'pe' |
+   'pimd' |
+   'pime' |
+   'reth' |
+   'rlsq' |
+   'rms' |
+   'rsp' |
+   'se' |
+   'si' |
+   'so' |
+   'sp' |
+   'st' |
+   'stm1' |
+   'stm4' |
+   'stm16' |
+   't1' |
+   't3' |
+   'tap' |
+   'umd' |
+   'vc4' |
+   'vsp' |
+   'vt' |
+   'xe' |
+   'xt')
+;
+
+fragment
 F_IpAddress
 :
    F_DecByte '.' F_DecByte '.' F_DecByte '.' F_DecByte
@@ -5858,6 +6195,18 @@ fragment
 F_Variable_RequiredVarChar
 :
    ~[ 0-9\t\n\r/.,\-;{}<>[\]&|()"']
+;
+
+fragment
+F_Hostname_LeadingChar
+:
+   [A-Za-z]
+;
+
+fragment
+F_Hostname_TrailingChar
+:
+   [A-Za-z0-9_]|'-'
 ;
 
 fragment
@@ -5994,6 +6343,62 @@ M_AsPathExpr_WS
    F_WhitespaceChar+ -> channel ( HIDDEN )
 ;
 
+mode M_AsPathGroup;
+
+M_AsPathGroup_WS
+:
+   F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+M_AsPathGroup_NAME_QUOTED
+:
+  '"' ~'"'+ '"' -> mode ( M_AsPathGroup2 )
+;
+
+M_AsPathGroup_NAME
+:
+  F_NonWhitespaceChar+ -> mode(M_AsPathGroup2)
+;
+
+mode M_AsPathGroup2;
+
+M_AsPathGroup2_WS
+:
+   F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+M_AsPathGroup2_NEWLINE
+:
+  F_NewlineChar+ -> type(NEWLINE), popMode
+;
+
+M_AsPathGroup2_AS_PATH
+:
+   'as-path' -> type(AS_PATH), mode(M_AsPathGroup3)
+;
+
+M_AsPathGroup2_DYNAMIC_DB
+:
+  'dynamic-db' -> type(DYNAMIC_DB), popMode
+;
+
+mode M_AsPathGroup3;
+
+M_AsPathGroup3_WS
+:
+   F_WhitespaceChar+ -> channel(HIDDEN)
+;
+
+M_AsPathGroup3_NAME_QUOTED
+:
+  '"' ~'"'+ '"' -> mode (M_AsPathRegex)
+;
+
+M_AsPathGroup3_NAME
+:
+  F_NonWhitespaceChar+ -> mode(M_AsPathRegex)
+;
+
 mode M_AsPathPrepend;
 
 M_AsPathPrepend_DEC
@@ -6100,6 +6505,11 @@ M_DSCP_WS
 
 mode M_Interface;
 
+M_Interface_COLON
+:
+   ':' -> type (COLON)
+;
+
 M_Interface_ALL
 :
    'all' -> type ( ALL ) , popMode
@@ -6133,6 +6543,15 @@ M_Interface_INTERFACE_RANGE
    'interface-range' -> type ( INTERFACE_RANGE ) , popMode
 ;
 
+M_Interface_INTERFACE_NAME
+:
+   (
+      F_InterfaceMediaType '-'? F_Digit+ ('/' F_Digit+)*
+      | 'irb'
+      | 'vlan'
+   ) -> type(INTERFACE_NAME), popMode
+;
+
 M_Interface_PORT_OVERLOADING
 :
    'port-overloading' -> type ( PORT_OVERLOADING ) , popMode
@@ -6153,10 +6572,9 @@ M_Interface_TRACEOPTIONS
    'traceoptions' -> type ( TRACEOPTIONS ) , popMode
 ;
 
-M_Interface_VARIABLE
+M_Interface_HOSTNAME
 :
-   F_Variable_RequiredVarChar F_Variable_InterfaceVarChar* -> type ( VARIABLE )
-   , popMode
+   F_Hostname_LeadingChar F_Hostname_TrailingChar* -> type ( VARIABLE )
 ;
 
 M_Interface_WILDCARD
@@ -6190,6 +6608,11 @@ M_InterfaceQuote_VARIABLE
 M_InterfaceQuote_WILDCARD
 :
    '<' ~'>'* '>' {setType(_markWildcards?WILDCARD_ARTIFACT:WILDCARD);}
+;
+
+M_InterfaceQuote_DOUBLE_QUOTED_STRING
+:
+    ~'"'+ -> type ( DOUBLE_QUOTED_STRING )
 ;
 
 mode M_ISO;
@@ -6244,6 +6667,31 @@ MAC_ADDRESS
 M_MacAddress_WS
 :
    F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+mode M_MemberRange;
+
+M_MemberRange_INTERFACE_NAME:
+   (
+      F_InterfaceMediaType '-'? F_Digit+ ('/' F_Digit+)*
+      | 'irb' | 'vlan'
+   ) -> type(INTERFACE_NAME), mode(M_MemberRange2)
+;
+
+M_MemberRange_WS
+:
+   F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+mode M_MemberRange2;
+
+M_MemberRange2_WS
+:
+   F_WhitespaceChar+ -> channel ( HIDDEN )
+;
+
+M_MemberRange2_TO:
+   'to' -> type(TO), mode(M_Interface)
 ;
 
 mode M_Members;
@@ -6331,6 +6779,11 @@ M_Members_NO_EXPORT
    'no-export' -> type ( NO_EXPORT )
 ;
 
+M_Members_NO_EXPORT_SUBCONFED
+:
+   'no-export-subconfed' -> type ( NO_EXPORT_SUBCONFED )
+;
+
 M_Members_OPEN_BRACE
 :
    '{' -> type ( OPEN_BRACE )
@@ -6403,34 +6856,39 @@ M_PrefixListName_WS
    F_WhitespaceChar+ -> channel ( HIDDEN )
 ;
 
-mode M_ReferenceBandwidth;
+mode M_Bandwidth;
 
-M_ReferenceBandwidth_DEC
+M_Bandwidth_DEC
 :
   F_Digit+ -> type ( DEC )
 ;
 
-M_ReferenceBandwidth_G
+M_Bandwidth_C
 :
-  'g' -> type ( G )
+  'c' -> type ( C ) , popMode
 ;
 
-M_ReferenceBandwidth_K
+M_Bandwidth_G
 :
-  'k' -> type ( K )
+  'g' -> type ( G ) , popMode
 ;
 
-M_ReferenceBandwidth_M
+M_Bandwidth_K
 :
-  'm' -> type ( M )
+  'k' -> type ( K ) , popMode
 ;
 
-M_ReferenceBandwidth_NEWLINE
+M_Bandwidth_M
+:
+  'm' -> type ( M ) , popMode
+;
+
+M_Bandwidth_NEWLINE
 :
   F_NewlineChar+ -> type ( NEWLINE ) , popMode
 ;
 
-M_ReferenceBandwidth_WS
+M_Bandwidth_WS
 :
    F_WhitespaceChar+ -> channel ( HIDDEN )
 ;

@@ -1,7 +1,8 @@
 parser grammar CiscoParser;
 
 import
-Cisco_common, Cisco_aaa, Cisco_acl, Cisco_bgp, Cisco_cable, Cisco_crypto, Cisco_callhome, Cisco_eigrp, Cisco_hsrp, Cisco_ignored, Cisco_interface, Cisco_isis, Cisco_line, Cisco_logging, Cisco_mpls, Cisco_ntp, Cisco_ospf, Cisco_pim, Cisco_qos, Cisco_rip, Cisco_routemap, Cisco_snmp, Cisco_static, Cisco_zone;
+Cisco_common, Arista_mlag, Cisco_aaa, Cisco_acl, Cisco_bgp, Cisco_cable, Cisco_crypto, Cisco_callhome, Cisco_eigrp, Cisco_hsrp, Cisco_ignored, Cisco_interface, Cisco_isis, Cisco_line, Cisco_logging, Cisco_mpls, Cisco_ntp, Cisco_ospf, Cisco_pim, Cisco_qos, Cisco_rip, Cisco_routemap, Cisco_snmp, Cisco_static, Cisco_zone;
+
 
 options {
    superClass = 'org.batfish.grammar.BatfishParser';
@@ -592,9 +593,10 @@ enable_password
 :
    PASSWORD (LEVEL level = DEC)?
    (
-      ep_cisco_encryption
-      | ep_plaintext
+      ep_plaintext
       | ep_sha512
+      // Do not reorder ep_cisco_encryption
+      | ep_cisco_encryption
    ) NEWLINE
 ;
 
@@ -611,7 +613,7 @@ enable_secret
 
 ep_cisco_encryption
 :
-   type = DEC (pass = variable_secret)
+   (type = DEC)? (pass = variable_secret) (LEVEL level = DEC)? (PBKDF2 | ENCRYPTED)?
 ;
 
 ep_plaintext
@@ -2799,7 +2801,7 @@ s_monitor_session
 
 s_mtu
 :
-   MTU variable DEC NEWLINE
+   MTU iface = variable bytes = DEC NEWLINE
 ;
 
 s_name
@@ -2938,6 +2940,15 @@ s_router_vrrp
    (
       vrrp_interface
    )*
+;
+
+s_same_security_traffic
+:
+  SAME_SECURITY_TRAFFIC PERMIT
+  (
+     INTER_INTERFACE
+     | INTRA_INTERFACE
+  ) NEWLINE
 ;
 
 s_sccp
@@ -3514,6 +3525,7 @@ stanza
 :
    appletalk_access_list_stanza
    | asa_comment_stanza
+   | asa_access_group
    | as_path_set_stanza
    | banner_stanza
    | community_set_stanza
@@ -3584,6 +3596,7 @@ stanza
    | s_dspfarm
    | s_dynamic_access_policy_record
    | s_enable
+   | s_eos_mlag
    | s_ephone_dn_template
    | s_ethernet_services
    | s_event
@@ -3603,6 +3616,7 @@ stanza
    |
    // do not move below s_interface
    s_interface_line
+   | s_eos_vxlan_interface
    | s_interface
    | s_ip_access_list_eth
    | s_ip_access_list_session
@@ -3683,6 +3697,7 @@ stanza
    | s_router_rip
    | s_router_static
    | s_router_vrrp
+   | s_same_security_traffic
    | s_sccp
    | s_service
    | s_service_policy_global
@@ -4002,13 +4017,19 @@ u_passphrase
 u_password
 :
    (
-      PASSWORD
-      | SECRET
+      (
+         PASSWORD
+         | SECRET
+      )
+      (
+         up_arista_md5
+         | up_arista_sha512
+         | up_cisco
+      )
    )
+   |
    (
-      up_arista_md5
-      | up_arista_sha512
-      | up_cisco
+      NOPASSWORD
    )
 ;
 
@@ -4048,7 +4069,18 @@ up_arista_sha512
 
 up_cisco
 :
-   DEC pass = variable_secret
+   DEC? up_cisco_tail
+;
+
+up_cisco_tail
+:
+   (pass = variable_secret)
+   (
+      ENCRYPTED
+      | MSCHAP
+      | NT_ENCRYPTED
+      | PBKDF2
+   )?
 ;
 
 ur_access_list
@@ -4133,6 +4165,7 @@ vlan_null
       | PRIVATE_VLAN
       | REMOTE_SPAN
       | ROUTER_INTERFACE
+      | SHUTDOWN
       | SPANNING_TREE
       | STATE
       | STATISTICS

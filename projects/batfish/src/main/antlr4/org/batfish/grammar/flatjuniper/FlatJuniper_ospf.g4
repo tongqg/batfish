@@ -61,7 +61,8 @@ o_no_active_backbone
 o_null
 :
    (
-      NO_RFC_1583
+      GRACEFUL_RESTART
+      | NO_RFC_1583
       | OVERLOAD
       | SPF_OPTIONS
       | TRACEOPTIONS
@@ -70,7 +71,7 @@ o_null
 
 o_reference_bandwidth
 :
-   REFERENCE_BANDWIDTH reference_bandwidth
+   REFERENCE_BANDWIDTH bandwidth
 ;
 
 o_rib_group
@@ -123,6 +124,7 @@ oa_interface
       | oai_ldp_synchronization
       | oai_link_protection
       | oai_metric
+      | oai_neighbor
       | oai_null
       | oai_passive
       | oai_priority
@@ -193,12 +195,17 @@ oai_hello_interval
 
 oai_interface_type
 :
-   INTERFACE_TYPE P2P
+   INTERFACE_TYPE type = ospf_interface_type
 ;
 
 oai_ldp_synchronization
 :
    LDP_SYNCHRONIZATION
+   (
+       apply
+       | oai_ls_disable
+       | oai_ls_hold_time
+   )
 ;
 
 oai_link_protection
@@ -206,9 +213,24 @@ oai_link_protection
    LINK_PROTECTION
 ;
 
+oai_ls_disable
+:
+   DISABLE
+;
+
+oai_ls_hold_time
+:
+   HOLD_TIME time = DEC
+;
+
 oai_metric
 :
    METRIC DEC
+;
+
+oai_neighbor
+:
+   NEIGHBOR IP_ADDRESS ELIGIBLE?
 ;
 
 oai_null
@@ -289,6 +311,16 @@ oas_no_summaries
 oas_default_metric
 :
    DEFAULT_METRIC DEC
+;
+
+ospf_interface_type
+:
+   (
+      NBMA
+      | P2MP
+      | P2MP_OVER_LAN
+      | P2P
+   )
 ;
 
 ot_credibility_protocol_preference

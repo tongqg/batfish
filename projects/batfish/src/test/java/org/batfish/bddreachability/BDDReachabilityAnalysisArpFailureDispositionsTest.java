@@ -5,6 +5,7 @@ import static org.batfish.datamodel.FlowDisposition.DELIVERED_TO_SUBNET;
 import static org.batfish.datamodel.FlowDisposition.EXITS_NETWORK;
 import static org.batfish.datamodel.FlowDisposition.INSUFFICIENT_INFO;
 import static org.batfish.datamodel.FlowDisposition.NEIGHBOR_UNREACHABLE;
+import static org.batfish.datamodel.acl.AclLineMatchExprs.matchDst;
 import static org.batfish.main.BatfishTestUtils.getBatfish;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.hasEntry;
@@ -51,7 +52,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
 
   public @Rule TemporaryFolder temp = new TemporaryFolder();
 
-  private static final Ip DST_IP = new Ip("3.3.3.3");
+  private static final Ip DST_IP = Ip.parse("3.3.3.3");
   private static final String NODE1 = "node1";
   private static final String NODE2 = "node2";
   private static final String NEXT_HOP_INTERFACE = "iface1";
@@ -63,7 +64,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
   private static final InterfaceAddress NEXT_HOP_INTERFACE_NEIGHBOR_ADDR =
       new InterfaceAddress("2.0.0.2/32");
 
-  private static final Ip NEXT_HOP_IP = new Ip("7.7.7.7");
+  private static final Ip NEXT_HOP_IP = Ip.parse("7.7.7.7");
 
   private NetworkFactory _nf;
   private Configuration.Builder _cb;
@@ -92,7 +93,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     return initFactory()
         .bddReachabilityAnalysis(
             srcIpSpaceAssignment(),
-            UniverseIpSpace.INSTANCE,
+            matchDst(UniverseIpSpace.INSTANCE),
             ImmutableSet.of(),
             ImmutableSet.of(),
             ImmutableSet.of(NODE1),
@@ -224,7 +225,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setAdministrativeCost(1)
                 .build()));
@@ -248,7 +249,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setAdministrativeCost(1)
                 .build()));
@@ -282,7 +283,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setAdministrativeCost(1)
                 .build()));
@@ -306,7 +307,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setAdministrativeCost(1)
                 .build()));
@@ -347,7 +348,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -373,7 +374,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -412,7 +413,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf1.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -438,7 +439,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -480,7 +481,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -515,7 +516,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -550,7 +551,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)
@@ -576,7 +577,7 @@ public class BDDReachabilityAnalysisArpFailureDispositionsTest {
     vrf.setStaticRoutes(
         ImmutableSortedSet.of(
             StaticRoute.builder()
-                .setNetwork(new Prefix(DST_IP, 32))
+                .setNetwork(Prefix.create(DST_IP, 32))
                 .setNextHopInterface(NEXT_HOP_INTERFACE)
                 .setNextHopIp(NEXT_HOP_IP)
                 .setAdministrativeCost(1)

@@ -49,22 +49,6 @@ public interface SpecifierContext {
         .getOrDefault(iface, EmptyIpSpace.INSTANCE);
   }
 
-  /**
-   * @return the {@link IpSpace}s owned by each VRF in the network. Mapping: hostname -&gt; VRF name
-   *     -&gt; IpSpace.
-   */
-  Map<String, Map<String, IpSpace>> getVrfOwnedIps();
-
-  /**
-   * Get the {@link IpSpace} owned by the input VRF.
-   *
-   * @param hostname The node the VRF belongs to.
-   * @param vrf The name of the VRF.
-   * @return The combined space of IPs owned by the VRF's interfaces.
-   */
-  default IpSpace getVrfOwnedIps(String hostname, String vrf) {
-    return getVrfOwnedIps()
-        .getOrDefault(hostname, ImmutableMap.of())
-        .getOrDefault(vrf, EmptyIpSpace.INSTANCE);
-  }
+  /** @return the {@link IpSpace} of IP addresses owned any device in the network. */
+  IpSpace getSnapshotDeviceOwnedIps();
 }

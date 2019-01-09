@@ -49,6 +49,7 @@ import static org.batfish.datamodel.matchers.ConfigurationMatchers.hasVrfs;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasAclName;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasBandwidth;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasDefinedStructure;
+import static org.batfish.datamodel.matchers.DataModelMatchers.hasIncomingFilter;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasIpProtocols;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasMemberInterfaces;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasName;
@@ -89,6 +90,7 @@ import static org.batfish.datamodel.matchers.InterfaceMatchers.hasDeclaredNames;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.hasEigrp;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.hasHsrpGroup;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.hasHsrpVersion;
+import static org.batfish.datamodel.matchers.InterfaceMatchers.hasIsis;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.hasMtu;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.hasOspfArea;
 import static org.batfish.datamodel.matchers.InterfaceMatchers.hasVrf;
@@ -117,6 +119,7 @@ import static org.batfish.datamodel.matchers.IpsecSessionMatchers.hasNegotiatedI
 import static org.batfish.datamodel.matchers.IpsecVpnMatchers.hasBindInterface;
 import static org.batfish.datamodel.matchers.IpsecVpnMatchers.hasIkeGatewaay;
 import static org.batfish.datamodel.matchers.IpsecVpnMatchers.hasPolicy;
+import static org.batfish.datamodel.matchers.IsisInterfaceSettingsMatchers.hasLevel2;
 import static org.batfish.datamodel.matchers.LineMatchers.hasAuthenticationLoginList;
 import static org.batfish.datamodel.matchers.LineMatchers.requiresAuthentication;
 import static org.batfish.datamodel.matchers.MatchHeaderSpaceMatchers.hasHeaderSpace;
@@ -146,6 +149,7 @@ import static org.batfish.datamodel.vendor_family.cisco.CiscoFamilyMatchers.hasA
 import static org.batfish.datamodel.vendor_family.cisco.CiscoFamilyMatchers.hasLogging;
 import static org.batfish.datamodel.vendor_family.cisco.LoggingMatchers.isOn;
 import static org.batfish.grammar.cisco.CiscoControlPlaneExtractor.SERIAL_LINE;
+import static org.batfish.main.BatfishTestUtils.configureBatfishTestSettings;
 import static org.batfish.representation.cisco.CiscoConfiguration.computeCombinedOutgoingAclName;
 import static org.batfish.representation.cisco.CiscoConfiguration.computeIcmpObjectGroupAclName;
 import static org.batfish.representation.cisco.CiscoConfiguration.computeInspectClassMapAclName;
@@ -160,6 +164,7 @@ import static org.batfish.representation.cisco.CiscoStructureType.BFD_TEMPLATE;
 import static org.batfish.representation.cisco.CiscoStructureType.ICMP_TYPE_OBJECT_GROUP;
 import static org.batfish.representation.cisco.CiscoStructureType.INSPECT_CLASS_MAP;
 import static org.batfish.representation.cisco.CiscoStructureType.INSPECT_POLICY_MAP;
+import static org.batfish.representation.cisco.CiscoStructureType.INTERFACE;
 import static org.batfish.representation.cisco.CiscoStructureType.IPV4_ACCESS_LIST;
 import static org.batfish.representation.cisco.CiscoStructureType.IPV4_ACCESS_LIST_EXTENDED;
 import static org.batfish.representation.cisco.CiscoStructureType.IPV4_ACCESS_LIST_STANDARD;
@@ -180,8 +185,11 @@ import static org.batfish.representation.cisco.CiscoStructureType.SECURITY_ZONE;
 import static org.batfish.representation.cisco.CiscoStructureType.SERVICE_OBJECT;
 import static org.batfish.representation.cisco.CiscoStructureType.SERVICE_OBJECT_GROUP;
 import static org.batfish.representation.cisco.CiscoStructureType.TRACK;
+import static org.batfish.representation.cisco.CiscoStructureType.VXLAN;
+import static org.batfish.representation.cisco.CiscoStructureUsage.EXTENDED_ACCESS_LIST_NETWORK_OBJECT;
 import static org.batfish.representation.cisco.CiscoStructureUsage.EXTENDED_ACCESS_LIST_NETWORK_OBJECT_GROUP;
 import static org.batfish.representation.cisco.CiscoStructureUsage.EXTENDED_ACCESS_LIST_PROTOCOL_OR_SERVICE_OBJECT_GROUP;
+import static org.batfish.representation.cisco.CiscoStructureUsage.EXTENDED_ACCESS_LIST_SERVICE_OBJECT;
 import static org.batfish.representation.cisco.CiscoStructureUsage.INSPECT_POLICY_MAP_INSPECT_CLASS;
 import static org.batfish.representation.cisco.CiscoStructureUsage.INTERFACE_BFD_TEMPLATE;
 import static org.batfish.representation.cisco.CiscoStructureUsage.INTERFACE_INCOMING_FILTER;
@@ -223,17 +231,20 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
+import org.antlr.v4.runtime.ParserRuleContext;
+import org.batfish.common.BatfishLogger;
+import org.batfish.common.Warnings;
 import org.batfish.common.WellKnownCommunity;
 import org.batfish.common.plugin.DataPlanePlugin;
 import org.batfish.common.topology.TopologyUtil;
 import org.batfish.common.util.CommonUtil;
 import org.batfish.common.util.IpsecUtil;
+import org.batfish.config.Settings;
 import org.batfish.datamodel.AbstractRoute;
 import org.batfish.datamodel.AsPath;
 import org.batfish.datamodel.BgpPeerConfigId;
@@ -255,6 +266,8 @@ import org.batfish.datamodel.IcmpType;
 import org.batfish.datamodel.IkeAuthenticationMethod;
 import org.batfish.datamodel.IkeHashingAlgorithm;
 import org.batfish.datamodel.Interface;
+import org.batfish.datamodel.Interface.Dependency;
+import org.batfish.datamodel.Interface.DependencyType;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.InterfaceType;
 import org.batfish.datamodel.Ip;
@@ -271,13 +284,14 @@ import org.batfish.datamodel.Line;
 import org.batfish.datamodel.LineType;
 import org.batfish.datamodel.MultipathEquivalentAsPathMatchMode;
 import org.batfish.datamodel.NamedPort;
-import org.batfish.datamodel.OspfIntraAreaRoute;
+import org.batfish.datamodel.OspfInternalRoute;
 import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.Prefix6;
 import org.batfish.datamodel.PrefixRange;
 import org.batfish.datamodel.PrefixSpace;
 import org.batfish.datamodel.RegexCommunitySet;
 import org.batfish.datamodel.RipInternalRoute;
+import org.batfish.datamodel.RoutingProtocol;
 import org.batfish.datamodel.StaticRoute;
 import org.batfish.datamodel.SubRange;
 import org.batfish.datamodel.Vrf;
@@ -323,7 +337,7 @@ import org.batfish.main.Batfish;
 import org.batfish.main.BatfishTestUtils;
 import org.batfish.main.TestrigText;
 import org.batfish.representation.cisco.CiscoConfiguration;
-import org.batfish.representation.cisco.CiscoStructureType;
+import org.batfish.representation.cisco.eos.AristaEosVxlan;
 import org.hamcrest.Matchers;
 import org.junit.Rule;
 import org.junit.Test;
@@ -347,10 +361,15 @@ public class CiscoGrammarTest {
   }
 
   private Flow createFlow(IpProtocol protocol, int srcPort, int dstPort) {
+    return createFlow(protocol, srcPort, dstPort, FlowState.NEW);
+  }
+
+  private Flow createFlow(IpProtocol protocol, int srcPort, int dstPort, FlowState state) {
     return Flow.builder()
         .setIngressNode("")
         .setTag("")
         .setIpProtocol(protocol)
+        .setState(state)
         .setSrcPort(srcPort)
         .setDstPort(dstPort)
         .build();
@@ -365,22 +384,18 @@ public class CiscoGrammarTest {
         .build();
   }
 
-  private static Flow createFlow(String sourceAddress, String destinationAddress) {
-    return createFlow(sourceAddress, destinationAddress, FlowState.NEW);
-  }
-
-  private static Flow createEstablishedFlow(String sourceAddress, String destinationAddress) {
-    return createFlow(sourceAddress, destinationAddress, FlowState.ESTABLISHED);
-  }
-
-  private static Flow createFlow(String sourceAddress, String destinationAddress, FlowState state) {
-    Flow.Builder fb = new Flow.Builder();
-    fb.setIngressNode("node");
-    fb.setSrcIp(new Ip(sourceAddress));
-    fb.setDstIp(new Ip(destinationAddress));
-    fb.setState(state);
-    fb.setTag("test");
-    return fb.build();
+  private CiscoConfiguration parseCiscoConfig(String hostname, ConfigurationFormat format) {
+    String src = CommonUtil.readResource(TESTCONFIGS_PREFIX + hostname);
+    Settings settings = new Settings();
+    configureBatfishTestSettings(settings);
+    CiscoCombinedParser ciscoParser = new CiscoCombinedParser(src, settings, format);
+    CiscoControlPlaneExtractor extractor =
+        new CiscoControlPlaneExtractor(src, ciscoParser, format, new Warnings());
+    ParserRuleContext tree =
+        Batfish.parse(
+            ciscoParser, new BatfishLogger(BatfishLogger.LEVELSTR_FATAL, false), settings);
+    extractor.processParseTree(tree);
+    return (CiscoConfiguration) extractor.getVendorConfiguration();
   }
 
   @Test
@@ -626,6 +641,70 @@ public class CiscoGrammarTest {
   }
 
   @Test
+  public void testAsaAclObject() throws IOException {
+    String hostname = "asa-acl-object";
+    String filename = "configs/" + hostname;
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+    Configuration c = batfish.loadConfigurations().get(hostname);
+    ConvertConfigurationAnswerElement ccae =
+        batfish.loadConvertConfigurationAnswerElementOrReparse();
+
+    /*
+     * The produced ACL should permit if source matcher object on1, destination matches on2, and
+     * service matches os1.
+     */
+    assertThat(
+        c,
+        hasIpAccessList(
+            "acl1",
+            hasLines(
+                hasItem(
+                    hasMatchCondition(
+                        isAndMatchExprThat(
+                            hasConjuncts(
+                                containsInAnyOrder(
+                                    ImmutableList.of(
+                                        isMatchHeaderSpaceThat(
+                                            hasHeaderSpace(
+                                                allOf(
+                                                    hasDstIps(
+                                                        isIpSpaceReferenceThat(hasName("on2"))),
+                                                    hasSrcIps(
+                                                        isIpSpaceReferenceThat(hasName("on1")))))),
+                                        isPermittedByAclThat(
+                                            hasAclName(
+                                                computeServiceObjectAclName("os1"))))))))))));
+
+    /*
+     * We expect only objects osunused1, onunused1 to have zero referrers
+     */
+    assertThat(ccae, hasNumReferrers(filename, SERVICE_OBJECT, "os1", 1));
+    assertThat(ccae, hasNumReferrers(filename, NETWORK_OBJECT, "on1", 1));
+    assertThat(ccae, hasNumReferrers(filename, NETWORK_OBJECT, "on2", 1));
+    assertThat(ccae, hasNumReferrers(filename, SERVICE_OBJECT, "osunused1", 0));
+    assertThat(ccae, hasNumReferrers(filename, NETWORK_OBJECT, "onunused1", 0));
+
+    /*
+     * We expect undefined references only to objects osfake, onfake1, onfake2
+     */
+    assertThat(ccae, not(hasUndefinedReference(filename, SERVICE_OBJECT, "os1")));
+    assertThat(ccae, not(hasUndefinedReference(filename, NETWORK_OBJECT, "on1")));
+    assertThat(ccae, not(hasUndefinedReference(filename, NETWORK_OBJECT, "on2")));
+    assertThat(
+        ccae,
+        hasUndefinedReference(
+            filename, SERVICE_OBJECT, "osfake", EXTENDED_ACCESS_LIST_SERVICE_OBJECT));
+    assertThat(
+        ccae,
+        hasUndefinedReference(
+            filename, NETWORK_OBJECT, "onfake2", EXTENDED_ACCESS_LIST_NETWORK_OBJECT));
+    assertThat(
+        ccae,
+        hasUndefinedReference(
+            filename, NETWORK_OBJECT, "onfake1", EXTENDED_ACCESS_LIST_NETWORK_OBJECT));
+  }
+
+  @Test
   public void testAsaOspfReferenceBandwidth() throws IOException {
     Configuration manual = parseConfig("asaOspfCost");
     assertThat(manual.getDefaultVrf().getOspfProcess().getReferenceBandwidth(), equalTo(3e6d));
@@ -634,6 +713,106 @@ public class CiscoGrammarTest {
     assertThat(
         defaults.getDefaultVrf().getOspfProcess().getReferenceBandwidth(),
         equalTo(getReferenceOspfBandwidth(ConfigurationFormat.CISCO_ASA)));
+  }
+
+  @Test
+  public void testAsaFilters() throws IOException {
+    String hostname = "asa-filters";
+    Configuration c = parseConfig(hostname);
+
+    String ifaceAlias = "name1";
+
+    Flow flowPass = createFlow(IpProtocol.TCP, 1, 123);
+    Flow flowFail = createFlow(IpProtocol.TCP, 1, 1);
+
+    // Confirm access list permits only traffic matching ACL
+    assertThat(c, hasInterface(ifaceAlias, hasOutgoingFilter(accepts(flowPass, null, c))));
+    assertThat(c, hasInterface(ifaceAlias, hasOutgoingFilter(not(accepts(flowFail, null, c)))));
+  }
+
+  @Test
+  public void testAsaFiltersGlobal() throws IOException {
+    String hostname = "asa-filters-global";
+    Configuration c = parseConfig(hostname);
+
+    String iface1Alias = "name1";
+    String iface2Alias = "name2";
+
+    Flow flowPass = createFlow(IpProtocol.TCP, 1, 123);
+    Flow flowFail = createFlow(IpProtocol.TCP, 1, 1);
+
+    // Confirm global ACL affects all interfaces
+    assertThat(c, hasInterface(iface1Alias, hasIncomingFilter(accepts(flowPass, null, c))));
+    assertThat(c, hasInterface(iface2Alias, hasIncomingFilter(accepts(flowPass, null, c))));
+    assertThat(c, hasInterface(iface1Alias, hasIncomingFilter(not(accepts(flowFail, null, c)))));
+    assertThat(c, hasInterface(iface2Alias, hasIncomingFilter(not(accepts(flowFail, null, c)))));
+  }
+
+  @Test
+  public void testAsaFiltersGlobalReference() throws IOException {
+    String hostname = "asa-filters-global";
+    String filename = "configs/" + hostname;
+    parseConfig(hostname);
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+    ConvertConfigurationAnswerElement ccae =
+        batfish.loadConvertConfigurationAnswerElementOrReparse();
+
+    // Confirm reference tracking is correct for globally applied ASA access list in access group
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_GLOBAL", 1));
+  }
+
+  @Test
+  public void testAsaFiltersReference() throws IOException {
+    String hostname = "asa-filters";
+    String filename = "configs/" + hostname;
+    parseConfig(hostname);
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+    ConvertConfigurationAnswerElement ccae =
+        batfish.loadConvertConfigurationAnswerElementOrReparse();
+
+    // Confirm reference tracking is correct for ASA access lists in access group
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_IN", 1));
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_IN4", 1));
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_OUT", 1));
+    assertThat(ccae, hasNumReferrers(filename, IPV4_ACCESS_LIST_EXTENDED, "FILTER_OUT5", 1));
+    assertThat(ccae, hasUndefinedReference(filename, IP_ACCESS_LIST, "FILTER_UNDEF"));
+  }
+
+  @Test
+  public void testAsaSecurityLevelAndFilters() throws IOException {
+    String hostname = "asa-filters";
+    Configuration c = parseConfig(hostname);
+
+    String highIface1 = "name1"; // GigabitEthernet0/1
+    String lowIface2 = "name2"; // GigabitEthernet0/2
+    String highIface3 = "name3"; // GigabitEthernet0/3
+    String lowIface4 = "name4"; // GigabitEthernet0/4
+    String lowIface5 = "name5"; // GigabitEthernet0/5
+
+    Flow flowPass = createFlow(IpProtocol.TCP, 1, 123);
+    Flow flowFail = createFlow(IpProtocol.TCP, 1, 1);
+    Flow anyFlow = createFlow(IpProtocol.IP, 0, 0, FlowState.NEW);
+
+    // Confirm access list permits only traffic matching both ACL and security level restrictions
+    // highIface1 has inbound filter permitting all IP traffic
+    // highIface1 has outbound filter permitting only TCP port 123
+    // highIface1 rejects all traffic from lowIface2 due to security level restriction
+    assertThat(c, hasInterface(highIface1, hasOutgoingFilter(rejects(anyFlow, lowIface2, c))));
+
+    // Confirm access list permits only traffic matching both ACL and security level restrictions
+    // highIface1 has a higher security level than lowIface5
+    // lowIface5 has no inbound filter
+    // lowIface5 rejects all outbound traffic except TCP port 123
+    assertThat(c, hasInterface(lowIface5, hasOutgoingFilter(rejects(flowFail, highIface1, c))));
+    assertThat(c, hasInterface(lowIface5, hasOutgoingFilter(accepts(flowPass, highIface1, c))));
+
+    // lowIface4 has inbound filter permitting only TCP port 123
+    // highIface3 has no explicit outbound filter
+    assertThat(c, hasInterface(lowIface4, hasIncomingFilter(accepts(flowPass, lowIface4, c))));
+    assertThat(c, hasInterface(lowIface4, hasIncomingFilter(rejects(flowFail, lowIface4, c))));
+    // any flow outbound on highIface3 from lowIface4 is allowed, assuming it was allowed incoming
+    // security level restriction is removed because lowIface4 has an inbound ACL
+    assertThat(c, hasInterface(highIface3, hasOutgoingFilter(accepts(anyFlow, lowIface4, c))));
   }
 
   @Test
@@ -651,7 +830,8 @@ public class CiscoGrammarTest {
 
     Flow flowIcmpPass = createIcmpFlow(IcmpType.ECHO_REQUEST);
     Flow flowIcmpFail = createIcmpFlow(IcmpType.ECHO_REPLY);
-    Flow flowInlinePass = createFlow(IpProtocol.UDP, 1, 1234);
+    Flow flowInlinePass1 = createFlow(IpProtocol.UDP, 1, 1234);
+    Flow flowInlinePass2 = createFlow(IpProtocol.UDP, 3020, 1); // cifs
     Flow flowTcpPass = createFlow(IpProtocol.TCP, 65535, 1);
     Flow flowUdpPass = createFlow(IpProtocol.UDP, 65535, 1);
     Flow flowTcpFail = createFlow(IpProtocol.TCP, 65534, 1);
@@ -672,7 +852,8 @@ public class CiscoGrammarTest {
     /* Confirm object-group permits and rejects the flows determined by its constituent service objects */
     assertThat(c, hasIpAccessList(ogsAclName, accepts(flowTcpPass, null, c)));
     assertThat(c, hasIpAccessList(ogsAclName, not(accepts(flowTcpFail, null, c))));
-    assertThat(c, hasIpAccessList(ogsAclName, accepts(flowInlinePass, null, c)));
+    assertThat(c, hasIpAccessList(ogsAclName, accepts(flowInlinePass1, null, c)));
+    assertThat(c, hasIpAccessList(ogsAclName, accepts(flowInlinePass2, null, c)));
   }
 
   @Test
@@ -716,11 +897,11 @@ public class CiscoGrammarTest {
   public void testAsaNestedNetworkObjectGroup() throws IOException {
     String hostname = "asa-nested-network-object-group";
     String filename = "configs/" + hostname;
-    Ip engHostIp = new Ip("10.1.1.5");
-    Ip hrHostIp = new Ip("10.1.2.8");
-    Ip financeHostIp = new Ip("10.1.4.89");
-    Ip itIp = new Ip("10.2.3.4");
-    Ip otherIp = new Ip("1.2.3.4");
+    Ip engHostIp = Ip.parse("10.1.1.5");
+    Ip hrHostIp = Ip.parse("10.1.2.8");
+    Ip financeHostIp = Ip.parse("10.1.4.89");
+    Ip itIp = Ip.parse("10.2.3.4");
+    Ip otherIp = Ip.parse("1.2.3.4");
 
     Configuration c = parseConfig(hostname);
     Batfish batfish = getBatfishForConfigurationNames(hostname);
@@ -844,8 +1025,8 @@ public class CiscoGrammarTest {
             "10",
             accepts(
                 Flow.builder()
-                    .setSrcIp(new Ip("10.1.1.1"))
-                    .setDstIp(new Ip("11.1.1.1"))
+                    .setSrcIp(Ip.parse("10.1.1.1"))
+                    .setDstIp(Ip.parse("11.1.1.1"))
                     .setIngressNode(hostname)
                     .setTag("test")
                     .build(),
@@ -857,8 +1038,8 @@ public class CiscoGrammarTest {
             "10",
             rejects(
                 Flow.builder()
-                    .setSrcIp(new Ip("11.1.1.1"))
-                    .setDstIp(new Ip("10.1.1.1"))
+                    .setSrcIp(Ip.parse("11.1.1.1"))
+                    .setDstIp(Ip.parse("10.1.1.1"))
                     .setIngressNode(hostname)
                     .setTag("test")
                     .build(),
@@ -1111,7 +1292,7 @@ public class CiscoGrammarTest {
     RoutingPolicy routingPolicy = c.getRoutingPolicies().get(exportPolicyName);
     assertThat(routingPolicy, notNullValue());
 
-    EigrpExternalRoute.Builder outputRouteBuilder = new EigrpExternalRoute.Builder();
+    EigrpExternalRoute.Builder outputRouteBuilder = EigrpExternalRoute.builder();
     outputRouteBuilder
         .setDestinationAsn(1L)
         .setNetwork(Prefix.parse("1.0.0.0/32"))
@@ -1160,7 +1341,7 @@ public class CiscoGrammarTest {
     RoutingPolicy routingPolicy = c.getRoutingPolicies().get(exportPolicyName);
     assertThat(routingPolicy, notNullValue());
 
-    EigrpExternalRoute.Builder outputRouteBuilder = new EigrpExternalRoute.Builder();
+    EigrpExternalRoute.Builder outputRouteBuilder = EigrpExternalRoute.builder();
     outputRouteBuilder
         .setDestinationAsn(asn)
         .setNetwork(Prefix.parse("1.0.0.0/32"))
@@ -1182,7 +1363,7 @@ public class CiscoGrammarTest {
     // Check if routingPolicy rejects RIP route
     assertFalse(
         routingPolicy.process(
-            new RipInternalRoute(Prefix.parse("2.2.2.2/32"), new Ip("3.3.3.3"), 1, 1),
+            new RipInternalRoute(Prefix.parse("2.2.2.2/32"), Ip.parse("3.3.3.3"), 1, 1),
             outputRouteBuilder,
             null,
             DEFAULT_VRF_NAME,
@@ -1191,7 +1372,13 @@ public class CiscoGrammarTest {
     // Check if routingPolicy accepts OSPF route and sets correct default metric
     assertTrue(
         routingPolicy.process(
-            new OspfIntraAreaRoute(Prefix.parse("4.4.4.4/32"), null, 1, 1, 1),
+            OspfInternalRoute.builder()
+                .setProtocol(RoutingProtocol.OSPF)
+                .setNetwork(Prefix.parse("4.4.4.4/32"))
+                .setAdmin(1)
+                .setMetric(1)
+                .setArea(1L)
+                .build(),
             outputRouteBuilder,
             null,
             DEFAULT_VRF_NAME,
@@ -1238,8 +1425,8 @@ public class CiscoGrammarTest {
     /* Check that expected traffic is permitted/denied */
     Flow permittedByBoth =
         Flow.builder()
-            .setSrcIp(new Ip("1.1.1.1"))
-            .setDstIp(new Ip("2.2.2.2"))
+            .setSrcIp(Ip.parse("1.1.1.1"))
+            .setDstIp(Ip.parse("2.2.2.2"))
             .setIpProtocol(IpProtocol.TCP)
             .setDstPort(80)
             .setIngressNode("internet")
@@ -1252,8 +1439,8 @@ public class CiscoGrammarTest {
 
     Flow permittedThroughEth2Only =
         Flow.builder()
-            .setSrcIp(new Ip("1.1.1.2"))
-            .setDstIp(new Ip("2.2.2.2"))
+            .setSrcIp(Ip.parse("1.1.1.2"))
+            .setDstIp(Ip.parse("2.2.2.2"))
             .setIpProtocol(IpProtocol.TCP)
             .setDstPort(80)
             .setIngressNode("internet")
@@ -1274,8 +1461,8 @@ public class CiscoGrammarTest {
 
     Flow deniedByBoth =
         Flow.builder()
-            .setSrcIp(new Ip("1.1.1.1"))
-            .setDstIp(new Ip("2.2.2.2"))
+            .setSrcIp(Ip.parse("1.1.1.1"))
+            .setDstIp(Ip.parse("2.2.2.2"))
             .setIpProtocol(IpProtocol.TCP)
             .setDstPort(81)
             .setIngressNode("internet")
@@ -1334,7 +1521,7 @@ public class CiscoGrammarTest {
                 sha256Digest("012345678901234567890123456789012345678"))));
     assertThat(i, hasHsrpGroup(1001, HsrpGroupMatchers.hasHelloTime(500)));
     assertThat(i, hasHsrpGroup(1001, HsrpGroupMatchers.hasHoldTime(2000)));
-    assertThat(i, hasHsrpGroup(1001, HsrpGroupMatchers.hasIp(new Ip("10.0.0.1"))));
+    assertThat(i, hasHsrpGroup(1001, HsrpGroupMatchers.hasIp(Ip.parse("10.0.0.1"))));
     assertThat(i, hasHsrpGroup(1001, HsrpGroupMatchers.hasPriority(105)));
     assertThat(i, hasHsrpGroup(1001, HsrpGroupMatchers.hasPreempt()));
     assertThat(
@@ -1358,6 +1545,36 @@ public class CiscoGrammarTest {
         ccae,
         hasUndefinedReference(
             filename, INSPECT_CLASS_MAP, "ciundefined", INSPECT_POLICY_MAP_INSPECT_CLASS));
+  }
+
+  @Test
+  public void testIosIpRouteVrf() throws IOException {
+    String hostname = "ios-ip-route-vrf";
+    String vrf = "management";
+    Configuration c = parseConfig(hostname);
+
+    assertThat(
+        c,
+        hasVrfs(
+            hasEntry(
+                equalTo(vrf),
+                hasStaticRoutes(
+                    equalTo(
+                        ImmutableSet.of(
+                            StaticRoute.builder()
+                                .setAdministrativeCost(1)
+                                .setNetwork(Prefix.ZERO)
+                                .setNextHopIp(Ip.parse("1.2.3.4"))
+                                .build()))))));
+  }
+
+  @Test
+  public void testIosIsisConfigOnInterface() throws IOException {
+    String hostname = "ios-isis";
+    Configuration c = parseConfig(hostname);
+
+    assertThat(c, hasInterface("Loopback0", hasIsis(hasLevel2(notNullValue()))));
+    assertThat(c, hasInterface("Loopback100", hasIsis(nullValue())));
   }
 
   @Test
@@ -1402,9 +1619,9 @@ public class CiscoGrammarTest {
     Batfish batfish = getBatfishForConfigurationNames(hostname);
     ConvertConfigurationAnswerElement ccae =
         batfish.loadConvertConfigurationAnswerElementOrReparse();
-    Ip ognWildcardIp = new Ip("1.128.0.0");
-    Ip ognHostIp = new Ip("2.0.0.1");
-    Ip ognUnmatchedIp = new Ip("2.0.0.0");
+    Ip ognWildcardIp = Ip.parse("1.128.0.0");
+    Ip ognHostIp = Ip.parse("2.0.0.1");
+    Ip ognUnmatchedIp = Ip.parse("2.0.0.0");
 
     String ognNameHost = "ogn_host";
     String ognNameIndirect = "ogn_indirect";
@@ -1943,10 +2160,10 @@ public class CiscoGrammarTest {
     Batfish batfish = getBatfishForConfigurationNames(hostname);
     ConvertConfigurationAnswerElement ccae =
         batfish.loadConvertConfigurationAnswerElementOrReparse();
-    Ip on1Ip = new Ip("1.2.3.4");
-    Ip on2IpStart = new Ip("2.2.2.0");
-    Ip on2IpEnd = new Ip("2.2.2.255");
-    Ip inlineIp = new Ip("3.3.3.3");
+    Ip on1Ip = Ip.parse("1.2.3.4");
+    Ip on2IpStart = Ip.parse("2.2.2.0");
+    Ip on2IpEnd = Ip.parse("2.2.2.255");
+    Ip inlineIp = Ip.parse("3.3.3.3");
 
     /* Confirm network object IpSpaces cover the correct Ip addresses */
     assertThat(c, hasIpSpace("ON1", containsIp(on1Ip)));
@@ -2254,9 +2471,25 @@ public class CiscoGrammarTest {
         hasMultipathEquivalentAsPathMatchMode(MultipathEquivalentAsPathMatchMode.PATH_LENGTH));
 
     assertThat(aristaDisabled, hasMultipathEbgp(false));
-    assertThat(aristaEnabled, hasMultipathEbgp(true));
+    assertThat(aristaEnabled, hasMultipathEbgp(false));
     assertThat(nxosDisabled, hasMultipathEbgp(false));
-    assertThat(nxosEnabled, hasMultipathEbgp(true));
+    assertThat(nxosEnabled, hasMultipathEbgp(false));
+  }
+
+  @Test
+  public void testBgpProcnum() throws IOException {
+    for (String hostname : ImmutableList.of("ios-bgp-procnum-dotted", "ios-bgp-procnum-long")) {
+      Configuration c = parseConfig(hostname);
+      assertThat(
+          hostname,
+          c.getVrfs()
+              .get(DEFAULT_VRF_NAME)
+              .getBgpProcess()
+              .getActiveNeighbors()
+              .get(Prefix.parse("2.2.2.3/32"))
+              .getLocalAs(),
+          equalTo(4123456789L));
+    }
   }
 
   @Test
@@ -2532,24 +2765,24 @@ public class CiscoGrammarTest {
             "~IPSEC_PEER_CONFIG:mymap:20_TenGigabitEthernet0/0~",
             isIpsecStaticPeerConfigThat(
                 allOf(
-                    hasDestinationAddress(new Ip("3.4.5.6")),
+                    hasDestinationAddress(Ip.parse("3.4.5.6")),
                     IpsecPeerConfigMatchers.hasIkePhase1Policy("ISAKMP-PROFILE-MATCHED"),
                     IpsecPeerConfigMatchers.hasIpsecPolicy("~IPSEC_PHASE2_POLICY:mymap:20~"),
                     hasPhysicalInterface("TenGigabitEthernet0/0"),
                     hasPolicyAccessList(hasLines(equalTo(expectedAclLines))),
-                    hasLocalAddress(new Ip("2.3.4.6"))))));
+                    hasLocalAddress(Ip.parse("2.3.4.6"))))));
     assertThat(
         c,
         hasIpsecPeerConfig(
             "~IPSEC_PEER_CONFIG:mymap:10_TenGigabitEthernet0/0~",
             isIpsecStaticPeerConfigThat(
                 allOf(
-                    hasDestinationAddress(new Ip("1.2.3.4")),
+                    hasDestinationAddress(Ip.parse("1.2.3.4")),
                     IpsecPeerConfigMatchers.hasIkePhase1Policy("ISAKMP-PROFILE"),
                     IpsecPeerConfigMatchers.hasIpsecPolicy("~IPSEC_PHASE2_POLICY:mymap:10~"),
                     hasPhysicalInterface("TenGigabitEthernet0/0"),
                     hasPolicyAccessList(hasLines(equalTo(expectedAclLines))),
-                    hasLocalAddress(new Ip("2.3.4.6"))))));
+                    hasLocalAddress(Ip.parse("2.3.4.6"))))));
 
     assertThat(
         c,
@@ -2562,7 +2795,7 @@ public class CiscoGrammarTest {
                     IpsecPeerConfigMatchers.hasIpsecPolicy("~IPSEC_PHASE2_POLICY:mymap:30:15~"),
                     hasPhysicalInterface("TenGigabitEthernet0/0"),
                     hasPolicyAccessList(hasLines(equalTo(expectedAclLines))),
-                    hasLocalAddress(new Ip("2.3.4.6")),
+                    hasLocalAddress(Ip.parse("2.3.4.6")),
                     hasTunnelInterface(nullValue())))));
 
     assertThat(
@@ -2576,7 +2809,7 @@ public class CiscoGrammarTest {
                     IpsecPeerConfigMatchers.hasIpsecPolicy("~IPSEC_PHASE2_POLICY:mymap:30:5~"),
                     hasPhysicalInterface("TenGigabitEthernet0/0"),
                     hasPolicyAccessList(hasLines(equalTo(expectedAclLines))),
-                    hasLocalAddress(new Ip("2.3.4.6")),
+                    hasLocalAddress(Ip.parse("2.3.4.6")),
                     hasTunnelInterface(nullValue())))));
 
     assertThat(
@@ -2585,11 +2818,11 @@ public class CiscoGrammarTest {
             "Tunnel1",
             isIpsecStaticPeerConfigThat(
                 allOf(
-                    hasDestinationAddress(new Ip("1.2.3.4")),
+                    hasDestinationAddress(Ip.parse("1.2.3.4")),
                     IpsecPeerConfigMatchers.hasIkePhase1Policy("ISAKMP-PROFILE"),
                     IpsecPeerConfigMatchers.hasIpsecPolicy("IPSEC-PROFILE1"),
                     hasPhysicalInterface("TenGigabitEthernet0/0"),
-                    hasLocalAddress(new Ip("2.3.4.6")),
+                    hasLocalAddress(Ip.parse("2.3.4.6")),
                     hasTunnelInterface(equalTo("Tunnel1"))))));
   }
 
@@ -2748,9 +2981,9 @@ public class CiscoGrammarTest {
         hasIkeGateway(
             "ISAKMP-PROFILE-ADDRESS",
             allOf(
-                hasAddress(new Ip("1.2.3.4")),
+                hasAddress(Ip.parse("1.2.3.4")),
                 hasExternalInterface(InterfaceMatchers.hasName("TenGigabitEthernet0/0")),
-                hasLocalIp(new Ip("2.3.4.6")),
+                hasLocalIp(Ip.parse("2.3.4.6")),
                 hasIkePolicy(
                     hasPresharedKeyHash(CommonUtil.sha256Digest("psk1" + CommonUtil.salt()))))));
 
@@ -2760,9 +2993,9 @@ public class CiscoGrammarTest {
         hasIkeGateway(
             "ISAKMP-PROFILE-INTERFACE",
             allOf(
-                hasAddress(new Ip("1.2.3.4")),
+                hasAddress(Ip.parse("1.2.3.4")),
                 hasExternalInterface(InterfaceMatchers.hasName("TenGigabitEthernet0/0")),
-                hasLocalIp(new Ip("2.3.4.6")),
+                hasLocalIp(Ip.parse("2.3.4.6")),
                 hasIkePolicy(
                     hasPresharedKeyHash(CommonUtil.sha256Digest("psk1" + CommonUtil.salt()))))));
 
@@ -2775,8 +3008,8 @@ public class CiscoGrammarTest {
                 hasIkePhase1Key(
                     IkePhase1KeyMatchers.hasKeyHash(
                         CommonUtil.sha256Digest("psk1" + CommonUtil.salt()))),
-                hasRemoteIdentity(containsIp(new Ip("1.2.3.4"))),
-                hasSelfIdentity(equalTo(new Ip("2.3.4.6"))),
+                hasRemoteIdentity(containsIp(Ip.parse("1.2.3.4"))),
+                hasSelfIdentity(equalTo(Ip.parse("2.3.4.6"))),
                 hasLocalInterface(equalTo("TenGigabitEthernet0/0")),
                 hasIkePhase1Proposals(equalTo(ImmutableList.of("10", "20"))))));
 
@@ -2788,8 +3021,8 @@ public class CiscoGrammarTest {
                 hasIkePhase1Key(
                     IkePhase1KeyMatchers.hasKeyHash(
                         CommonUtil.sha256Digest("psk1" + CommonUtil.salt()))),
-                hasRemoteIdentity(containsIp(new Ip("1.2.3.4"))),
-                hasSelfIdentity(equalTo(new Ip("2.3.4.6"))),
+                hasRemoteIdentity(containsIp(Ip.parse("1.2.3.4"))),
+                hasSelfIdentity(equalTo(Ip.parse("2.3.4.6"))),
                 hasLocalInterface(equalTo("TenGigabitEthernet0/0")),
                 hasIkePhase1Proposals(equalTo(ImmutableList.of("10", "20"))))));
   }
@@ -2864,6 +3097,50 @@ public class CiscoGrammarTest {
     assertThat(c, hasInterface("Ethernet2", hasBandwidth(40E9D)));
     assertThat(c, hasInterface("Port-Channel1", hasBandwidth(80E9D)));
     assertThat(c, hasInterface("Port-Channel2", isActive(false)));
+    assertThat(
+        c.getAllInterfaces().get("Port-Channel1").getDependencies(),
+        equalTo(
+            ImmutableSet.of(
+                new Dependency("Ethernet0", DependencyType.AGGREGATE),
+                new Dependency("Ethernet1", DependencyType.AGGREGATE))));
+  }
+
+  @Test
+  public void testEosVxlanCiscoConfig() throws IOException {
+    String hostname = "eos-vxlan";
+
+    CiscoConfiguration config = parseCiscoConfig(hostname, ConfigurationFormat.ARISTA);
+
+    assertThat(config, notNullValue());
+    AristaEosVxlan eosVxlan = config.getEosVxlan();
+    assertThat(eosVxlan, notNullValue());
+
+    assertThat(eosVxlan.getDescription(), equalTo("vxlan vti"));
+    // Confirm flood address set doesn't contain the removed address
+    assertThat(
+        eosVxlan.getFloodAddresses(), containsInAnyOrder(Ip.parse("1.1.1.5"), Ip.parse("1.1.1.7")));
+    assertThat(eosVxlan.getMulticastGroup(), equalTo(Ip.parse("227.10.1.1")));
+    assertThat(eosVxlan.getSourceInterface(), equalTo("Loopback1"));
+    assertThat(eosVxlan.getUdpPort(), equalTo(4789));
+
+    assertThat(eosVxlan.getVlanVnis(), hasEntry(equalTo(2), equalTo(10002)));
+
+    // Confirm flood address set was overwritten as expected
+    assertThat(
+        eosVxlan.getVlanFloodAddresses(), hasEntry(equalTo(2), contains(Ip.parse("1.1.1.10"))));
+  }
+
+  @Test
+  public void testEosVxlanReference() throws IOException {
+    String hostname = "eos-vxlan";
+    String filename = "configs/" + hostname;
+
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+    ConvertConfigurationAnswerElement ccae =
+        batfish.loadConvertConfigurationAnswerElementOrReparse();
+
+    assertThat(ccae, hasNumReferrers(filename, VXLAN, "Vxlan1", 1));
+    assertThat(ccae, hasNumReferrers(filename, INTERFACE, "Loopback1", 2));
   }
 
   @Test
@@ -2896,7 +3173,7 @@ public class CiscoGrammarTest {
             "IPSEC-PROFILE1",
             allOf(
                 IpsecPolicyMatchers.hasIkeGateway(
-                    allOf(hasAddress(new Ip("1.2.3.4")), hasLocalIp(new Ip("2.3.4.6")))),
+                    allOf(hasAddress(Ip.parse("1.2.3.4")), hasLocalIp(Ip.parse("2.3.4.6")))),
                 hasIpsecProposals(
                     contains(
                         ImmutableList.of(
@@ -2986,6 +3263,35 @@ public class CiscoGrammarTest {
                     IpsecAuthenticationAlgorithm.HMAC_MD5_96),
                 IpsecProposalMatchers.hasEncryptionAlgorithm(EncryptionAlgorithm.AES_256_GCM),
                 hasProtocols(ImmutableSortedSet.of(IpsecProtocol.ESP)))));
+  }
+
+  @Test
+  public void testIosOspfPassive() throws IOException {
+    String testrigName = "ios-ospf-passive";
+    String host1name = "ios-ospf-passive1";
+    String host2name = "ios-ospf-passive2";
+    String iface1Name = "Ethernet1";
+    String iface2Name = "Ethernet2";
+    List<String> configurationNames = ImmutableList.of(host1name, host2name);
+
+    Batfish batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + testrigName, configurationNames)
+                .build(),
+            _folder);
+    Map<String, Configuration> configurations = batfish.loadConfigurations();
+
+    Configuration c1 = configurations.get(host1name);
+    Configuration c2 = configurations.get(host2name);
+
+    // in host1, default is active which is overridden for iface1
+    assertThat(c1, hasInterface(iface1Name, isOspfPassive(equalTo(true))));
+    assertThat(c1, hasInterface(iface2Name, isOspfPassive(equalTo(false))));
+
+    // in host2, default is passive which is overridden for iface1
+    assertThat(c2, hasInterface(iface1Name, isOspfPassive(equalTo(false))));
+    assertThat(c2, hasInterface(iface2Name, isOspfPassive(equalTo(true))));
   }
 
   @Test
@@ -3529,76 +3835,143 @@ public class CiscoGrammarTest {
         hasInterface(
             "ifname", hasAllAddresses(containsInAnyOrder(new InterfaceAddress("3.0.0.2/24")))));
 
+    // Confirm that interface MTU is set correctly
+    assertThat(c, hasInterface("ifname", hasMtu(1400)));
+
     // Confirm interface definition is tracked for the alias name
-    assertThat(ccae, hasDefinedStructure(filename, CiscoStructureType.INTERFACE, "ifname"));
+    assertThat(ccae, hasDefinedStructure(filename, INTERFACE, "ifname"));
   }
 
   @Test
   public void testAsaSecurityLevel() throws IOException {
-    String hostname = "asa-security-level";
-    String explicit100Interface = "GigabitEthernet0/1";
-    String explicit100Ip = "3.0.0.3";
-    String insideInterface = "GigabitEthernet0/2";
-    String insideIp = "3.0.1.3";
-    String explicit45Interface = "GigabitEthernet0/3";
-    String explicit45Ip = "3.0.2.3";
-    String outsideInterface = "GigabitEthernet0/4";
-    String outsideIp = "3.0.3.3";
+    Configuration c = parseConfig("asa-security-level");
+    String explicit100Interface = "all-trust";
+    String insideInterface = "inside";
+    String explicit45Interface = "some-trust";
+    String outsideInterface = "outside";
 
-    Batfish batfish = getBatfishForConfigurationNames(hostname);
-    Configuration c = batfish.loadConfigurations().get(hostname);
+    Flow newFlow = createFlow(IpProtocol.IP, 0, 0, FlowState.NEW);
+    Flow establishedFlow = createFlow(IpProtocol.IP, 0, 0, FlowState.ESTABLISHED);
 
-    // Confirm zones are created for each interface
+    // Confirm zones are created for each level
+    assertThat(c, hasZone(computeSecurityLevelZoneName(100), hasMemberInterfaces(hasSize(2))));
+    assertThat(c, hasZone(computeSecurityLevelZoneName(45), hasMemberInterfaces(hasSize(1))));
+    assertThat(c, hasZone(computeSecurityLevelZoneName(1), hasMemberInterfaces(hasSize(1))));
+
+    // No traffic in and out of the same interface
     assertThat(
-        c, hasZone(computeZoneName(100, explicit100Interface), hasMemberInterfaces(hasSize(1))));
-    assertThat(c, hasZone(computeZoneName(100, insideInterface), hasMemberInterfaces(hasSize(1))));
+        c,
+        hasInterface(
+            explicit100Interface, hasOutgoingFilter(rejects(newFlow, explicit100Interface, c))));
     assertThat(
-        c, hasZone(computeZoneName(45, explicit45Interface), hasMemberInterfaces(hasSize(1))));
-    assertThat(c, hasZone(computeZoneName(0, outsideInterface), hasMemberInterfaces(hasSize(1))));
+        c, hasInterface(insideInterface, hasOutgoingFilter(rejects(newFlow, insideInterface, c))));
+    assertThat(
+        c,
+        hasInterface(
+            explicit45Interface, hasOutgoingFilter(rejects(newFlow, explicit45Interface, c))));
+    assertThat(
+        c,
+        hasInterface(outsideInterface, hasOutgoingFilter(rejects(newFlow, outsideInterface, c))));
 
-    IpAccessList aclExplicit100 = getInterface(c, explicit100Interface).getOutgoingFilter();
-    IpAccessList aclInside = getInterface(c, insideInterface).getOutgoingFilter();
-    IpAccessList aclExplicit45 = getInterface(c, explicit45Interface).getOutgoingFilter();
-    IpAccessList aclOutside = getInterface(c, outsideInterface).getOutgoingFilter();
-
-    // No traffic between interface with same level
-    assertThat(aclInside, rejects(createFlow(explicit100Ip, insideIp), explicit100Interface, c));
-    assertThat(aclExplicit100, rejects(createFlow(insideIp, explicit100Ip), insideInterface, c));
+    // No traffic between interfaces with same level
+    assertThat(
+        c,
+        hasInterface(
+            insideInterface, hasOutgoingFilter(rejects(newFlow, explicit100Interface, c))));
+    assertThat(
+        c,
+        hasInterface(
+            explicit100Interface, hasOutgoingFilter(rejects(newFlow, insideInterface, c))));
 
     // Allow traffic from 100 to others
-    assertThat(aclExplicit45, accepts(createFlow(insideIp, explicit45Ip), insideInterface, c));
-    assertThat(aclOutside, accepts(createFlow(insideIp, outsideIp), insideInterface, c));
+    assertThat(
+        c,
+        hasInterface(explicit45Interface, hasOutgoingFilter(accepts(newFlow, insideInterface, c))));
+    assertThat(
+        c, hasInterface(outsideInterface, hasOutgoingFilter(accepts(newFlow, insideInterface, c))));
 
-    // Mid level is accepted by higher, but not lower
-    assertThat(aclInside, rejects(createFlow(explicit45Ip, insideIp), explicit45Interface, c));
-    assertThat(aclOutside, accepts(createFlow(explicit45Ip, outsideIp), explicit45Interface, c));
+    // Mid level is accepted by lower, but not higher
+    assertThat(
+        c,
+        hasInterface(insideInterface, hasOutgoingFilter(rejects(newFlow, explicit45Interface, c))));
+    assertThat(
+        c,
+        hasInterface(
+            outsideInterface, hasOutgoingFilter(accepts(newFlow, explicit45Interface, c))));
 
     // No traffic from outside
-    assertThat(aclInside, rejects(createFlow(outsideIp, insideIp), outsideInterface, c));
-    assertThat(aclExplicit45, rejects(createFlow(outsideIp, explicit45Ip), outsideInterface, c));
+    assertThat(
+        c, hasInterface(insideInterface, hasOutgoingFilter(rejects(newFlow, outsideInterface, c))));
+    assertThat(
+        c,
+        hasInterface(
+            explicit45Interface, hasOutgoingFilter(rejects(newFlow, outsideInterface, c))));
 
     // All established flows are accepted
     assertThat(
-        aclExplicit45,
-        accepts(createEstablishedFlow(outsideIp, explicit45Ip), outsideInterface, c));
-    assertThat(aclInside, accepts(createEstablishedFlow(outsideIp, insideIp), outsideInterface, c));
+        c,
+        hasInterface(
+            explicit45Interface, hasOutgoingFilter(accepts(establishedFlow, outsideInterface, c))));
     assertThat(
-        aclInside, accepts(createEstablishedFlow(explicit45Ip, insideIp), explicit45Interface, c));
+        c,
+        hasInterface(
+            insideInterface, hasOutgoingFilter(accepts(establishedFlow, outsideInterface, c))));
     assertThat(
-        aclInside,
-        accepts(createEstablishedFlow(explicit100Ip, insideIp), explicit100Interface, c));
+        c,
+        hasInterface(
+            insideInterface, hasOutgoingFilter(accepts(establishedFlow, explicit45Interface, c))));
+    assertThat(
+        c,
+        hasInterface(
+            insideInterface, hasOutgoingFilter(accepts(establishedFlow, explicit100Interface, c))));
   }
 
-  // Finds first interface with the given name, checking all declared names
-  private Interface getInterface(Configuration c, String name) {
-    Optional<Interface> match =
-        c.getAllInterfaces()
-            .values()
-            .stream()
-            .filter(iface -> iface.getDeclaredNames().contains(name))
-            .findFirst();
-    assertThat(match.isPresent(), is(true));
-    return match.get();
+  @Test
+  public void testAsaSecurityLevelPermitBoth() throws IOException {
+    Configuration c = parseConfig("asa-security-level-permit-both");
+    String ifaceAlias1 = "name1";
+    String ifaceAlias2 = "name2";
+    Flow newFlow = createFlow(IpProtocol.IP, 0, 0, FlowState.NEW);
+
+    // Allow traffic in and out of the same interface
+    assertThat(c, hasInterface(ifaceAlias1, hasOutgoingFilter(accepts(newFlow, ifaceAlias1, c))));
+    assertThat(c, hasInterface(ifaceAlias2, hasOutgoingFilter(accepts(newFlow, ifaceAlias2, c))));
+
+    // Allow traffic between interfaces with same level
+    assertThat(c, hasInterface(ifaceAlias1, hasOutgoingFilter(accepts(newFlow, ifaceAlias2, c))));
+    assertThat(c, hasInterface(ifaceAlias2, hasOutgoingFilter(accepts(newFlow, ifaceAlias1, c))));
+  }
+
+  @Test
+  public void testAsaSecurityLevelPermitInter() throws IOException {
+    Configuration c = parseConfig("asa-security-level-permit-inter");
+    String ifaceAlias1 = "name1";
+    String ifaceAlias2 = "name2";
+    Flow newFlow = createFlow(IpProtocol.IP, 0, 0, FlowState.NEW);
+
+    // No traffic in and out of the same interface
+    assertThat(c, hasInterface(ifaceAlias1, hasOutgoingFilter(rejects(newFlow, ifaceAlias1, c))));
+    assertThat(c, hasInterface(ifaceAlias2, hasOutgoingFilter(rejects(newFlow, ifaceAlias2, c))));
+
+    // Allow traffic between interfaces with same level
+    assertThat(c, hasInterface(ifaceAlias1, hasOutgoingFilter(accepts(newFlow, ifaceAlias2, c))));
+    assertThat(c, hasInterface(ifaceAlias2, hasOutgoingFilter(accepts(newFlow, ifaceAlias1, c))));
+  }
+
+  @Test
+  public void testAsaSecurityLevelPermitIntra() throws IOException {
+    Configuration c = parseConfig("asa-security-level-permit-intra");
+    String ifaceAlias1 = "name1";
+    String ifaceAlias2 = "name2";
+    Flow newFlow = createFlow(IpProtocol.IP, 0, 0, FlowState.NEW);
+
+    // Allow traffic in and out of the same interface
+    assertThat(c, hasInterface(ifaceAlias1, hasOutgoingFilter(accepts(newFlow, ifaceAlias1, c))));
+    assertThat(c, hasInterface(ifaceAlias2, hasOutgoingFilter(accepts(newFlow, ifaceAlias2, c))));
+
+    // No traffic between interfaces with same level
+    assertThat(c, hasInterface(ifaceAlias1, hasOutgoingFilter(rejects(newFlow, ifaceAlias2, c))));
+    assertThat(c, hasInterface(ifaceAlias2, hasOutgoingFilter(rejects(newFlow, ifaceAlias1, c))));
   }
 
   @Test
@@ -3614,20 +3987,16 @@ public class CiscoGrammarTest {
                 equalTo(
                     ImmutableSet.of(
                         StaticRoute.builder()
-                            .setNextHopIp(new Ip("3.0.0.1"))
+                            .setNextHopIp(Ip.parse("3.0.0.1"))
                             .setNetwork(Prefix.parse("0.0.0.0/0"))
                             .setNextHopInterface("ifname")
                             .setAdministrativeCost(2)
                             .build(),
                         StaticRoute.builder()
-                            .setNextHopIp(new Ip("3.0.0.2"))
+                            .setNextHopIp(Ip.parse("3.0.0.2"))
                             .setNetwork(Prefix.parse("1.0.0.0/8"))
                             .setNextHopInterface("ifname")
                             .setAdministrativeCost(3)
                             .build())))));
-  }
-
-  private static String computeZoneName(int securityLevel, @Nonnull String interfaceName) {
-    return computeSecurityLevelZoneName(securityLevel, interfaceName);
   }
 }

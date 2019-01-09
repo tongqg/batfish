@@ -1,11 +1,11 @@
 package org.batfish.question.ipsecsessionstatus;
 
 import static org.batfish.datamodel.matchers.RowMatchers.hasColumn;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IKE_PHASE1_FAILED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IPSEC_SESSION_ESTABLISHED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.MISSING_END_POINT;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_SESSION_ESTABLISHED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.MISSING_END_POINT;
 import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfoMatchers.hasIpsecSessionStatus;
 import static org.batfish.question.ipsecsessionstatus.IpsecSessionStatusAnswerer.COL_INITIATOR;
 import static org.batfish.question.ipsecsessionstatus.IpsecSessionStatusAnswerer.COL_INIT_INTERFACE;
@@ -67,7 +67,7 @@ public class IpsecSessionStatusAnswererTest {
     Configuration responderNode;
     _ipsecStaticPeerConfigBuilder
         .setPhysicalInterface("Test_interface")
-        .setLocalAddress(new Ip("1.2.3.4"))
+        .setLocalAddress(Ip.parse("1.2.3.4"))
         .setTunnelInterface("Tunnel_interface");
     _graph = ValueGraphBuilder.directed().allowsSelfLoops(false).build();
     _ipsecSessionBuilder = IpsecSession.builder();
@@ -219,11 +219,11 @@ public class IpsecSessionStatusAnswererTest {
         ipsecPeeringInfoBuilder
             .setInitiatorHostname(INITIATOR_HOST_NAME)
             .setInitiatorInterface("Test_interface")
-            .setInitiatorIp(new Ip("1.2.3.4"))
+            .setInitiatorIp(Ip.parse("1.2.3.4"))
             .setInitiatorTunnelInterface("Tunnel_interface")
             .setResponderHostname(RESPONDER_HOST_NAME)
             .setResponderInterface("Test_interface")
-            .setResponderIp(new Ip("2.3.4.5"))
+            .setResponderIp(Ip.parse("2.3.4.5"))
             .setResponderTunnelInterface("Tunnel1_interface")
             .setIpsecSessionStatus(IPSEC_SESSION_ESTABLISHED)
             .build();
@@ -239,7 +239,7 @@ public class IpsecSessionStatusAnswererTest {
                 COL_INIT_INTERFACE,
                 equalTo(new NodeInterfacePair(INITIATOR_HOST_NAME, "Test_interface")),
                 Schema.INTERFACE),
-            hasColumn(COL_INIT_IP, equalTo(new Ip("1.2.3.4")), Schema.IP)));
+            hasColumn(COL_INIT_IP, equalTo(Ip.parse("1.2.3.4")), Schema.IP)));
 
     // Splitting the assertions to avoid "Unchecked generics arrays creation warnings for allOf()
     // varargs"
@@ -250,15 +250,66 @@ public class IpsecSessionStatusAnswererTest {
                 COL_RESPONDER_INTERFACE,
                 equalTo(new NodeInterfacePair(RESPONDER_HOST_NAME, "Test_interface")),
                 Schema.INTERFACE),
-            hasColumn(COL_RESPONDER_IP, equalTo(new Ip("2.3.4.5")), Schema.IP)));
+            hasColumn(COL_RESPONDER_IP, equalTo(Ip.parse("2.3.4.5")), Schema.IP)));
 
     assertThat(
         row,
         allOf(
             hasColumn(
                 COL_TUNNEL_INTERFACES,
-                equalTo("Tunnel_interface->Tunnel1_interface"),
+                equalTo("Tunnel_interface -> Tunnel1_interface"),
                 Schema.STRING),
+            hasColumn(COL_STATUS, equalTo("IPSEC_SESSION_ESTABLISHED"), Schema.STRING)));
+  }
+
+  @Test
+  public void testToRowTunnelMissingEndpoint() {
+    IpsecSessionInfo.Builder ipsecPeeringInfoBuilder = IpsecSessionInfo.builder();
+
+    IpsecSessionInfo ipsecSessionInfo =
+        ipsecPeeringInfoBuilder
+            .setInitiatorHostname(INITIATOR_HOST_NAME)
+            .setInitiatorInterface("Test_interface")
+            .setInitiatorIp(Ip.parse("1.2.3.4"))
+            .setInitiatorTunnelInterface("Tunnel1_interface")
+            .setResponderHostname(RESPONDER_HOST_NAME)
+            .setResponderInterface("Test_interface")
+            .setResponderIp(Ip.parse("2.3.4.5"))
+            .setIpsecSessionStatus(MISSING_END_POINT)
+            .build();
+
+    Row row = toRow(ipsecSessionInfo);
+
+    assertThat(
+        row,
+        allOf(
+            hasColumn(
+                COL_TUNNEL_INTERFACES,
+                equalTo("Tunnel1_interface -> Missing Responder"),
+                Schema.STRING),
+            hasColumn(COL_STATUS, equalTo("MISSING_END_POINT"), Schema.STRING)));
+  }
+
+  @Test
+  public void testToRowNotApplicableTunnelIfaces() {
+    IpsecSessionInfo.Builder ipsecPeeringInfoBuilder = IpsecSessionInfo.builder();
+
+    IpsecSessionInfo ipsecSessionInfo =
+        ipsecPeeringInfoBuilder
+            .setInitiatorHostname(INITIATOR_HOST_NAME)
+            .setInitiatorInterface("Test_interface")
+            .setInitiatorIp(Ip.parse("1.2.3.4"))
+            .setResponderHostname(RESPONDER_HOST_NAME)
+            .setResponderIp(Ip.parse("2.3.4.5"))
+            .setIpsecSessionStatus(IPSEC_SESSION_ESTABLISHED)
+            .build();
+
+    Row row = toRow(ipsecSessionInfo);
+
+    assertThat(
+        row,
+        allOf(
+            hasColumn(COL_TUNNEL_INTERFACES, equalTo("Not Applicable"), Schema.STRING),
             hasColumn(COL_STATUS, equalTo("IPSEC_SESSION_ESTABLISHED"), Schema.STRING)));
   }
 }

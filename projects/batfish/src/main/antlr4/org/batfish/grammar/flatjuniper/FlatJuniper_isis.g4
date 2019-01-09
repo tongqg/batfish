@@ -28,8 +28,16 @@ is_interface
     | wildcard
   )
   (
+    FAMILY
+    (
+        INET
+        | INET6
+    )
+  )?
+  (
     apply
     | isi_bfd_liveness_detection
+    | isi_disable
     | isi_level
     | isi_null
     | isi_passive
@@ -68,12 +76,16 @@ is_null
 
 is_overload
 :
-  OVERLOAD iso_timeout
+  OVERLOAD
+  (
+    apply
+    | iso_timeout
+  )
 ;
 
 is_reference_bandwidth
 :
-  REFERENCE_BANDWIDTH reference_bandwidth
+  REFERENCE_BANDWIDTH bandwidth
 ;
 
 is_rib_group
@@ -100,11 +112,17 @@ isi_bfd_liveness_detection
   )
 ;
 
+isi_disable
+:
+  DISABLE
+;
+
 isi_level
 :
   LEVEL DEC
   (
-    isil_enable
+    isil_disable
+    | isil_enable
     | isil_hello_authentication_key
     | isil_hello_authentication_type
     | isil_hello_interval
@@ -144,6 +162,11 @@ isib_minimum_interval
 isib_multiplier
 :
   MULTIPLIER DEC
+;
+
+isil_disable
+:
+  DISABLE
 ;
 
 isil_enable

@@ -10,20 +10,16 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import org.batfish.datamodel.isis.IsisLevel;
 
+/** IS-IS route */
 public class IsisRoute extends AbstractRoute {
 
   public static class Builder extends AbstractRouteBuilder<Builder, IsisRoute> {
 
     private String _area;
-
     private boolean _attach;
-
     private boolean _down;
-
     private IsisLevel _level;
-
     private RoutingProtocol _protocol;
-
     private String _systemId;
 
     @Override
@@ -38,7 +34,9 @@ public class IsisRoute extends AbstractRoute {
           requireNonNull(getNetwork()),
           requireNonNull(getNextHopIp()),
           requireNonNull(_protocol),
-          requireNonNull(_systemId));
+          requireNonNull(_systemId),
+          getNonForwarding(),
+          getNonRouting());
     }
 
     @Override
@@ -77,16 +75,13 @@ public class IsisRoute extends AbstractRoute {
     }
   }
 
+  /** Default Isis route metric, unless one is explicitly specified */
   public static final long DEFAULT_METRIC = 10L;
 
   private static final String PROP_AREA = "area";
-
   private static final String PROP_ATTACH = "attach";
-
   private static final String PROP_DOWN = "down";
-
   private static final String PROP_LEVEL = "level";
-
   private static final String PROP_SYSTEM_ID = "systemId";
 
   private static final long serialVersionUID = 1L;
@@ -113,10 +108,10 @@ public class IsisRoute extends AbstractRoute {
         requireNonNull(network),
         requireNonNull(nextHopIp),
         requireNonNull(protocol),
-        requireNonNull(systemId));
+        requireNonNull(systemId),
+        false,
+        false);
   }
-
-  private final int _administrativeCost;
 
   private final String _area;
 
@@ -144,9 +139,10 @@ public class IsisRoute extends AbstractRoute {
       @Nonnull Prefix network,
       @Nonnull Ip nextHopIp,
       @Nonnull RoutingProtocol protocol,
-      @Nonnull String systemId) {
-    super(network);
-    _administrativeCost = administrativeCost;
+      @Nonnull String systemId,
+      boolean nonForwarding,
+      boolean nonRouting) {
+    super(network, administrativeCost, nonRouting, nonForwarding);
     _area = area;
     _attach = attach;
     _down = down;
@@ -166,7 +162,7 @@ public class IsisRoute extends AbstractRoute {
       return false;
     }
     IsisRoute rhs = (IsisRoute) o;
-    return _administrativeCost == rhs._administrativeCost
+    return _admin == rhs._admin
         && _area.equals(rhs._area)
         && _attach == rhs._attach
         && _down == rhs._down
@@ -174,15 +170,43 @@ public class IsisRoute extends AbstractRoute {
         && _metric == rhs._metric
         && _network.equals(rhs._network)
         && _nextHopIp.equals(rhs._nextHopIp)
+        && getNonForwarding() == rhs.getNonForwarding()
+        && getNonRouting() == rhs.getNonRouting()
         && _protocol == rhs._protocol
         && _systemId.equals(rhs._systemId);
   }
 
-  @JsonIgnore(false)
-  @JsonProperty(PROP_ADMINISTRATIVE_COST)
   @Override
-  public int getAdministrativeCost() {
-    return _administrativeCost;
+  public int hashCode() {
+    return Objects.hash(
+        _admin,
+        _area,
+        _attach,
+        _down,
+        _level.ordinal(),
+        _metric,
+        _network,
+        _nextHopIp,
+        getNonForwarding(),
+        getNonRouting(),
+        _protocol.ordinal(),
+        _systemId);
+  }
+
+  public Builder toBuilder() {
+    return new Builder()
+        .setAdmin(_admin)
+        .setArea(_area)
+        .setAttach(_attach)
+        .setDown(_down)
+        .setLevel(_level)
+        .setMetric(_metric)
+        .setNetwork(_network)
+        .setNextHopIp(_nextHopIp)
+        .setNonForwarding(getNonForwarding())
+        .setNonRouting(getNonRouting())
+        .setProtocol(_protocol)
+        .setSystemId(_systemId);
   }
 
   @JsonProperty(PROP_AREA)
@@ -242,36 +266,6 @@ public class IsisRoute extends AbstractRoute {
   @Override
   public int getTag() {
     return NO_TAG;
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(
-        _administrativeCost,
-        _area,
-        _attach,
-        _down,
-        _level.ordinal(),
-        _metric,
-        _nextHopIp,
-        _protocol.ordinal(),
-        _systemId);
-  }
-
-  @Override
-  protected String protocolRouteString() {
-    return String.format(
-        " %s:%s %s:%s %s:%s %s:%s %s:%s",
-        PROP_AREA,
-        _area,
-        PROP_ATTACH,
-        _attach,
-        PROP_DOWN,
-        _down,
-        PROP_LEVEL,
-        _level,
-        PROP_SYSTEM_ID,
-        _systemId);
   }
 
   @Override

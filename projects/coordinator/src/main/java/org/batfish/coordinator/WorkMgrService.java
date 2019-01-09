@@ -20,6 +20,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
@@ -48,10 +49,10 @@ import org.batfish.datamodel.SnapshotMetadata;
 import org.batfish.datamodel.answers.Answer;
 import org.batfish.datamodel.answers.AnswerMetadata;
 import org.batfish.datamodel.answers.AutocompleteSuggestion;
-import org.batfish.datamodel.answers.AutocompleteSuggestion.CompletionType;
 import org.batfish.datamodel.answers.GetAnalysisAnswerMetricsAnswer;
 import org.batfish.datamodel.pojo.WorkStatus;
 import org.batfish.datamodel.questions.Question;
+import org.batfish.datamodel.questions.Variable;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONObject;
 import org.glassfish.jersey.media.multipart.FormDataParam;
@@ -104,11 +105,15 @@ public class WorkMgrService {
               .autoComplete(
                   networkNameParam,
                   snapshotNameParam,
-                  CompletionType.valueOf(completionType.toUpperCase()),
+                  Variable.Type.fromString(completionType),
                   query,
                   Strings.isNullOrEmpty(maxSuggestions)
                       ? Integer.MAX_VALUE
                       : Integer.parseInt(maxSuggestions));
+      if (answer == null) {
+        return failureResponse(
+            "There was a problem getting Autocomplete suggestions - network or snapshot does not exist!");
+      }
       return successResponse(new JSONObject().put(CoordConsts.SVC_KEY_SUGGESTIONS, answer));
     } catch (IllegalArgumentException | AccessControlException e) {
       _logger.errorf("WMS:autoComplete exception: %s\n", e.getMessage());
@@ -1113,6 +1118,105 @@ public class WorkMgrService {
   }
 
   /**
+   * Get metrics for answers for a previously run ad-hoc or analysis question
+   *
+   * @param apiKey The API key of the client
+   * @param clientVersion The version of the client
+   * @param networkName The name of the network in which the answer resides
+   * @param snapshotName The name of the snapshot on which the question was run
+   * @param referenceSnapshotName The name of the reference snapshot on which the question was run
+   * @param questionName The name of the question
+   * @param analysisName (optional) The name of the analysis containing the question
+   * @param answerRowsOptionsStr Options specifying how to process the rows of the answer
+   * @param workItemStr The work item
+   * @return TODO: document JSON response
+   */
+  @POST
+  @Path(CoordConsts.SVC_RSC_GET_ANSWER_ROWS2)
+  @Produces(MediaType.APPLICATION_JSON)
+  public JSONArray getAnswerRows2(
+      @FormDataParam(CoordConsts.SVC_KEY_API_KEY) String apiKey,
+      @FormDataParam(CoordConsts.SVC_KEY_VERSION) String clientVersion,
+      @FormDataParam(CoordConsts.SVC_KEY_NETWORK_NAME) String networkName,
+      @FormDataParam(CoordConsts.SVC_KEY_SNAPSHOT_NAME) String snapshotName,
+      @FormDataParam(CoordConsts.SVC_KEY_REFERENCE_SNAPSHOT_NAME) String referenceSnapshotName,
+      @FormDataParam(CoordConsts.SVC_KEY_QUESTION_NAME) String questionName,
+      @FormDataParam(CoordConsts.SVC_KEY_ANALYSIS_NAME) String analysisName,
+      @FormDataParam(CoordConsts.SVC_KEY_ANALYSIS_ANSWERS_OPTIONS) String answerRowsOptionsStr,
+      @FormDataParam(CoordConsts.SVC_KEY_WORKITEM) String workItemStr /* optional */) {
+    try {
+      _logger.infof(
+          "WMS:getAnswerRows2 %s %s %s %s %s %s %s\n",
+          apiKey,
+          networkName,
+          snapshotName,
+          referenceSnapshotName,
+          questionName,
+          analysisName,
+          answerRowsOptionsStr);
+
+      checkStringParam(apiKey, "API key");
+      checkStringParam(clientVersion, "Client version");
+      checkStringParam(networkName, "Network name");
+      checkStringParam(snapshotName, "Current snapshot name");
+      checkStringParam(questionName, "Question name");
+      AnswerRowsOptions answersRowsOptions =
+          BatfishObjectMapper.mapper()
+              .readValue(answerRowsOptionsStr, new TypeReference<AnswerRowsOptions>() {});
+
+      checkApiKeyValidity(apiKey);
+      checkClientVersion(clientVersion);
+      checkNetworkAccessibility(apiKey, networkName);
+
+      JSONObject response = new JSONObject();
+
+      if (!Strings.isNullOrEmpty(workItemStr)) {
+        WorkItem workItem = BatfishObjectMapper.mapper().readValue(workItemStr, WorkItem.class);
+        if (!workItem.getContainerName().equals(networkName)
+            || !workItem.getTestrigName().equals(snapshotName)) {
+          return failureResponse(
+              "Mismatch in parameters: WorkItem is not for the supplied network or snapshot");
+        }
+        QueuedWork work = Main.getWorkMgr().getMatchingWork(workItem, QueueType.INCOMPLETE);
+        if (work != null) {
+          String taskStr = BatfishObjectMapper.writePrettyString(work.getLastTaskCheckResult());
+          response
+              .put(CoordConsts.SVC_KEY_WORKID, work.getWorkItem().getId())
+              .put(CoordConsts.SVC_KEY_WORKSTATUS, work.getStatus().toString())
+              .put(CoordConsts.SVC_KEY_TASKSTATUS, taskStr);
+        }
+      }
+
+      String rawAnswer =
+          Main.getWorkMgr()
+              .getAnswer(
+                  networkName, snapshotName, questionName, referenceSnapshotName, analysisName);
+
+      Answer answer = Main.getWorkMgr().processAnswerRows2(rawAnswer, answersRowsOptions);
+
+      String answerStr = BatfishObjectMapper.writePrettyString(answer);
+
+      return successResponse(response.put(CoordConsts.SVC_KEY_ANSWER, answerStr));
+    } catch (IllegalArgumentException | AccessControlException e) {
+      _logger.errorf("WMS:getAnswerRows exception: %s\n", e.getMessage());
+      return failureResponse(e.getMessage());
+    } catch (Exception e) {
+      String stackTrace = Throwables.getStackTraceAsString(e);
+      _logger.errorf(
+          "WMS:getAnswerRows2 exception for apikey:%s in network:%s, snapshot:%s, "
+              + "referencesnapshot:%s, question:%s, analysis:%s; exception:%s\n",
+          apiKey,
+          networkName,
+          snapshotName,
+          referenceSnapshotName,
+          questionName,
+          analysisName,
+          stackTrace);
+      return failureResponse(Throwables.getStackTraceAsString(e));
+    }
+  }
+
+  /**
    * Get metrics for answers for a previously asked ad-hoc or analysis question
    *
    * @param apiKey The API key of the client
@@ -1448,7 +1552,9 @@ public class WorkMgrService {
   }
 
   /**
-   * Obtain the counts of completed and incomplete work items
+   * Obtain the counts of completed and incomplete work items <br>
+   * Deprecated in favor of {@link
+   * org.batfish.coordinator.resources.WorkResource#getWorkStatus(String) }
    *
    * @param apiKey The API key of the client
    * @param clientVersion The version of the client
@@ -1458,6 +1564,7 @@ public class WorkMgrService {
   @POST
   @Path(CoordConsts.SVC_RSC_GET_WORKSTATUS)
   @Produces(MediaType.APPLICATION_JSON)
+  @Deprecated
   public JSONArray getWorkStatus(
       @FormDataParam(CoordConsts.SVC_KEY_API_KEY) String apiKey,
       @FormDataParam(CoordConsts.SVC_KEY_VERSION) String clientVersion,
@@ -1478,7 +1585,17 @@ public class WorkMgrService {
         return failureResponse("work with the specified id does not exist or is not inaccessible");
       }
 
-      checkNetworkAccessibility(apiKey, work.getWorkItem().getContainerName());
+      String networkId = work.getWorkItem().getContainerName();
+      Optional<String> networkOpt =
+          Main.getWorkMgr()
+              .getNetworkNames()
+              .stream()
+              .filter(
+                  n -> Main.getWorkMgr().getIdManager().getNetworkId(n).getId().equals(networkId))
+              .findFirst();
+      checkArgument(networkOpt.isPresent(), "Invalid network ID: %s", networkId);
+
+      checkNetworkAccessibility(apiKey, networkOpt.get());
 
       String taskStr = BatfishObjectMapper.writePrettyString(work.getLastTaskCheckResult());
 

@@ -3,8 +3,10 @@ package org.batfish.representation.juniper;
 import org.batfish.vendor.StructureUsage;
 
 public enum JuniperStructureUsage implements StructureUsage {
+  AGGREGATE_ROUTE_POLICY("aggregate route policy"),
   APPLICATION_SET_MEMBER_APPLICATION("application-set member application"),
   APPLICATION_SET_MEMBER_APPLICATION_SET("application-set member application-set"),
+  AS_PATH_GROUP_AS_PATH_SELF_REFERENCE("as-path-group as-path"),
   AUTHENTICATION_KEY_CHAINS_POLICY("authentication-key-chains policy"),
   BGP_ALLOW("bgp group allow"),
   BGP_EXPORT_POLICY("bgp export policy-statement"),
@@ -30,17 +32,25 @@ public enum JuniperStructureUsage implements StructureUsage {
   IPSEC_VPN_IKE_GATEWAY("ipsec vpn ike gateway"),
   IPSEC_VPN_IPSEC_POLICY("ipsec vpn ipsec policy"),
   ISIS_INTERFACE("isis interface"),
+  NAT_DESTINATINATION_RULE_SET_RULE_THEN("nat destination rule-set rule then pool"),
+  NAT_SOURCE_RULE_SET_RULE_THEN("nat source rule-set rule then pool"),
+  NAT_STATIC_RULE_SET_RULE_THEN("nat static rule-set rule then pool"),
   OSPF_AREA_INTERFACE("ospf area interface"),
   OSPF_EXPORT_POLICY("ospf export policy-statement"),
+  POLICY_STATEMENT_FROM_AS_PATH_GROUP("policy-statement from as-path-group"),
   POLICY_STATEMENT_FROM_INTERFACE("policy-statement from interface"),
   POLICY_STATEMENT_POLICY("policy-statement policy"),
   POLICY_STATEMENT_PREFIX_LIST("policy-statement prefix-list"),
   POLICY_STATEMENT_PREFIX_LIST_FILTER("policy-statement prefix-list-filter"),
   ROUTING_INSTANCE_INTERFACE("routing-instance interface"),
+  ROUTING_INSTANCE_VRF_EXPORT("routing-instance vrf-export"),
+  ROUTING_INSTANCE_VRF_IMPORT("routing-instance vrf-import"),
   SECURITY_POLICY_MATCH_APPLICATION("security policy match application"),
+  SECURITY_PROFILE_LOGICAL_SYSTEM("security-profile logical-system"),
   SECURITY_ZONES_SECURITY_ZONES_INTERFACE("security zones security-zone interfaces"),
   SNMP_COMMUNITY_PREFIX_LIST("snmp community prefix-list"),
-  STATIC_ROUTE_NEXT_HOP_INTERFACE("static route next-hop");
+  STATIC_ROUTE_NEXT_HOP_INTERFACE("static route next-hop"),
+  VTEP_SOURCE_INTERFACE("routing-instances vtep-source-interface");
 
   private final String _description;
 

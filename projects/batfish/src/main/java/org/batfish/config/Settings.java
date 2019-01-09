@@ -20,6 +20,7 @@ import org.batfish.identifiers.NetworkId;
 import org.batfish.identifiers.QuestionId;
 import org.batfish.identifiers.SnapshotId;
 import org.batfish.main.Driver.RunMode;
+import org.batfish.storage.FileBasedStorageDirectoryProvider;
 
 public final class Settings extends BaseSettings implements GrammarSettings {
 
@@ -72,8 +73,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
   private static final String ARG_PRINT_PARSE_TREES = "ppt";
 
   private static final String ARG_PRINT_PARSE_TREE_LINE_NUMS = "printparsetreelinenums";
-
-  private static final String ARG_PRINT_SYMMETRIC_EDGES = "printsymmetricedges";
 
   public static final String ARG_RUN_MODE = "runmode";
 
@@ -309,15 +308,12 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     if (getTaskId() == null) {
       return null;
     }
-    String tr = getTestrig().getId();
+    SnapshotId tr = getTestrig();
     if (getDeltaTestrig() != null && !getDifferential()) {
-      tr = getDeltaTestrig().getId();
+      tr = getDeltaTestrig();
     }
-    return getStorageBase()
-        .resolve(getContainer().getId())
-        .resolve(BfConsts.RELPATH_SNAPSHOTS_DIR)
-        .resolve(tr)
-        .resolve(BfConsts.RELPATH_OUTPUT)
+    return new FileBasedStorageDirectoryProvider(getStorageBase())
+        .getSnapshotOutputDir(getContainer(), tr)
         .resolve(getTaskId() + BfConsts.SUFFIX_LOG_FILE)
         .toString();
   }
@@ -373,10 +369,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
   @Override
   public boolean getPrintParseTreeLineNums() {
     return _config.getBoolean(ARG_PRINT_PARSE_TREE_LINE_NUMS);
-  }
-
-  public boolean getPrintSymmetricEdgePairs() {
-    return _config.getBoolean(ARG_PRINT_SYMMETRIC_EDGES);
   }
 
   public @Nullable QuestionId getQuestionName() {
@@ -465,10 +457,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     return Paths.get(_config.getString(BfConsts.ARG_STORAGE_BASE));
   }
 
-  public boolean getSynthesizeJsonTopology() {
-    return _config.getBoolean(BfConsts.ARG_SYNTHESIZE_JSON_TOPOLOGY);
-  }
-
   @Nullable
   public String getTaskId() {
     return _config.getString(TASK_ID);
@@ -513,10 +501,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     return !_config.getBoolean(BfConsts.ARG_UNIMPLEMENTED_SUPPRESS);
   }
 
-  public boolean getValidateSnapshot() {
-    return _config.getBoolean(BfConsts.COMMAND_VALIDATE_SNAPSHOT);
-  }
-
   public boolean getVerboseParse() {
     return _config.getBoolean(BfConsts.ARG_VERBOSE_PARSE);
   }
@@ -524,6 +508,10 @@ public final class Settings extends BaseSettings implements GrammarSettings {
   public List<String> ignoreFilesWithStrings() {
     List<String> l = _config.getList(String.class, BfConsts.ARG_IGNORE_FILES_WITH_STRINGS);
     return l == null ? ImmutableList.of() : l;
+  }
+
+  public boolean ignoreManagementInterfaces() {
+    return _config.getBoolean(BfConsts.ARG_IGNORE_MANAGEMENT_INTERFACES);
   }
 
   public boolean ignoreUnknown() {
@@ -574,6 +562,7 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     setDefaultProperty(ARG_HELP, false);
     setDefaultProperty(ARG_HISTOGRAM, false);
     setDefaultProperty(BfConsts.ARG_IGNORE_FILES_WITH_STRINGS, ImmutableList.of());
+    setDefaultProperty(BfConsts.ARG_IGNORE_MANAGEMENT_INTERFACES, true);
     setDefaultProperty(ARG_IGNORE_UNSUPPORTED, true);
     setDefaultProperty(ARG_IGNORE_UNKNOWN, true);
     setDefaultProperty(ARG_JOBS, Integer.MAX_VALUE);
@@ -590,7 +579,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     setDefaultProperty(ARG_PARENT_PID, -1);
     setDefaultProperty(ARG_PRINT_PARSE_TREES, false);
     setDefaultProperty(ARG_PRINT_PARSE_TREE_LINE_NUMS, false);
-    setDefaultProperty(ARG_PRINT_SYMMETRIC_EDGES, false);
     setDefaultProperty(BfConsts.ARG_QUESTION_NAME, null);
     setDefaultProperty(BfConsts.ARG_RED_FLAG_SUPPRESS, false);
     setDefaultProperty(ARG_RUN_MODE, RunMode.WORKER.toString());
@@ -608,7 +596,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     setDefaultProperty(BfConsts.ARG_SSL_TRUSTSTORE_FILE, null);
     setDefaultProperty(BfConsts.ARG_SSL_TRUSTSTORE_PASSWORD, null);
     setDefaultProperty(BfConsts.ARG_STORAGE_BASE, null);
-    setDefaultProperty(BfConsts.ARG_SYNTHESIZE_JSON_TOPOLOGY, false);
     setDefaultProperty(BfConsts.ARG_TASK_PLUGIN, null);
     setDefaultProperty(ARG_THROW_ON_LEXER_ERROR, true);
     setDefaultProperty(ARG_THROW_ON_PARSER_ERROR, true);
@@ -625,7 +612,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     setDefaultProperty(BfConsts.COMMAND_INIT_INFO, false);
     setDefaultProperty(BfConsts.COMMAND_PARSE_VENDOR_INDEPENDENT, false);
     setDefaultProperty(BfConsts.COMMAND_PARSE_VENDOR_SPECIFIC, false);
-    setDefaultProperty(BfConsts.COMMAND_VALIDATE_SNAPSHOT, false);
     setDefaultProperty(ARG_Z3_TIMEOUT, 0);
     setDefaultProperty(ARG_DATAPLANE_ENGINE_NAME, "ibdp");
   }
@@ -738,6 +724,10 @@ public final class Settings extends BaseSettings implements GrammarSettings {
         ARGNAME_STRINGS);
 
     addBooleanOption(
+        BfConsts.ARG_IGNORE_MANAGEMENT_INTERFACES,
+        "infer and ignore interfaces that are part of the management network");
+
+    addBooleanOption(
         ARG_IGNORE_UNKNOWN, "ignore configuration files with unknown format instead of crashing");
 
     addBooleanOption(
@@ -783,9 +773,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     addBooleanOption(
         ARG_PRINT_PARSE_TREE_LINE_NUMS, "print line numbers when printing parse trees");
 
-    addBooleanOption(
-        ARG_PRINT_SYMMETRIC_EDGES, "print topology with symmetric edges adjacent in listing");
-
     addOption(BfConsts.ARG_QUESTION_NAME, "name of question", ARGNAME_NAME);
 
     addBooleanOption(BfConsts.ARG_RED_FLAG_SUPPRESS, "suppresses red-flag warnings");
@@ -820,10 +807,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
         "whether to trust all SSL certificates during communication with coordinator");
 
     addOption(BfConsts.ARG_STORAGE_BASE, "path to the storage base", ARGNAME_PATH);
-
-    addBooleanOption(
-        BfConsts.ARG_SYNTHESIZE_JSON_TOPOLOGY,
-        "synthesize json topology from interface ip subnet information");
 
     addBooleanOption(
         BfConsts.ARG_SYNTHESIZE_TOPOLOGY,
@@ -864,9 +847,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
 
     addBooleanOption(BfConsts.COMMAND_PARSE_VENDOR_SPECIFIC, "serialize vendor configs");
 
-    addBooleanOption(
-        BfConsts.COMMAND_VALIDATE_SNAPSHOT, "validate a snapshot that has been initialized");
-
     addBooleanOption(ARG_VERSION, "print the version number of the code and exit");
 
     addOption(ARG_Z3_TIMEOUT, "set a timeout (in milliseconds) for Z3 queries", "z3timeout");
@@ -878,7 +858,9 @@ public final class Settings extends BaseSettings implements GrammarSettings {
 
     // deprecated and ignored
     for (String deprecatedStringArg :
-        new String[] {"deltaenv", "env", "gsidregex", "gsinputrole", "gsremoteas", "outputenv"}) {
+        new String[] {
+          "deltaenv", "env", "gsidregex", "gsinputrole", "gsremoteas", "outputenv", "venv"
+        }) {
       addOption(deprecatedStringArg, DEPRECATED_ARG_DESC, "ignored");
     }
     for (String deprecatedBooleanArg : new String[] {"gs"}) {
@@ -934,6 +916,7 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     getBooleanOptionValue(BfConsts.ARG_HALT_ON_PARSE_ERROR);
     getBooleanOptionValue(ARG_HISTOGRAM);
     getStringListOptionValue(BfConsts.ARG_IGNORE_FILES_WITH_STRINGS);
+    getBooleanOptionValue(BfConsts.ARG_IGNORE_MANAGEMENT_INTERFACES);
     getBooleanOptionValue(ARG_IGNORE_UNKNOWN);
     getBooleanOptionValue(ARG_IGNORE_UNSUPPORTED);
     getBooleanOptionValue(BfConsts.COMMAND_INIT_INFO);
@@ -948,7 +931,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     getBooleanOptionValue(BfConsts.ARG_PRETTY_PRINT_ANSWER);
     getBooleanOptionValue(ARG_PRINT_PARSE_TREES);
     getBooleanOptionValue(ARG_PRINT_PARSE_TREE_LINE_NUMS);
-    getBooleanOptionValue(ARG_PRINT_SYMMETRIC_EDGES);
     getStringOptionValue(BfConsts.ARG_QUESTION_NAME);
     getBooleanOptionValue(BfConsts.ARG_RED_FLAG_SUPPRESS);
     getStringOptionValue(ARG_RUN_MODE);
@@ -970,7 +952,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     getPathOptionValue(BfConsts.ARG_SSL_TRUSTSTORE_FILE);
     getStringOptionValue(BfConsts.ARG_SSL_TRUSTSTORE_PASSWORD);
     getPathOptionValue(BfConsts.ARG_STORAGE_BASE);
-    getBooleanOptionValue(BfConsts.ARG_SYNTHESIZE_JSON_TOPOLOGY);
     getStringOptionValue(BfConsts.ARG_TASK_PLUGIN);
     getStringOptionValue(BfConsts.ARG_TESTRIG);
     getBooleanOptionValue(ARG_THROW_ON_LEXER_ERROR);
@@ -980,7 +961,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     getIntegerOptionValue(ARG_TRACING_AGENT_PORT);
     getBooleanOptionValue(ARG_TRACING_ENABLE);
     getBooleanOptionValue(BfConsts.ARG_UNIMPLEMENTED_SUPPRESS);
-    getBooleanOptionValue(BfConsts.COMMAND_VALIDATE_SNAPSHOT);
     getBooleanOptionValue(BfConsts.ARG_VERBOSE_PARSE);
     getIntegerOptionValue(ARG_Z3_TIMEOUT);
     getStringOptionValue(ARG_DATAPLANE_ENGINE_NAME);
@@ -1117,10 +1097,6 @@ public final class Settings extends BaseSettings implements GrammarSettings {
   @Override
   public void setThrowOnParserError(boolean throwOnParserError) {
     _config.setProperty(ARG_THROW_ON_PARSER_ERROR, throwOnParserError);
-  }
-
-  public void setValidateSnapshot(boolean validate) {
-    _config.setProperty(BfConsts.COMMAND_VALIDATE_SNAPSHOT, validate);
   }
 
   public void setVerboseParse(boolean verboseParse) {

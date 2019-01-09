@@ -24,6 +24,7 @@
           "name" : "Ethernet0/0",
           "accessVlan" : 0,
           "active" : false,
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 1.0E7,
           "declaredNames" : [
@@ -668,7 +669,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -1207,7 +1208,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -1265,7 +1266,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -1379,6 +1380,7 @@
           "allPrefixes" : [
             "2.128.0.101/24"
           ],
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 1.0E9,
           "declaredNames" : [
@@ -1648,7 +1650,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -1803,7 +1805,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -1949,7 +1951,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -1997,7 +1999,7 @@
                 {
                   "class" : "org.batfish.datamodel.routing_policy.statement.SetLocalPreference",
                   "localPreference" : {
-                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralInt",
+                    "class" : "org.batfish.datamodel.routing_policy.expr.LiteralLong",
                     "value" : 350
                   }
                 },
@@ -2068,6 +2070,7 @@
           "allPrefixes" : [
             "2.23.12.2/24"
           ],
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 1.0E9,
           "declaredNames" : [
@@ -2118,6 +2121,7 @@
           "allPrefixes" : [
             "10.14.22.1/24"
           ],
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 1.0E9,
           "declaredNames" : [
@@ -2169,6 +2173,7 @@
           "allPrefixes" : [
             "1.0.1.1/24"
           ],
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 1.0E9,
           "declaredNames" : [
@@ -2222,6 +2227,7 @@
           "allPrefixes" : [
             "10.12.11.1/24"
           ],
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 1.0E9,
           "declaredNames" : [
@@ -2273,6 +2279,7 @@
           "allPrefixes" : [
             "1.1.1.1/32"
           ],
+          "allowedVlans" : "",
           "autostate" : true,
           "bandwidth" : 8.0E9,
           "declaredNames" : [

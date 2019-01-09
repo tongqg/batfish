@@ -14,21 +14,24 @@
     ],
     "variables" : {
       "nodes" : {
-        "description" : "Include sessions whose first node matches this name or regex",
+        "description" : "Include sessions whose first node matches this specifier",
+        "displayName" : "Nodes",
         "optional" : true,
         "type" : "nodeSpec",
         "value" : "n1"
       },
       "remoteNodes" : {
-        "description" : "Include sessions whose second node matches this name or regex",
+        "description" : "Include sessions whose second node matches this specifier",
+        "displayName" : "Remote Nodes",
         "optional" : true,
         "type" : "nodeSpec",
         "value" : "n2"
       },
       "status" : {
         "description" : "Only include IPSec sessions for which status matches this regex",
+        "displayName" : "Status",
         "optional" : true,
-        "type" : "javaRegex",
+        "type" : "ipsecSessionStatus",
         "value" : ".*"
       }
     }

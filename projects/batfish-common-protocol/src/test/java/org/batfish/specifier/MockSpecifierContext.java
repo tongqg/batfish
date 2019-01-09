@@ -23,11 +23,6 @@ public class MockSpecifierContext implements SpecifierContext {
     return _interfaceOwnedIps;
   }
 
-  @Nonnull
-  public Map<String, Map<String, IpSpace>> get_vrfOwnedIps() {
-    return _vrfOwnedIps;
-  }
-
   public static final class Builder {
     private @Nonnull SortedSet<ReferenceBook> _referenceBooks = ImmutableSortedSet.of();
 
@@ -36,6 +31,8 @@ public class MockSpecifierContext implements SpecifierContext {
     private @Nonnull Map<String, Map<String, IpSpace>> _interfaceOwnedIps = ImmutableMap.of();
 
     private @Nonnull SortedSet<NodeRoleDimension> _nodeRoleDimensions = ImmutableSortedSet.of();
+
+    private @Nonnull IpSpace _snapshotOwnedIps;
 
     private @Nonnull Map<String, Map<String, IpSpace>> _vrfOwnedIps = ImmutableMap.of();
 
@@ -61,6 +58,11 @@ public class MockSpecifierContext implements SpecifierContext {
       return this;
     }
 
+    public Builder setSnapshotOwnedIps(IpSpace snapshotOwnedIps) {
+      _snapshotOwnedIps = snapshotOwnedIps;
+      return this;
+    }
+
     public Builder setVrfOwnedIps(Map<String, Map<String, IpSpace>> vrfOwnedIps) {
       _vrfOwnedIps = vrfOwnedIps;
       return this;
@@ -79,14 +81,14 @@ public class MockSpecifierContext implements SpecifierContext {
 
   private final @Nonnull SortedSet<ReferenceBook> _referenceBooks;
 
-  private final @Nonnull Map<String, Map<String, IpSpace>> _vrfOwnedIps;
+  private final @Nonnull IpSpace _snapshotOwnedIps;
 
   private MockSpecifierContext(Builder builder) {
     _referenceBooks = builder._referenceBooks;
     _configs = builder._configs;
     _interfaceOwnedIps = builder._interfaceOwnedIps;
     _nodeRoleDimensions = builder._nodeRoleDimensions;
-    _vrfOwnedIps = builder._vrfOwnedIps;
+    _snapshotOwnedIps = builder._snapshotOwnedIps;
   }
 
   @Override
@@ -102,6 +104,11 @@ public class MockSpecifierContext implements SpecifierContext {
   }
 
   @Override
+  public IpSpace getSnapshotDeviceOwnedIps() {
+    return _snapshotOwnedIps;
+  }
+
+  @Override
   @Nonnull
   public Optional<NodeRoleDimension> getNodeRoleDimension(String dimension) {
     return _nodeRoleDimensions.stream().filter(dim -> dim.getName().equals(dimension)).findAny();
@@ -110,11 +117,5 @@ public class MockSpecifierContext implements SpecifierContext {
   @Override
   public Optional<ReferenceBook> getReferenceBook(String bookName) {
     return _referenceBooks.stream().filter(book -> book.getName().equals(bookName)).findAny();
-  }
-
-  @Override
-  @Nonnull
-  public Map<String, Map<String, IpSpace>> getVrfOwnedIps() {
-    return _vrfOwnedIps;
   }
 }

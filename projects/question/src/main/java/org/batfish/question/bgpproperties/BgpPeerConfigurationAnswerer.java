@@ -1,16 +1,34 @@
 package org.batfish.question.bgpproperties;
 
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.CLUSTER_ID;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.EXPORT_POLICY;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.IMPORT_POLICY;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.IS_PASSIVE;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.LOCAL_AS;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.LOCAL_IP;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.PEER_GROUP;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.REMOTE_AS;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.ROUTE_REFLECTOR_CLIENT;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.SEND_COMMUNITY;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multiset;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import javax.annotation.Nonnull;
 import org.batfish.common.Answerer;
+import org.batfish.common.BatfishException;
 import org.batfish.common.plugin.IBatfish;
 import org.batfish.datamodel.BgpActivePeerConfig;
 import org.batfish.datamodel.BgpPassivePeerConfig;
+import org.batfish.datamodel.BgpPeerConfig;
 import org.batfish.datamodel.BgpProcess;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.Vrf;
@@ -18,7 +36,10 @@ import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.datamodel.answers.Schema;
 import org.batfish.datamodel.answers.SelfDescribingObject;
 import org.batfish.datamodel.pojo.Node;
+import org.batfish.datamodel.questions.BgpPeerPropertySpecifier;
 import org.batfish.datamodel.questions.DisplayHints;
+import org.batfish.datamodel.questions.PropertySpecifier;
+import org.batfish.datamodel.questions.PropertySpecifier.PropertyDescriptor;
 import org.batfish.datamodel.questions.Question;
 import org.batfish.datamodel.table.ColumnMetadata;
 import org.batfish.datamodel.table.Row;
@@ -30,15 +51,23 @@ public class BgpPeerConfigurationAnswerer extends Answerer {
 
   public static final String COL_NODE = "Node";
   public static final String COL_VRF = "VRF";
-  public static final String COL_LOCAL_AS = "Local_AS";
-  public static final String COL_REMOTE_AS = "Remote_AS";
-  public static final String COL_LOCAL_IP = "Local_IP";
   public static final String COL_REMOTE_IP = "Remote_IP";
-  public static final String COL_ROUTE_REFLECTOR_CLIENT = "Route_Reflector_Client";
-  public static final String COL_PEER_GROUP = "Peer_Group";
-  public static final String COL_IMPORT_POLICY = "Import_Policy";
-  public static final String COL_EXPORT_POLICY = "Export_Policy";
-  public static final String COL_SEND_COMMUNITY = "Send_Community";
+
+  private static final List<String> COLUMN_ORDER =
+      ImmutableList.of(
+          COL_NODE,
+          COL_VRF,
+          LOCAL_AS,
+          LOCAL_IP,
+          REMOTE_AS,
+          COL_REMOTE_IP,
+          ROUTE_REFLECTOR_CLIENT,
+          CLUSTER_ID,
+          PEER_GROUP,
+          IMPORT_POLICY,
+          EXPORT_POLICY,
+          SEND_COMMUNITY,
+          IS_PASSIVE);
 
   public BgpPeerConfigurationAnswerer(Question question, IBatfish batfish) {
     super(question, batfish);
@@ -49,39 +78,57 @@ public class BgpPeerConfigurationAnswerer extends Answerer {
    *
    * @return The {@link List} of {@link ColumnMetadata}s
    */
-  public static List<ColumnMetadata> createColumnMetadata() {
-    return ImmutableList.<ColumnMetadata>builder()
-        .add(new ColumnMetadata(COL_NODE, Schema.NODE, "Node", true, false))
-        .add(new ColumnMetadata(COL_VRF, Schema.STRING, "VRF", true, false))
-        .add(new ColumnMetadata(COL_LOCAL_AS, Schema.LONG, "Local AS", false, false))
-        .add(new ColumnMetadata(COL_LOCAL_IP, Schema.IP, "Local IP", false, false))
-        .add(new ColumnMetadata(COL_REMOTE_AS, Schema.SELF_DESCRIBING, "Remote AS", false, false))
-        .add(new ColumnMetadata(COL_REMOTE_IP, Schema.SELF_DESCRIBING, "Remote IP", true, false))
-        .add(
-            new ColumnMetadata(
-                COL_ROUTE_REFLECTOR_CLIENT, Schema.BOOLEAN, "Route reflector client", false, false))
-        .add(new ColumnMetadata(COL_PEER_GROUP, Schema.STRING, "Peer group", false, false))
-        .add(
-            new ColumnMetadata(
-                COL_IMPORT_POLICY, Schema.set(Schema.STRING), "Import policy", false, false))
-        .add(
-            new ColumnMetadata(
-                COL_EXPORT_POLICY, Schema.set(Schema.STRING), "Export policy", false, false))
-        .add(new ColumnMetadata(COL_SEND_COMMUNITY, Schema.BOOLEAN, "Send community", false, false))
-        .build();
+  public static List<ColumnMetadata> createColumnMetadata(
+      BgpPeerPropertySpecifier propertySpecifier) {
+    Map<String, ColumnMetadata> columnMetadatas =
+        propertySpecifier
+            .getMatchingProperties()
+            .stream()
+            .collect(
+                Collectors.toMap(
+                    Function.identity(),
+                    prop ->
+                        new ColumnMetadata(
+                            getColumnName(prop),
+                            BgpPeerPropertySpecifier.JAVA_MAP.get(prop).getSchema(),
+                            "Property " + prop,
+                            false,
+                            true)));
+    columnMetadatas.put(COL_NODE, new ColumnMetadata(COL_NODE, Schema.NODE, "Node", true, false));
+    columnMetadatas.put(COL_VRF, new ColumnMetadata(COL_VRF, Schema.STRING, "VRF", true, false));
+    columnMetadatas.put(
+        COL_REMOTE_IP,
+        new ColumnMetadata(COL_REMOTE_IP, Schema.SELF_DESCRIBING, "Remote IP", true, false));
+
+    // Check for unknown columns (present in BgpPeerPropertySpecifier but not COLUMN_ORDER)
+    List<ColumnMetadata> unknownColumns =
+        columnMetadatas
+            .entrySet()
+            .stream()
+            .filter(e -> !COLUMN_ORDER.contains(e.getKey()))
+            .map(Entry::getValue)
+            .collect(ImmutableList.toImmutableList());
+
+    // List the metadatas in order, with any unknown columns tacked onto the end of the table
+    return Stream.concat(
+            COLUMN_ORDER
+                .stream()
+                .filter(prop -> columnMetadatas.containsKey(prop))
+                .map(prop -> columnMetadatas.get(prop)),
+            unknownColumns.stream())
+        .collect(ImmutableList.toImmutableList());
   }
 
   /** Creates a {@link TableMetadata} object from the question. */
   static TableMetadata createTableMetadata(BgpPeerConfigurationQuestion question) {
     String textDesc =
         String.format(
-            "Properties of BGP peer ${%s}:${%s}: ${%s} to ${%s}",
-            COL_NODE, COL_VRF, COL_LOCAL_IP, COL_REMOTE_IP);
+            "Properties of BGP peer ${%s}:${%s}: ${%s}", COL_NODE, COL_VRF, COL_REMOTE_IP);
     DisplayHints dhints = question.getDisplayHints();
     if (dhints != null && dhints.getTextDesc() != null) {
       textDesc = dhints.getTextDesc();
     }
-    return new TableMetadata(createColumnMetadata(), textDesc);
+    return new TableMetadata(createColumnMetadata(question.getProperties()), textDesc);
   }
 
   @Override
@@ -93,7 +140,8 @@ public class BgpPeerConfigurationAnswerer extends Answerer {
     TableMetadata tableMetadata = createTableMetadata(question);
     TableAnswerElement answer = new TableAnswerElement(tableMetadata);
 
-    Multiset<Row> propertyRows = getAnswerRows(configurations, nodes, tableMetadata.toColumnMap());
+    Multiset<Row> propertyRows =
+        getAnswerRows(configurations, nodes, tableMetadata.toColumnMap(), question.getProperties());
 
     answer.postProcessAnswer(question, propertyRows);
     return answer;
@@ -103,7 +151,8 @@ public class BgpPeerConfigurationAnswerer extends Answerer {
   public static Multiset<Row> getAnswerRows(
       Map<String, Configuration> configurations,
       Set<String> nodes,
-      Map<String, ColumnMetadata> columnMetadata) {
+      Map<String, ColumnMetadata> columnMetadata,
+      BgpPeerPropertySpecifier propertySpecifier) {
 
     Multiset<Row> rows = HashMultiset.create();
 
@@ -115,41 +164,63 @@ public class BgpPeerConfigurationAnswerer extends Answerer {
         }
         Node node = new Node(nodeName);
         for (BgpActivePeerConfig peer : bgpProcess.getActiveNeighbors().values()) {
-          RowBuilder rowBuilder =
-              Row.builder(columnMetadata)
-                  .put(COL_NODE, node)
-                  .put(COL_VRF, vrf.getName())
-                  .put(COL_LOCAL_AS, peer.getLocalAs())
-                  .put(COL_REMOTE_AS, new SelfDescribingObject(Schema.LONG, peer.getRemoteAs()))
-                  .put(COL_LOCAL_IP, peer.getLocalIp())
-                  .put(COL_REMOTE_IP, new SelfDescribingObject(Schema.IP, peer.getPeerAddress()))
-                  .put(COL_ROUTE_REFLECTOR_CLIENT, peer.getRouteReflectorClient())
-                  .put(COL_PEER_GROUP, peer.getGroup())
-                  .put(COL_IMPORT_POLICY, peer.getImportPolicySources())
-                  .put(COL_EXPORT_POLICY, peer.getExportPolicySources())
-                  .put(COL_SEND_COMMUNITY, peer.getSendCommunity());
-          rows.add(rowBuilder.build());
+          rows.add(getRow(node, vrf.getName(), peer, columnMetadata, propertySpecifier));
         }
         for (BgpPassivePeerConfig peer : bgpProcess.getPassiveNeighbors().values()) {
-          RowBuilder rowBuilder =
-              Row.builder(columnMetadata)
-                  .put(COL_NODE, node)
-                  .put(COL_VRF, vrf.getName())
-                  .put(COL_LOCAL_AS, peer.getLocalAs())
-                  .put(
-                      COL_REMOTE_AS,
-                      new SelfDescribingObject(Schema.list(Schema.LONG), peer.getRemoteAs()))
-                  .put(COL_LOCAL_IP, peer.getLocalIp())
-                  .put(COL_REMOTE_IP, new SelfDescribingObject(Schema.PREFIX, peer.getPeerPrefix()))
-                  .put(COL_ROUTE_REFLECTOR_CLIENT, peer.getRouteReflectorClient())
-                  .put(COL_PEER_GROUP, peer.getGroup())
-                  .put(COL_IMPORT_POLICY, peer.getImportPolicySources())
-                  .put(COL_EXPORT_POLICY, peer.getExportPolicySources())
-                  .put(COL_SEND_COMMUNITY, peer.getSendCommunity());
-          rows.add(rowBuilder.build());
+          rows.add(getRow(node, vrf.getName(), peer, columnMetadata, propertySpecifier));
         }
       }
     }
     return rows;
+  }
+
+  private static Row getRow(
+      Node node,
+      String vrfName,
+      BgpPeerConfig peer,
+      Map<String, ColumnMetadata> columnMetadata,
+      BgpPeerPropertySpecifier propertySpecifier) {
+    RowBuilder rowBuilder =
+        Row.builder(columnMetadata)
+            .put(COL_NODE, node)
+            .put(COL_VRF, vrfName)
+            .put(COL_REMOTE_IP, getRemoteIp(peer));
+    for (String property : propertySpecifier.getMatchingProperties()) {
+      PropertyDescriptor<BgpPeerConfig> propertyDescriptor =
+          BgpPeerPropertySpecifier.JAVA_MAP.get(property);
+      try {
+        PropertySpecifier.fillProperty(propertyDescriptor, peer, property, rowBuilder);
+      } catch (ClassCastException e) {
+        throw new BatfishException(
+            String.format(
+                "Type mismatch between property value ('%s') and Schema ('%s') for property '%s' for BGP peer '%s->%s-%s': %s",
+                propertyDescriptor.getGetter().apply(peer),
+                propertyDescriptor.getSchema(),
+                property,
+                node.getName(),
+                vrfName,
+                peer,
+                e.getMessage()),
+            e);
+      }
+    }
+    return rowBuilder.build();
+  }
+
+  @VisibleForTesting
+  static SelfDescribingObject getRemoteIp(@Nonnull BgpPeerConfig peer) {
+    if (peer instanceof BgpActivePeerConfig) {
+      return new SelfDescribingObject(Schema.IP, ((BgpActivePeerConfig) peer).getPeerAddress());
+    }
+    if (peer instanceof BgpPassivePeerConfig) {
+      return new SelfDescribingObject(Schema.PREFIX, ((BgpPassivePeerConfig) peer).getPeerPrefix());
+    }
+    throw new IllegalArgumentException(
+        String.format("Peer is neither Active nor Passive: %s", peer));
+  }
+
+  /** Returns the name of the column that contains the value of property {@code property} */
+  public static String getColumnName(String property) {
+    return property;
   }
 }

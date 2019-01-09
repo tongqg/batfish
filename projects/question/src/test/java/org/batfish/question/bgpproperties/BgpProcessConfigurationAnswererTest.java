@@ -14,7 +14,7 @@ import org.batfish.datamodel.ConfigurationFormat;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.Vrf;
 import org.batfish.datamodel.pojo.Node;
-import org.batfish.datamodel.questions.BgpPropertySpecifier;
+import org.batfish.datamodel.questions.BgpProcessPropertySpecifier;
 import org.batfish.datamodel.table.Row;
 import org.batfish.datamodel.table.TableMetadata;
 import org.junit.Test;
@@ -25,7 +25,7 @@ public class BgpProcessConfigurationAnswererTest {
   public void getProperties() {
 
     BgpProcess bgp1 = new BgpProcess();
-    bgp1.setRouterId(new Ip("1.1.1.1"));
+    bgp1.setRouterId(Ip.parse("1.1.1.1"));
     bgp1.setMultipathEbgp(true);
     bgp1.setTieBreaker(BgpTieBreaker.ARRIVAL_ORDER);
 
@@ -35,12 +35,12 @@ public class BgpProcessConfigurationAnswererTest {
     Configuration conf1 = new Configuration("node1", ConfigurationFormat.CISCO_IOS);
     conf1.setVrfs(ImmutableMap.of("vrf1", vrf1));
 
-    String property1 = BgpPropertySpecifier.MULTIPATH_EBGP;
-    String property2 = BgpPropertySpecifier.TIE_BREAKER;
+    String property1 = BgpProcessPropertySpecifier.MULTIPATH_EBGP;
+    String property2 = BgpProcessPropertySpecifier.TIE_BREAKER;
 
     BgpProcessConfigurationQuestion question =
         new BgpProcessConfigurationQuestion(
-            null, new BgpPropertySpecifier(property1 + "|" + property2));
+            null, new BgpProcessPropertySpecifier(property1 + "|" + property2));
 
     TableMetadata metadata = BgpProcessConfigurationAnswerer.createTableMetadata(question);
 
@@ -56,7 +56,7 @@ public class BgpProcessConfigurationAnswererTest {
         Row.builder()
             .put(BgpProcessConfigurationAnswerer.COL_NODE, new Node("node1"))
             .put(BgpProcessConfigurationAnswerer.COL_VRF, "vrf1")
-            .put(BgpProcessConfigurationAnswerer.COL_ROUTER_ID, new Ip("1.1.1.1"))
+            .put(BgpProcessConfigurationAnswerer.COL_ROUTER_ID, Ip.parse("1.1.1.1"))
             .put(property2, BgpTieBreaker.ARRIVAL_ORDER.toString())
             .put(property1, true)
             .build();

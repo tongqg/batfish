@@ -3,11 +3,9 @@ package org.batfish.dataplane.ibdp;
 import static org.batfish.datamodel.Configuration.DEFAULT_VRF_NAME;
 import static org.batfish.datamodel.matchers.AbstractRouteMatchers.hasPrefix;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
@@ -15,16 +13,15 @@ import static org.junit.Assert.assertTrue;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.graph.EndpointPair;
 import com.google.common.graph.ValueGraph;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.SortedMap;
@@ -36,13 +33,10 @@ import org.batfish.common.BatfishLogger;
 import org.batfish.common.plugin.DataPlanePlugin;
 import org.batfish.common.plugin.DataPlanePlugin.ComputeDataPlaneResult;
 import org.batfish.datamodel.AbstractRoute;
-import org.batfish.datamodel.AsPath;
 import org.batfish.datamodel.BgpActivePeerConfig;
 import org.batfish.datamodel.BgpPeerConfigId;
 import org.batfish.datamodel.BgpProcess;
-import org.batfish.datamodel.BgpRoute;
 import org.batfish.datamodel.BgpSessionProperties;
-import org.batfish.datamodel.BgpTieBreaker;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.ConfigurationFormat;
 import org.batfish.datamodel.DataPlane;
@@ -50,25 +44,30 @@ import org.batfish.datamodel.GeneratedRoute;
 import org.batfish.datamodel.GeneratedRoute.Builder;
 import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.InterfaceAddress;
+import org.batfish.datamodel.InterfaceType;
 import org.batfish.datamodel.Ip;
-import org.batfish.datamodel.MultipathEquivalentAsPathMatchMode;
+import org.batfish.datamodel.IpAccessListLine;
+import org.batfish.datamodel.IsoAddress;
 import org.batfish.datamodel.NetworkFactory;
-import org.batfish.datamodel.OriginType;
 import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.Route;
-import org.batfish.datamodel.RoutingProtocol;
 import org.batfish.datamodel.StaticRoute;
 import org.batfish.datamodel.Topology;
+import org.batfish.datamodel.UniverseIpSpace;
 import org.batfish.datamodel.Vrf;
+import org.batfish.datamodel.acl.AclLineMatchExprs;
+import org.batfish.datamodel.bgp.BgpTopologyUtils;
 import org.batfish.datamodel.collections.RoutesByVrf;
+import org.batfish.datamodel.isis.IsisInterfaceLevelSettings;
+import org.batfish.datamodel.isis.IsisInterfaceMode;
+import org.batfish.datamodel.isis.IsisInterfaceSettings;
+import org.batfish.datamodel.isis.IsisLevelSettings;
+import org.batfish.datamodel.isis.IsisProcess;
 import org.batfish.datamodel.routing_policy.RoutingPolicy;
 import org.batfish.datamodel.routing_policy.statement.SetDefaultPolicy;
-import org.batfish.dataplane.rib.BgpBestPathRib;
-import org.batfish.dataplane.rib.BgpMultipathRib;
 import org.batfish.main.Batfish;
 import org.batfish.main.BatfishTestUtils;
 import org.batfish.main.TestrigText;
-import org.hamcrest.Matcher;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -119,9 +118,9 @@ public class IncrementalDataPlanePluginTest {
   }
 
   private SortedMap<String, Configuration> generateNetworkWithDuplicates() {
-    Ip coreId = new Ip("1.1.1.1");
-    Ip neighborId1 = new Ip("1.1.1.9");
-    Ip neighborId2 = new Ip("1.1.1.2");
+    Ip coreId = Ip.parse("1.1.1.1");
+    Ip neighborId1 = Ip.parse("1.1.1.9");
+    Ip neighborId2 = Ip.parse("1.1.1.2");
     final int interfcePrefixBits = 30;
     _vb.setName(DEFAULT_VRF_NAME);
 
@@ -178,212 +177,6 @@ public class IncrementalDataPlanePluginTest {
     return ImmutableSortedMap.of(CORE_NAME, core, "n1", n1, "n2", n2);
   }
 
-  private void testBgpAsPathMultipathHelper(
-      MultipathEquivalentAsPathMatchMode multipathEquivalentAsPathMatchMode,
-      boolean primeBestPathInMultipathBgpRib,
-      boolean expectRoute2,
-      boolean expectRoute3a,
-      boolean expectRoute3b,
-      boolean expectRoute3c,
-      boolean expectRoute3d) {
-    /*
-     * Properties of the routes
-     */
-    // Should appear only for path-length match
-    AsPath asPath2 = AsPath.ofSingletonAsSets(2L, 4L, 6L);
-    // Should appear only for first-as match and path-length match
-    AsPath asPath3a = AsPath.ofSingletonAsSets(3L, 5L, 6L);
-    // Should never appear
-    AsPath asPath3b = AsPath.ofSingletonAsSets(3L, 4L, 4L, 6L);
-    // Should always appear
-    AsPath bestAsPath = AsPath.ofSingletonAsSets(3L, 4L, 6L);
-    AsPath asPath3c = bestAsPath;
-    AsPath asPath3d = bestAsPath;
-    Ip nextHop2 = new Ip("2.0.0.0");
-    Ip nextHop3a = new Ip("3.0.0.1");
-    Ip nextHop3b = new Ip("3.0.0.2");
-    Ip nextHop3c = new Ip("3.0.0.3");
-    Ip nextHop3d = new Ip("3.0.0.4");
-
-    /*
-     * Common attributes for all routes
-     */
-    Prefix p = Prefix.ZERO;
-    BgpRoute.Builder b =
-        new BgpRoute.Builder()
-            .setNetwork(p)
-            .setProtocol(RoutingProtocol.BGP)
-            .setOriginType(OriginType.INCOMPLETE);
-
-    /*
-     * Boilerplate virtual-router setup
-     */
-    String hostname = "r1";
-    Configuration c =
-        BatfishTestUtils.createTestConfiguration(hostname, ConfigurationFormat.CISCO_IOS);
-    BgpProcess proc = new BgpProcess();
-    c.getVrfs().computeIfAbsent(DEFAULT_VRF_NAME, Vrf::new).setBgpProcess(proc);
-
-    /*
-     * Instantiate routes
-     */
-    BgpRoute route2 =
-        b.setAsPath(asPath2)
-            .setNextHopIp(nextHop2)
-            .setOriginatorIp(nextHop2)
-            .setReceivedFromIp(nextHop2)
-            .build();
-    BgpRoute route3a =
-        b.setAsPath(asPath3a)
-            .setNextHopIp(nextHop3a)
-            .setOriginatorIp(nextHop3a)
-            .setReceivedFromIp(nextHop3a)
-            .build();
-    BgpRoute route3b =
-        b.setAsPath(asPath3b)
-            .setNextHopIp(nextHop3b)
-            .setOriginatorIp(nextHop3b)
-            .setReceivedFromIp(nextHop3b)
-            .build();
-    BgpRoute route3c =
-        b.setAsPath(asPath3c)
-            .setNextHopIp(nextHop3c)
-            .setOriginatorIp(nextHop3c)
-            .setReceivedFromIp(nextHop3c)
-            .build();
-    BgpRoute route3d =
-        b.setAsPath(asPath3d)
-            .setNextHopIp(nextHop3d)
-            .setOriginatorIp(nextHop3d)
-            .setReceivedFromIp(nextHop3d)
-            .build();
-
-    /*
-     * Set the as-path match mode prior to instantiating bgp multipath RIB
-     */
-    proc.setMultipathEquivalentAsPathMatchMode(multipathEquivalentAsPathMatchMode);
-    BgpMultipathRib bmr = new BgpMultipathRib(proc.getMultipathEquivalentAsPathMatchMode());
-
-    /*
-     * Prime bgp multipath RIB with best path for the prefix
-     */
-    if (primeBestPathInMultipathBgpRib) {
-      bmr.setBestAsPaths(Collections.singletonMap(p, bestAsPath));
-    }
-
-    /*
-     * Add routes to multipath RIB.
-     */
-    bmr.mergeRoute(route2);
-    bmr.mergeRoute(route3a);
-    bmr.mergeRoute(route3b);
-    bmr.mergeRoute(route3c);
-    bmr.mergeRoute(route3d);
-
-    /*
-     * Initialize the matchers with respect to the output route set
-     */
-    Set<BgpRoute> postMergeRoutes = bmr.getRoutes();
-    Matcher<BgpRoute> present = in(postMergeRoutes);
-    Matcher<BgpRoute> absent = not(present);
-
-    /*
-     * ASSERTIONS:
-     * Only the expected routes for the given match mode should be present at end
-     */
-    assertThat(route2, expectRoute2 ? present : absent);
-    assertThat(route3a, expectRoute3a ? present : absent);
-    assertThat(route3b, expectRoute3b ? present : absent);
-    assertThat(route3c, expectRoute3c ? present : absent);
-    assertThat(route3c, expectRoute3d ? present : absent);
-  }
-
-  @Test
-  public void testBgpAsPathMultipathExactPath() {
-    /*
-     * Only routes with first-as matching that of best as path should appear in RIB post-merge.
-     */
-    testBgpAsPathMultipathHelper(
-        MultipathEquivalentAsPathMatchMode.EXACT_PATH, true, false, false, false, true, true);
-  }
-
-  @Test
-  public void testBgpAsPathMultipathFirstAs() {
-    /*
-     * Only routes with first-as matching that of best as path should appear in RIB post-merge.
-     */
-    testBgpAsPathMultipathHelper(
-        MultipathEquivalentAsPathMatchMode.FIRST_AS, true, false, true, false, true, true);
-  }
-
-  @Test
-  public void testBgpAsPathMultipathPathLength() {
-    /*
-     * All routes with same as-path-length as that of best as-path should appear in RIB post-merge.
-     */
-    testBgpAsPathMultipathHelper(
-        MultipathEquivalentAsPathMatchMode.PATH_LENGTH, true, true, true, false, true, true);
-  }
-
-  @Test
-  public void testBgpAsPathMultipathUnprimed() {
-    /*
-     * Without priming best as path map, all paths except the longer one should be considered
-     * equivalent. Results should be independent of chosen mode.
-     */
-    for (MultipathEquivalentAsPathMatchMode mode : MultipathEquivalentAsPathMatchMode.values()) {
-      testBgpAsPathMultipathHelper(mode, false, true, true, false, true, true);
-    }
-  }
-
-  @Test
-  public void testBgpCompareOriginId() {
-    String hostname = "r1";
-    Configuration c =
-        BatfishTestUtils.createTestConfiguration(hostname, ConfigurationFormat.CISCO_IOS);
-    BgpProcess proc = new BgpProcess();
-    c.getVrfs().computeIfAbsent(DEFAULT_VRF_NAME, Vrf::new).setBgpProcess(proc);
-    BgpBestPathRib bbr = BgpBestPathRib.initial(null, null);
-    BgpMultipathRib bmr = new BgpMultipathRib(proc.getMultipathEquivalentAsPathMatchMode());
-    Prefix p = Prefix.ZERO;
-    BgpRoute.Builder b = new BgpRoute.Builder().setNetwork(p).setProtocol(RoutingProtocol.IBGP);
-
-    /*
-     *  Initialize with different originator ips, which should not affect comparison of routes with
-     *  different origin type.
-     */
-    Map<OriginType, List<BgpRoute>> routesByOriginType = new LinkedHashMap<>();
-    for (OriginType originType : OriginType.values()) {
-      List<BgpRoute> routes =
-          routesByOriginType.computeIfAbsent(originType, o -> new ArrayList<>());
-      routes.add(
-          b.setOriginatorIp(Ip.ZERO).setReceivedFromIp(Ip.ZERO).setOriginType(originType).build());
-      routes.add(
-          b.setOriginatorIp(Ip.MAX).setReceivedFromIp(Ip.MAX).setOriginType(originType).build());
-    }
-
-    /*
-     * Whenever origin type is different, it should be overriding factor in preference.
-     */
-    for (OriginType o1 : OriginType.values()) {
-      List<BgpRoute> lhsList = routesByOriginType.get(o1);
-      for (OriginType o2 : OriginType.values()) {
-        List<BgpRoute> rhsList = routesByOriginType.get(o2);
-        for (BgpRoute lhs : lhsList) {
-          for (BgpRoute rhs : rhsList) {
-            if (o1.getPreference() > o2.getPreference()) {
-              assertThat(bbr.comparePreference(lhs, rhs), greaterThan(0));
-              assertThat(bmr.comparePreference(lhs, rhs), greaterThan(0));
-            } else if (o1.getPreference() < o2.getPreference()) {
-              assertThat(bbr.comparePreference(lhs, rhs), lessThan(0));
-              assertThat(bmr.comparePreference(lhs, rhs), lessThan(0));
-            }
-          }
-        }
-      }
-    }
-  }
-
   @Test
   public void testBgpOscillation() throws IOException {
     String testrigName = "bgp-oscillation";
@@ -400,86 +193,6 @@ public class IncrementalDataPlanePluginTest {
 
     // Really just test that no exception is thrown
     dataPlanePlugin.computeDataPlane(false);
-  }
-
-  @Test
-  public void testBgpTieBreaker() {
-    String hostname = "r1";
-    Configuration c =
-        BatfishTestUtils.createTestConfiguration(hostname, ConfigurationFormat.CISCO_IOS);
-    BgpProcess proc = new BgpProcess();
-    c.getVrfs().computeIfAbsent(DEFAULT_VRF_NAME, Vrf::new).setBgpProcess(proc);
-
-    // good for both ebgp and ibgp
-    BgpMultipathRib bmr = new BgpMultipathRib(proc.getMultipathEquivalentAsPathMatchMode());
-    // ebgp
-    BgpBestPathRib ebgpBpr = BgpBestPathRib.initial(null, null);
-    BgpRoute.Builder ebgpBuilder =
-        new BgpRoute.Builder()
-            .setNetwork(Prefix.ZERO)
-            .setOriginType(OriginType.INCOMPLETE)
-            .setOriginatorIp(Ip.ZERO)
-            .setProtocol(RoutingProtocol.BGP)
-            .setReceivedFromIp(Ip.ZERO);
-    BgpRoute ebgpOlderHigherOriginator =
-        ebgpBuilder.setOriginatorIp(Ip.MAX).setReceivedFromIp(new Ip("1.1.1.1")).build();
-    BgpRoute ebgpNewerHigherOriginator =
-        ebgpBuilder.setOriginatorIp(Ip.MAX).setReceivedFromIp(new Ip("1.1.1.2")).build();
-    BgpRoute ebgpLowerOriginator = ebgpBuilder.setOriginatorIp(Ip.ZERO).build();
-    // ibgp
-    BgpBestPathRib ibgpBpr = BgpBestPathRib.initial(null, null);
-    BgpRoute.Builder ibgpBuilder =
-        new BgpRoute.Builder()
-            .setNetwork(Prefix.ZERO)
-            .setOriginType(OriginType.INCOMPLETE)
-            .setOriginatorIp(Ip.ZERO)
-            .setProtocol(RoutingProtocol.IBGP)
-            .setReceivedFromIp(Ip.ZERO);
-    BgpRoute ibgpOlderHigherOriginator =
-        ibgpBuilder.setOriginatorIp(Ip.MAX).setReceivedFromIp(new Ip("1.1.1.1")).build();
-    BgpRoute ibgpNewerHigherOriginator =
-        ibgpBuilder.setOriginatorIp(Ip.MAX).setReceivedFromIp(new Ip("1.1.1.2")).build();
-    BgpRoute ibgpLowerOriginator = ibgpBuilder.setOriginatorIp(Ip.ZERO).build();
-
-    ebgpBpr.mergeRoute(ebgpOlderHigherOriginator);
-    ibgpBpr.mergeRoute(ibgpOlderHigherOriginator);
-
-    /*
-     * Given default tie-breaking, and all more important attributes being equivalent:
-     * - When comparing two eBGP adverts, best-path rib prefers older advert.
-     * - If neither is older, or one is iBGP, best-path rib prefers advert with higher router-id.
-     * - Multipath RIB ignores both age and router-id, seeing both adverts as equal.
-     */
-
-    // Test age comparisons first
-    assertThat(
-        ebgpBpr.comparePreference(ebgpNewerHigherOriginator, ebgpOlderHigherOriginator),
-        lessThan(0));
-    assertThat(bmr.comparePreference(ebgpNewerHigherOriginator, ebgpLowerOriginator), equalTo(0));
-    assertThat(
-        ibgpBpr.comparePreference(ibgpNewerHigherOriginator, ibgpLowerOriginator), lessThan(0));
-    assertThat(bmr.comparePreference(ibgpNewerHigherOriginator, ibgpLowerOriginator), equalTo(0));
-
-    /*
-     * No two routes have the same arrival time, so force different non-default tie breaker that
-     * will *not* break the tie, and we get to originator comparisons.
-     */
-    proc.setTieBreaker(BgpTieBreaker.CLUSTER_LIST_LENGTH);
-    // Test IP
-    assertThat(
-        ebgpBpr.comparePreference(ebgpNewerHigherOriginator, ebgpLowerOriginator), lessThan(0));
-    assertThat(
-        ibgpBpr.comparePreference(ibgpNewerHigherOriginator, ibgpLowerOriginator), lessThan(0));
-
-    /*
-     * Finally check the neighbor IP is used as last resolution step
-     */
-    assertThat(
-        ebgpBpr.comparePreference(ebgpNewerHigherOriginator, ebgpOlderHigherOriginator),
-        lessThan(0));
-    assertThat(
-        ibgpBpr.comparePreference(ibgpNewerHigherOriginator, ibgpOlderHigherOriginator),
-        lessThan(0));
   }
 
   @Test
@@ -512,75 +225,6 @@ public class IncrementalDataPlanePluginTest {
     assertThat(r3Loopback0Prefix, in(r1Prefixes));
     // Check the other direction (r1loopback is accepted by r3)
     assertThat(r1Loopback0Prefix, in(r3Prefixes));
-  }
-
-  @Test
-  public void testContainsRoute() {
-    String hostname = "r1";
-    Configuration c =
-        BatfishTestUtils.createTestConfiguration(hostname, ConfigurationFormat.CISCO_IOS);
-    BgpProcess proc = new BgpProcess();
-    c.getVrfs().computeIfAbsent(DEFAULT_VRF_NAME, Vrf::new).setBgpProcess(proc);
-    BgpBestPathRib bbr = BgpBestPathRib.initial(null, null);
-    BgpMultipathRib bmr = new BgpMultipathRib(proc.getMultipathEquivalentAsPathMatchMode());
-    Ip ip1 = new Ip("1.0.0.0");
-    Ip ip2 = new Ip("2.2.0.0");
-    BgpRoute.Builder b1 =
-        new BgpRoute.Builder()
-            .setNextHopIp(Ip.ZERO)
-            .setOriginType(OriginType.INCOMPLETE)
-            .setOriginatorIp(Ip.ZERO)
-            .setProtocol(RoutingProtocol.BGP)
-            .setReceivedFromIp(Ip.ZERO);
-    BgpRoute.Builder b2 =
-        new BgpRoute.Builder()
-            .setNextHopIp(Ip.ZERO)
-            .setOriginType(OriginType.INCOMPLETE)
-            .setOriginatorIp(Ip.MAX)
-            .setProtocol(RoutingProtocol.BGP)
-            .setReceivedFromIp(Ip.ZERO);
-
-    /*
-     * Toss a bunch of different routes in each RIB. In the best-path rib, only lower originatorIp
-     * routes should remain. In the multipath RIB, all routes should remain.
-     */
-    for (int i = 8; i <= Prefix.MAX_PREFIX_LENGTH; i++) {
-      Prefix p = new Prefix(ip1, i);
-      b1.setNetwork(p);
-      b2.setNetwork(p);
-      bbr.mergeRoute(b1.build());
-      bbr.mergeRoute(b2.build());
-      bmr.mergeRoute(b1.build());
-      bmr.mergeRoute(b2.build());
-    }
-    for (int i = 16; i <= Prefix.MAX_PREFIX_LENGTH; i++) {
-      Prefix p = new Prefix(ip2, i);
-      b1.setNetwork(p);
-      b2.setNetwork(p);
-      bbr.mergeRoute(b1.build());
-      bbr.mergeRoute(b2.build());
-      bmr.mergeRoute(b1.build());
-      bmr.mergeRoute(b2.build());
-    }
-    for (int i = 8; i <= Prefix.MAX_PREFIX_LENGTH; i++) {
-      Prefix p = new Prefix(ip1, i);
-      assertTrue(bbr.containsRoute(b1.setNetwork(p).build()));
-      b1.setNetwork(p);
-      b2.setNetwork(p);
-      assertTrue(bbr.containsRoute(b1.build()));
-      assertFalse(bbr.containsRoute(b2.build()));
-      assertTrue(bmr.containsRoute(b1.build()));
-      assertTrue(bmr.containsRoute(b2.build()));
-    }
-    for (int i = 16; i <= Prefix.MAX_PREFIX_LENGTH; i++) {
-      Prefix p = new Prefix(ip2, i);
-      b1.setNetwork(p);
-      b2.setNetwork(p);
-      assertTrue(bbr.containsRoute(b1.build()));
-      assertFalse(bbr.containsRoute(b2.build()));
-      assertTrue(bmr.containsRoute(b1.build()));
-      assertTrue(bmr.containsRoute(b2.build()));
-    }
   }
 
   @Test
@@ -709,7 +353,7 @@ public class IncrementalDataPlanePluginTest {
         StaticRoute.builder()
             .setNetwork(Prefix.parse("10.0.1.0/24"))
             .setNextHopInterface(i.getName())
-            .setNextHopIp(new Ip("10.0.0.1"))
+            .setNextHopIp(Ip.parse("10.0.0.1"))
             .setAdministrativeCost(1)
             .build();
     vrf.getStaticRoutes().add(srBoth);
@@ -802,5 +446,325 @@ public class IncrementalDataPlanePluginTest {
     assertThat(
         dp.getRibs().get(n1.getHostname()).get(vrf.getName()).getRoutes(),
         hasItem(hasPrefix(genRoutePrefix)));
+  }
+
+  @Test
+  public void testEbgpSinglehopSuccess() throws IOException {
+    SortedMap<String, Configuration> configs = generateNetworkWithThreeHops(false);
+
+    Batfish batfish = BatfishTestUtils.getBatfish(configs, _folder);
+    batfish.getSettings().setDataplaneEngineName(IncrementalDataPlanePlugin.PLUGIN_NAME);
+    DataPlanePlugin dataPlanePlugin = batfish.getDataPlanePlugin();
+    DataPlane dp = dataPlanePlugin.computeDataPlane(false)._dataPlane;
+
+    BgpPeerConfigId initiator =
+        new BgpPeerConfigId("node1", "~Vrf_0~", Prefix.parse("1.0.0.0/32"), false);
+    BgpPeerConfigId listener =
+        new BgpPeerConfigId("node2", "~Vrf_1~", Prefix.parse("1.0.0.1/32"), false);
+
+    BgpActivePeerConfig source =
+        BgpActivePeerConfig.builder()
+            .setLocalIp(Ip.parse("1.0.0.0"))
+            .setPeerAddress(Ip.parse("1.0.0.1"))
+            .setEbgpMultihop(false)
+            .setLocalAs(1L)
+            .setRemoteAs(2L)
+            .build();
+
+    // the neighbor should be reachable because it is only one hop away from the initiator
+    assertTrue(
+        BgpTopologyUtils.isReachableBgpNeighbor(
+            initiator, listener, source, dataPlanePlugin.getTracerouteEngine(), dp));
+  }
+
+  @Test
+  public void testEbgpSinglehopFailure() throws IOException {
+    SortedMap<String, Configuration> configs = generateNetworkWithThreeHops(false);
+
+    Batfish batfish = BatfishTestUtils.getBatfish(configs, _folder);
+    batfish.getSettings().setDataplaneEngineName(IncrementalDataPlanePlugin.PLUGIN_NAME);
+    DataPlanePlugin dataPlanePlugin = batfish.getDataPlanePlugin();
+    DataPlane dp = dataPlanePlugin.computeDataPlane(false)._dataPlane;
+
+    BgpPeerConfigId initiator =
+        new BgpPeerConfigId("node1", "~Vrf_0~", Prefix.parse("1.0.0.0/32"), false);
+    BgpPeerConfigId listener =
+        new BgpPeerConfigId("node3", "~Vrf_2~", Prefix.parse("1.0.0.3/32"), false);
+
+    BgpActivePeerConfig source =
+        BgpActivePeerConfig.builder()
+            .setLocalIp(Ip.parse("1.0.0.0"))
+            .setPeerAddress(Ip.parse("1.0.0.3"))
+            .setEbgpMultihop(false)
+            .setLocalAs(1L)
+            .setRemoteAs(2L)
+            .build();
+
+    // the neighbor should be not be reachable because it is two hops away from the initiator
+    assertFalse(
+        BgpTopologyUtils.isReachableBgpNeighbor(
+            initiator, listener, source, dataPlanePlugin.getTracerouteEngine(), dp));
+  }
+
+  @Test
+  public void testEbgpMultihopSuccess() throws IOException {
+    SortedMap<String, Configuration> configs = generateNetworkWithThreeHops(false);
+
+    Batfish batfish = BatfishTestUtils.getBatfish(configs, _folder);
+    batfish.getSettings().setDataplaneEngineName(IncrementalDataPlanePlugin.PLUGIN_NAME);
+    DataPlanePlugin dataPlanePlugin = batfish.getDataPlanePlugin();
+    DataPlane dp = dataPlanePlugin.computeDataPlane(false)._dataPlane;
+
+    BgpPeerConfigId initiator =
+        new BgpPeerConfigId("node1", "~Vrf_0~", Prefix.parse("1.0.0.0/32"), false);
+    BgpPeerConfigId listener =
+        new BgpPeerConfigId("node3", "~Vrf_2~", Prefix.parse("1.0.0.3/32"), false);
+
+    BgpActivePeerConfig source =
+        BgpActivePeerConfig.builder()
+            .setLocalIp(Ip.parse("1.0.0.0"))
+            .setPeerAddress(Ip.parse("1.0.0.3"))
+            .setEbgpMultihop(true)
+            .setLocalAs(1L)
+            .setRemoteAs(2L)
+            .build();
+
+    // the neighbor should be reachable because multi-hops are allowed
+    assertTrue(
+        BgpTopologyUtils.isReachableBgpNeighbor(
+            initiator, listener, source, dataPlanePlugin.getTracerouteEngine(), dp));
+  }
+
+  @Test
+  public void testEbgpMultihopFailureWithAcl() throws IOException {
+    // use a network with a deny all ACL on node 3
+    SortedMap<String, Configuration> configs = generateNetworkWithThreeHops(true);
+
+    Batfish batfish = BatfishTestUtils.getBatfish(configs, _folder);
+    batfish.getSettings().setDataplaneEngineName(IncrementalDataPlanePlugin.PLUGIN_NAME);
+    DataPlanePlugin dataPlanePlugin = batfish.getDataPlanePlugin();
+    DataPlane dp = dataPlanePlugin.computeDataPlane(false)._dataPlane;
+
+    BgpPeerConfigId initiator =
+        new BgpPeerConfigId("node1", "~Vrf_0~", Prefix.parse("1.0.0.0/32"), false);
+    BgpPeerConfigId listener =
+        new BgpPeerConfigId("node3", "~Vrf_2~", Prefix.parse("1.0.0.3/32"), false);
+
+    BgpActivePeerConfig source =
+        BgpActivePeerConfig.builder()
+            .setLocalIp(Ip.parse("1.0.0.0"))
+            .setPeerAddress(Ip.parse("1.0.0.3"))
+            .setEbgpMultihop(true)
+            .setLocalAs(1L)
+            .setRemoteAs(2L)
+            .build();
+
+    // the neighbor should not be reachable even though multihops are allowed as traceroute would be
+    // denied in on node 3
+    assertFalse(
+        BgpTopologyUtils.isReachableBgpNeighbor(
+            initiator, listener, source, dataPlanePlugin.getTracerouteEngine(), dp));
+  }
+
+  /**
+   * Generates configurations for a three node network with connectivity as shown in the diagram
+   * below. Also adds static routes from node 1 to node 3 and back from node 3 to node 1
+   *
+   * @param denyIntoHop3 If true, add an incoming ACL on node3 that blocks all traffic
+   * @return {@link SortedMap} of generated configuration names and corresponding {@link
+   *     Configuration}s
+   */
+
+  /* +-----------+                       +-------------+                   +--------------+
+     |           |1.0.0.0/31             |             |                   |              |
+     |           +-----------------------+             |                   |    node3     |
+     |   node1   |            1.0.0.1/31 |   node2     |1.0.0.2/31         |              |
+     |           |                       |             +-------------------+              |
+     |           |                       |             |         1.0.0.3/31|              |
+     +-----------+                       +-------------+                   +--------------+
+
+  */
+  private static SortedMap<String, Configuration> generateNetworkWithThreeHops(
+      boolean denyIntoHop3) {
+    NetworkFactory nf = new NetworkFactory();
+    Configuration.Builder cb =
+        nf.configurationBuilder().setConfigurationFormat(ConfigurationFormat.CISCO_IOS);
+
+    // first node
+    Configuration c1 = cb.setHostname("node1").build();
+    Vrf v1 = nf.vrfBuilder().setOwner(c1).build();
+    InterfaceAddress c1Addr1 = new InterfaceAddress("1.0.0.0/31");
+    Interface i11 = nf.interfaceBuilder().setOwner(c1).setVrf(v1).setAddress(c1Addr1).build();
+
+    // second node
+    Configuration c2 = cb.setHostname("node2").build();
+    Vrf v2 = nf.vrfBuilder().setOwner(c2).build();
+    InterfaceAddress c2Addr1 = new InterfaceAddress("1.0.0.1/31");
+    nf.interfaceBuilder().setOwner(c2).setVrf(v2).setAddress(c2Addr1).build();
+    InterfaceAddress c2Addr2 = new InterfaceAddress("1.0.0.2/31");
+    nf.interfaceBuilder().setOwner(c2).setVrf(v2).setAddress(c2Addr2).build();
+
+    // third node
+    Configuration c3 = cb.setHostname("node3").build();
+    Vrf v3 = nf.vrfBuilder().setOwner(c3).build();
+    InterfaceAddress c3Addr1 = new InterfaceAddress("1.0.0.3/31");
+    Interface i31 = nf.interfaceBuilder().setOwner(c3).setVrf(v3).setAddress(c3Addr1).build();
+
+    // static routes on node1
+    v1.setStaticRoutes(
+        ImmutableSortedSet.of(
+            StaticRoute.builder()
+                .setNetwork(Prefix.parse("1.0.0.3/32"))
+                .setAdministrativeCost(1)
+                .setNextHopInterface(i11.getName())
+                .setNextHopIp(c2Addr1.getIp())
+                .build()));
+
+    // static routes on node 3 to get back to node1
+    v3.setStaticRoutes(
+        ImmutableSortedSet.of(
+            StaticRoute.builder()
+                .setNetwork(Prefix.parse("1.0.0.0/32"))
+                .setAdministrativeCost(1)
+                .setNextHopInterface(i31.getName())
+                .setNextHopIp(c2Addr2.getIp())
+                .build()));
+
+    if (denyIntoHop3) {
+      // stop the flow from entering Node3
+      i31.setIncomingFilter(
+          nf.aclBuilder()
+              .setOwner(c3)
+              .setLines(
+                  ImmutableList.of(
+                      IpAccessListLine.rejecting(
+                          AclLineMatchExprs.matchSrc(UniverseIpSpace.INSTANCE))))
+              .build());
+    }
+
+    return ImmutableSortedMap.of(c1.getHostname(), c1, c2.getHostname(), c2, c3.getHostname(), c3);
+  }
+
+  /**
+   * Check that ibdp topology fixed-point computation is performed correctly. In particular, ensure
+   * that iBGP adjacency are established between loopbacks over IS-IS as the IGP.
+   */
+  @Test
+  public void testBgpOverIsis() throws IOException {
+    /*
+    *
+    * Network setup: an IBGP loopback peering with ISIS as the IGP.
+    *
+                +-----+ 1.1.1.2/31           1.1.1.3/31+-----+
+     1.1.1.1/32 |  n1 +--------------------------------+  n2 |2.2.2.2/32
+                +-----+                                +-----+
+    *
+    */
+
+    Ip lo1Ip = Ip.parse("1.1.1.1");
+    Ip lo2Ip = Ip.parse("2.2.2.2");
+    IsoAddress isoAddress1 = new IsoAddress("49.0001.0100.0100.1001.00");
+    IsoAddress isoAddress2 = new IsoAddress("49.0001.0100.0200.2002.00");
+    IsisInterfaceSettings isisInterfaceSettings =
+        IsisInterfaceSettings.builder()
+            .setPointToPoint(true)
+            .setLevel2(
+                IsisInterfaceLevelSettings.builder()
+                    .setCost(10L)
+                    .setMode(IsisInterfaceMode.ACTIVE)
+                    .build())
+            .build();
+
+    // Node 1
+    Configuration c1 =
+        _cb.setConfigurationFormat(ConfigurationFormat.CISCO_IOS).setHostname("n1").build();
+    Vrf vrf1 = _vb.setName(DEFAULT_VRF_NAME).setOwner(c1).build();
+    // Interfaces: loopback and connecting
+    _ib.setOwner(c1)
+        .setVrf(vrf1)
+        .setName("Loopback0")
+        .setType(InterfaceType.LOOPBACK)
+        .setAddress(new InterfaceAddress(lo1Ip, Prefix.MAX_PREFIX_LENGTH))
+        .setIsis(isisInterfaceSettings)
+        .build();
+
+    _ib.setOwner(c1)
+        .setName("Ethernet0")
+        .setType(InterfaceType.PHYSICAL)
+        .setVrf(vrf1)
+        .setAddress(new InterfaceAddress("1.1.1.2/31"))
+        .setIsis(isisInterfaceSettings)
+        .build();
+    // ISIS process
+    IsisProcess.builder()
+        .setNetAddress(isoAddress1)
+        .setLevel1(null)
+        .setLevel2(IsisLevelSettings.builder().build())
+        .setVrf(vrf1)
+        .build();
+    // Bgp process and neighbor:
+    BgpProcess bgpp1 = _pb.setVrf(vrf1).build();
+    _nb.setPeerAddress(lo2Ip)
+        .setLocalAs(1L)
+        .setLocalIp(lo1Ip)
+        .setRemoteAs(1L)
+        .setBgpProcess(bgpp1)
+        .setExportPolicy(_epb.setOwner(c1).build().getName())
+        .build();
+
+    // Node 2
+    Configuration c2 =
+        _cb.setConfigurationFormat(ConfigurationFormat.CISCO_IOS).setHostname("n2").build();
+    Vrf vrf2 = _vb.setName(DEFAULT_VRF_NAME).setOwner(c2).build();
+    // Interfaces: loopback and connecting
+    _ib.setOwner(c2)
+        .setVrf(vrf2)
+        .setName("Loopback0")
+        .setType(InterfaceType.LOOPBACK)
+        .setAddress(new InterfaceAddress(lo2Ip, Prefix.MAX_PREFIX_LENGTH))
+        .setIsis(isisInterfaceSettings)
+        .build();
+    _ib.setOwner(c2)
+        .setName("Ethernet0")
+        .setType(InterfaceType.PHYSICAL)
+        .setVrf(vrf2)
+        .setAddress(new InterfaceAddress("1.1.1.3/31"))
+        .setIsis(isisInterfaceSettings)
+        .build();
+    // ISIS process
+    IsisProcess.builder()
+        .setNetAddress(isoAddress2)
+        .setLevel1(null)
+        .setLevel2(IsisLevelSettings.builder().build())
+        .setVrf(vrf2)
+        .build();
+    BgpProcess bgpp2 = _pb.setVrf(vrf2).build();
+    // Bgp neighbor:
+    _nb.setPeerAddress(lo1Ip)
+        .setLocalAs(1L)
+        .setLocalIp(lo2Ip)
+        .setRemoteAs(1L)
+        .setBgpProcess(bgpp2)
+        .setExportPolicy(_epb.setOwner(c2).build().getName())
+        .build();
+
+    ImmutableSortedMap<String, Configuration> configs = ImmutableSortedMap.of("n1", c1, "n2", c2);
+    Batfish batfish = BatfishTestUtils.getBatfish(configs, _folder);
+    batfish.computeDataPlane(false);
+    DataPlane dp = batfish.loadDataPlane();
+
+    assertThat(dp.getBgpTopology().edges().size(), equalTo(2));
+    BgpPeerConfigId bgpConfig1 =
+        new BgpPeerConfigId(
+            "n1", DEFAULT_VRF_NAME, Prefix.create(lo2Ip, Prefix.MAX_PREFIX_LENGTH), false);
+    BgpPeerConfigId bgpConfig2 =
+        new BgpPeerConfigId(
+            "n2", DEFAULT_VRF_NAME, Prefix.create(lo1Ip, Prefix.MAX_PREFIX_LENGTH), false);
+    assertThat(
+        dp.getBgpTopology().edges(),
+        equalTo(
+            ImmutableSet.of(
+                EndpointPair.ordered(bgpConfig1, bgpConfig2),
+                EndpointPair.ordered(bgpConfig2, bgpConfig1))));
   }
 }

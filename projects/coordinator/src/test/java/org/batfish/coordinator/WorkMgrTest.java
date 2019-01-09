@@ -4,6 +4,39 @@ import static org.batfish.common.util.CommonUtil.writeFile;
 import static org.batfish.coordinator.WorkMgr.addToSerializedList;
 import static org.batfish.coordinator.WorkMgr.generateFileDateString;
 import static org.batfish.coordinator.WorkMgr.removeFromSerializedList;
+import static org.batfish.coordinator.WorkMgrTestUtils.createSnapshot;
+import static org.batfish.datamodel.BgpSessionProperties.SessionType.EBGP_MULTIHOP;
+import static org.batfish.datamodel.BgpSessionProperties.SessionType.EBGP_SINGLEHOP;
+import static org.batfish.datamodel.BgpSessionProperties.SessionType.IBGP;
+import static org.batfish.datamodel.FlowState.ESTABLISHED;
+import static org.batfish.datamodel.FlowState.NEW;
+import static org.batfish.datamodel.FlowState.RELATED;
+import static org.batfish.datamodel.Protocol.HTTP;
+import static org.batfish.datamodel.Protocol.HTTPS;
+import static org.batfish.datamodel.Protocol.SSH;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.IS_PASSIVE;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.LOCAL_AS;
+import static org.batfish.datamodel.questions.BgpPeerPropertySpecifier.REMOTE_AS;
+import static org.batfish.datamodel.questions.BgpProcessPropertySpecifier.MULTIPATH_EBGP;
+import static org.batfish.datamodel.questions.BgpProcessPropertySpecifier.MULTIPATH_EQUIVALENT_AS_PATH_MATCH_MODE;
+import static org.batfish.datamodel.questions.BgpProcessPropertySpecifier.MULTIPATH_IBGP;
+import static org.batfish.datamodel.questions.ConfiguredSessionStatus.DYNAMIC_MATCH;
+import static org.batfish.datamodel.questions.ConfiguredSessionStatus.NO_MATCH_FOUND;
+import static org.batfish.datamodel.questions.ConfiguredSessionStatus.UNIQUE_MATCH;
+import static org.batfish.datamodel.questions.InterfacePropertySpecifier.ACCESS_VLAN;
+import static org.batfish.datamodel.questions.InterfacePropertySpecifier.ALLOWED_VLANS;
+import static org.batfish.datamodel.questions.InterfacePropertySpecifier.AUTO_STATE_VLAN;
+import static org.batfish.datamodel.questions.InterfacePropertySpecifier.NATIVE_VLAN;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
+import static org.batfish.datamodel.questions.NamedStructureSpecifier.AS_PATH_ACCESS_LIST;
+import static org.batfish.datamodel.questions.NamedStructureSpecifier.IP_6_ACCESS_LIST;
+import static org.batfish.datamodel.questions.NamedStructureSpecifier.IP_ACCESS_LIST;
+import static org.batfish.datamodel.questions.NodePropertySpecifier.DNS_SERVERS;
+import static org.batfish.datamodel.questions.NodePropertySpecifier.DNS_SOURCE_INTERFACE;
+import static org.batfish.datamodel.questions.OspfPropertySpecifier.AREAS;
+import static org.batfish.datamodel.questions.OspfPropertySpecifier.AREA_BORDER_ROUTER;
 import static org.batfish.identifiers.NodeRolesId.DEFAULT_NETWORK_NODE_ROLES_ID;
 import static org.batfish.identifiers.QuestionSettingsId.DEFAULT_QUESTION_SETTINGS_ID;
 import static org.hamcrest.CoreMatchers.is;
@@ -13,8 +46,10 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyIterable;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.iterableWithSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.hamcrest.io.FileMatchers.anExistingFile;
@@ -53,6 +88,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
 import org.batfish.common.AnswerRowsOptions;
@@ -60,6 +96,7 @@ import org.batfish.common.BatfishException;
 import org.batfish.common.BfConsts;
 import org.batfish.common.ColumnFilter;
 import org.batfish.common.ColumnSortOption;
+import org.batfish.common.CompletionMetadata;
 import org.batfish.common.Container;
 import org.batfish.common.WorkItem;
 import org.batfish.common.util.BatfishObjectMapper;
@@ -70,28 +107,43 @@ import org.batfish.coordinator.WorkDetails.WorkType;
 import org.batfish.coordinator.id.IdManager;
 import org.batfish.coordinator.resources.ForkSnapshotBean;
 import org.batfish.datamodel.Edge;
+import org.batfish.datamodel.Flow;
+import org.batfish.datamodel.FlowDisposition;
+import org.batfish.datamodel.FlowTrace;
+import org.batfish.datamodel.FlowTraceHop;
 import org.batfish.datamodel.InitializationMetadata.ProcessingStatus;
+import org.batfish.datamodel.Ip;
+import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.SnapshotMetadata;
 import org.batfish.datamodel.SnapshotMetadataEntry;
+import org.batfish.datamodel.acl.AclTrace;
+import org.batfish.datamodel.acl.DefaultDeniedByIpAccessList;
 import org.batfish.datamodel.answers.Answer;
 import org.batfish.datamodel.answers.AnswerMetadata;
 import org.batfish.datamodel.answers.AnswerMetadataUtil;
 import org.batfish.datamodel.answers.AnswerStatus;
+import org.batfish.datamodel.answers.AutocompleteSuggestion;
 import org.batfish.datamodel.answers.Issue;
 import org.batfish.datamodel.answers.MajorIssueConfig;
 import org.batfish.datamodel.answers.MinorIssueConfig;
 import org.batfish.datamodel.answers.Schema;
+import org.batfish.datamodel.answers.SelfDescribingObject;
 import org.batfish.datamodel.answers.StringAnswerElement;
 import org.batfish.datamodel.collections.NodeInterfacePair;
+import org.batfish.datamodel.flow.Hop;
+import org.batfish.datamodel.flow.Trace;
 import org.batfish.datamodel.pojo.Node;
 import org.batfish.datamodel.pojo.Topology;
 import org.batfish.datamodel.questions.Exclusion;
 import org.batfish.datamodel.questions.Question;
 import org.batfish.datamodel.questions.TestQuestion;
+import org.batfish.datamodel.questions.Variable.Type;
 import org.batfish.datamodel.table.ColumnMetadata;
 import org.batfish.datamodel.table.Row;
 import org.batfish.datamodel.table.TableAnswerElement;
 import org.batfish.datamodel.table.TableMetadata;
+import org.batfish.datamodel.table.TableView;
+import org.batfish.datamodel.table.TableViewRow;
 import org.batfish.identifiers.AnalysisId;
 import org.batfish.identifiers.AnswerId;
 import org.batfish.identifiers.IssueSettingsId;
@@ -114,6 +166,9 @@ import org.junit.rules.TemporaryFolder;
 
 /** Tests for {@link WorkMgr}. */
 public final class WorkMgrTest {
+
+  private static TableMetadata MOCK_TABLE_METADATA =
+      new TableMetadata(ImmutableList.of(new ColumnMetadata("col", Schema.STRING, "desc")));
 
   @Rule public TemporaryFolder _folder = new TemporaryFolder();
 
@@ -805,12 +860,15 @@ public final class WorkMgrTest {
   private String readSnapshotConfig(String network, String snapshot, String fileName)
       throws IOException {
     StringWriter writer = new StringWriter();
-    InputStream inputStream =
+    try (InputStream inputStream =
         _manager.getSnapshotInputObject(
-            network, snapshot, Paths.get(BfConsts.RELPATH_CONFIGURATIONS_DIR, fileName).toString());
-    assertThat(inputStream, not(nullValue()));
-    IOUtils.copy(inputStream, writer, StandardCharsets.UTF_8);
-    return writer.toString();
+            network,
+            snapshot,
+            Paths.get(BfConsts.RELPATH_CONFIGURATIONS_DIR, fileName).toString())) {
+      assertThat(inputStream, not(nullValue()));
+      IOUtils.copy(inputStream, writer, StandardCharsets.UTF_8);
+      return writer.toString();
+    }
   }
 
   @Test
@@ -1014,6 +1072,92 @@ public final class WorkMgrTest {
     assertThat(answers3.keySet(), containsInAnyOrder(question1Name, question2Name));
   }
 
+  /** Test that we return good answers when some questions are bad */
+  @Test
+  public void testGetAnalysisAnswersAndMetadataPartial()
+      throws JsonProcessingException, FileNotFoundException {
+    String containerName = "container1";
+    String testrigName = "testrig1";
+    String analysisName = "analysis1";
+
+    String question1Name = "question1";
+    String question1Content = BatfishObjectMapper.writeString(new TestQuestion());
+
+    String question2Name = "question2";
+    String question2Content = "bogus"; // bad content
+
+    _manager.initNetwork(containerName, null);
+    Map<String, String> questionsToAdd =
+        ImmutableMap.of(question1Name, question1Content, question2Name, question2Content);
+
+    _manager.configureAnalysis(
+        containerName, true, analysisName, questionsToAdd, Lists.newArrayList(), null);
+    NetworkId networkId = _idManager.getNetworkId(containerName);
+    SnapshotId snapshotId = _idManager.generateSnapshotId();
+    _idManager.assignSnapshot(testrigName, networkId, snapshotId);
+    AnalysisId analysisId = _idManager.getAnalysisId(analysisName, networkId);
+    QuestionId questionId1 = _idManager.getQuestionId(question1Name, networkId, analysisId);
+    QuestionId questionId2 = _idManager.getQuestionId(question2Name, networkId, analysisId);
+
+    AnswerId baseAnswerId1 =
+        _idManager.getBaseAnswerId(
+            networkId,
+            snapshotId,
+            questionId1,
+            DEFAULT_QUESTION_SETTINGS_ID,
+            DEFAULT_NETWORK_NODE_ROLES_ID,
+            null,
+            analysisId);
+    AnswerId baseAnswerId2 =
+        _idManager.getBaseAnswerId(
+            networkId,
+            snapshotId,
+            questionId2,
+            DEFAULT_QUESTION_SETTINGS_ID,
+            DEFAULT_NETWORK_NODE_ROLES_ID,
+            null,
+            analysisId);
+    Answer answer1 = new Answer();
+    Answer answer2 = new Answer();
+    String answer1Text = "foo1";
+    String answer2Text = "foo2";
+    answer1.addAnswerElement(new StringAnswerElement(answer1Text));
+    answer2.addAnswerElement(new StringAnswerElement(answer2Text));
+    String answer1Str = BatfishObjectMapper.writeString(answer1);
+    String answer2Str = BatfishObjectMapper.writeString(answer2);
+    AnswerMetadata answerMetadata1 =
+        AnswerMetadataUtil.computeAnswerMetadata(answer1, Main.getLogger());
+    AnswerMetadata answerMetadata2 =
+        AnswerMetadataUtil.computeAnswerMetadata(answer1, Main.getLogger());
+    _storage.storeAnswer(answer1Str, baseAnswerId1);
+    _storage.storeAnswer(answer2Str, baseAnswerId2);
+    _storage.storeAnswerMetadata(answerMetadata1, baseAnswerId1);
+    _storage.storeAnswerMetadata(answerMetadata2, baseAnswerId2);
+
+    assertThat(
+        _manager.getAnalysisAnswers(
+            containerName, testrigName, null, analysisName, ImmutableSet.of()),
+        equalTo(
+            ImmutableMap.of(
+                question1Name,
+                BatfishObjectMapper.mapper().writeValueAsString(answer1),
+                question2Name,
+                BatfishObjectMapper.mapper()
+                    .writeValueAsString(
+                        Answer.failureAnswer(
+                            "Could not convert raw question text [bogus] to JSON", null)))));
+
+    assertThat(
+        _manager.getAnalysisAnswersMetadata(
+            containerName, testrigName, null, analysisName, ImmutableSet.of()),
+        equalTo(
+            ImmutableMap.of(
+                question1Name,
+                answerMetadata1,
+                question2Name,
+                AnswerMetadata.forStatus(AnswerStatus.FAILURE))));
+  }
+
   @Test
   public void testGetAutoWorkQueueUserAnalysis() {
     String containerName = "myContainer";
@@ -1076,7 +1220,7 @@ public final class WorkMgrTest {
             null,
             analysisId);
     Answer answer = new Answer();
-    answer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    answer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     String answerStr = BatfishObjectMapper.writeString(answer);
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(answer, Main.getLogger());
@@ -1141,7 +1285,7 @@ public final class WorkMgrTest {
             null,
             analysisId);
     Answer answer = new Answer();
-    answer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    answer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(answer, Main.getLogger());
     _storage.storeAnswerMetadata(answerMetadata, baseAnswerId);
@@ -1200,7 +1344,7 @@ public final class WorkMgrTest {
             null,
             null);
     Answer answer = new Answer();
-    answer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    answer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(answer, Main.getLogger());
     _storage.storeAnswerMetadata(answerMetadata, baseAnswerId);
@@ -1235,7 +1379,7 @@ public final class WorkMgrTest {
             null,
             null);
     Answer answer = new Answer();
-    answer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    answer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(answer, Main.getLogger());
     _storage.storeAnswerMetadata(answerMetadata, baseAnswerId);
@@ -1275,7 +1419,7 @@ public final class WorkMgrTest {
             null,
             null);
     Answer answer = new Answer();
-    answer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    answer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(answer, Main.getLogger());
     _storage.storeAnswerMetadata(answerMetadata, baseAnswerId);
@@ -1393,6 +1537,45 @@ public final class WorkMgrTest {
   }
 
   @Test
+  public void testInitSnapshot() throws Exception {
+    String networkName = "network";
+    String snapshotName = "snapshotName";
+    String fileName = "file.type";
+    String fileContents = "! empty config";
+
+    _manager.initNetwork(networkName, null);
+
+    // Create snapshot dir to pass into init
+    Path srcDir = createSnapshot(snapshotName, fileName, fileContents, _folder);
+
+    _manager.initSnapshot(networkName, snapshotName, srcDir, false);
+
+    // Confirm the new snapshot exists
+    assertThat(_manager.getLatestTestrig(networkName), equalTo(Optional.of(snapshotName)));
+  }
+
+  @Test
+  public void testInitSnapshotBadPackaging() throws Exception {
+    String networkName = "network";
+    String snapshotName = "snapshotName";
+    String fileName = "file.type";
+    String fileContents = "! empty config";
+
+    _manager.initNetwork(networkName, null);
+
+    // Create snapshot dir to pass into init
+    Path srcDir = createSnapshot(snapshotName, fileName, fileContents, _folder);
+
+    // Init should fail with improperly formatted source dir
+    _thrown.expect(BatfishException.class);
+    _thrown.expectMessage(containsString("Unexpected packaging of snapshot"));
+
+    // Pass in path to subdir so init sees improperly formatted dir
+    // i.e. sees dir containing 'configs/' instead of 'snapshotName/configs/'
+    _manager.initSnapshot(networkName, snapshotName, srcDir.resolve(snapshotName), false);
+  }
+
+  @Test
   public void testProcessAnalysisAnswers() throws IOException {
     String questionName = "q";
     String columnName = "issue";
@@ -1455,6 +1638,36 @@ public final class WorkMgrTest {
         ((TableAnswerElement)
                 _manager.processAnswerRows(answerStr, options).getAnswerElements().get(0))
             .getRowsList();
+
+    assertThat(processedRows, equalTo(table.getRowsList()));
+  }
+
+  @Test
+  public void testProcessAnswerRows2() throws IOException {
+    String columnName = "issue";
+    int maxRows = 1;
+    int rowOffset = 0;
+    TableAnswerElement table =
+        new TableAnswerElement(
+            new TableMetadata(
+                ImmutableList.of(new ColumnMetadata(columnName, Schema.ISSUE, "foobar"))));
+    table.addRow(Row.of(columnName, new Issue("blah", 5, new Issue.Type("m", "n"))));
+    Answer answer = new Answer();
+    answer.addAnswerElement(table);
+    answer.setStatus(AnswerStatus.SUCCESS);
+    String answerStr = BatfishObjectMapper.writePrettyString(answer);
+    AnswerRowsOptions options =
+        new AnswerRowsOptions(
+            ImmutableSet.of(columnName),
+            ImmutableList.of(),
+            maxRows,
+            rowOffset,
+            ImmutableList.of(new ColumnSortOption(columnName, true)),
+            false);
+
+    List<Row> processedRows =
+        ((TableView) _manager.processAnswerRows2(answerStr, options).getAnswerElements().get(0))
+            .getInnerRows();
 
     assertThat(processedRows, equalTo(table.getRowsList()));
   }
@@ -1626,6 +1839,40 @@ public final class WorkMgrTest {
   }
 
   @Test
+  public void testProcessAnswerTable2Filtered() {
+    String columnName = "val";
+    TableAnswerElement table =
+        new TableAnswerElement(
+            new TableMetadata(
+                ImmutableList.of(new ColumnMetadata(columnName, Schema.STRING, "foobar"))));
+    String whitelistedValue = "hello";
+    Row row1 = Row.of(columnName, whitelistedValue);
+    Row row2 = Row.of(columnName, "goodbye");
+    table.addRow(row1);
+    table.addRow(row2);
+    AnswerRowsOptions optionsNotFiltered =
+        new AnswerRowsOptions(
+            ImmutableSet.of(), ImmutableList.of(), Integer.MAX_VALUE, 0, ImmutableList.of(), false);
+    AnswerRowsOptions optionsFiltered =
+        new AnswerRowsOptions(
+            ImmutableSet.of(),
+            ImmutableList.of(new ColumnFilter(columnName, whitelistedValue)),
+            Integer.MAX_VALUE,
+            0,
+            ImmutableList.of(),
+            false);
+
+    TableView notFiltered = _manager.processAnswerTable2(table, optionsNotFiltered);
+    TableView filtered = _manager.processAnswerTable2(table, optionsFiltered);
+
+    assertThat(notFiltered.getInnerRows(), equalTo(ImmutableList.of(row1, row2)));
+    assertThat(filtered.getInnerRows(), equalTo(ImmutableList.of(row1)));
+
+    assertThat(notFiltered.getSummary().getNumResults(), equalTo(2));
+    assertThat(filtered.getSummary().getNumResults(), equalTo(1));
+  }
+
+  @Test
   public void testProcessAnswerTableMaxRows() {
     String columnName = "val";
     TableAnswerElement table =
@@ -1683,9 +1930,51 @@ public final class WorkMgrTest {
     assertThat(
         _manager.processAnswerTable(table, optionsNoProject).getRowsList(),
         equalTo(ImmutableList.of(row1, row2)));
+
+    List<Row> projectedRows = _manager.processAnswerTable(table, optionsProject).getRowsList();
+
+    assertThat(projectedRows, equalTo(ImmutableList.of(row1Projected, row2Projected)));
+  }
+
+  @Test
+  public void testProcessAnswerTable2Project() {
+    String columnName = "val";
+    String otherColumnName = "val2";
+    TableMetadata originalMetadata =
+        new TableMetadata(
+            ImmutableList.of(
+                new ColumnMetadata(columnName, Schema.INTEGER, "foobar"),
+                new ColumnMetadata(otherColumnName, Schema.INTEGER, "foobaz")));
+    TableAnswerElement table = new TableAnswerElement(originalMetadata);
+    Row row1 = Row.of(columnName, 1, otherColumnName, 3);
+    Row row2 = Row.of(columnName, 2, otherColumnName, 4);
+    table.addRow(row1);
+    table.addRow(row2);
+    AnswerRowsOptions optionsNoProject =
+        new AnswerRowsOptions(
+            ImmutableSet.of(), ImmutableList.of(), Integer.MAX_VALUE, 0, ImmutableList.of(), false);
+    AnswerRowsOptions optionsProject =
+        new AnswerRowsOptions(
+            ImmutableSet.of(columnName),
+            ImmutableList.of(),
+            Integer.MAX_VALUE,
+            0,
+            ImmutableList.of(),
+            false);
+
+    TableViewRow row1Projected = new TableViewRow(0, Row.of(columnName, 1));
+    TableViewRow row2Projected = new TableViewRow(1, Row.of(columnName, 2));
+
     assertThat(
-        _manager.processAnswerTable(table, optionsProject).getRowsList(),
-        equalTo(ImmutableList.of(row1Projected, row2Projected)));
+        _manager.processAnswerTable(table, optionsNoProject).getRowsList(),
+        equalTo(ImmutableList.of(row1, row2)));
+
+    List<TableViewRow> projectedRows =
+        _manager.processAnswerTable2(table, optionsProject).getRows();
+
+    assertThat(projectedRows, equalTo(ImmutableList.of(row1Projected, row2Projected)));
+    assertThat(projectedRows.get(0).getId(), equalTo(0));
+    assertThat(projectedRows.get(1).getId(), equalTo(1));
   }
 
   @Test
@@ -1822,19 +2111,248 @@ public final class WorkMgrTest {
             colString,
             "b");
 
-    assertThat(comInteger.compare(r1, r2), equalTo(-1));
-    assertThat(comIssue.compare(r1, r2), equalTo(-1));
-    assertThat(comString.compare(r1, r2), equalTo(-1));
+    assertThat(comInteger.compare(r1, r2), lessThan(0));
+    assertThat(comIssue.compare(r1, r2), lessThan(0));
+    assertThat(comString.compare(r1, r2), lessThan(0));
   }
 
   @Test
-  public void testColumnComparatorUnsupported() {
-    String colObject = "colObject";
+  public void testColumnComparatorAclTrace() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.ACL_TRACE, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 =
+        Row.of(col, new AclTrace(ImmutableList.of(new DefaultDeniedByIpAccessList("a", "a", "a"))));
+    Row r2 =
+        Row.of(col, new AclTrace(ImmutableList.of(new DefaultDeniedByIpAccessList("b", "b", "b"))));
 
-    ColumnMetadata columnObject = new ColumnMetadata(colObject, Schema.OBJECT, "colObjectDesc");
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
 
-    _thrown.expect(UnsupportedOperationException.class);
-    _manager.columnComparator(columnObject);
+  @Test
+  public void testColumnComparatorBoolean() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.BOOLEAN, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, false);
+    Row r2 = Row.of(col, true);
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorFlow() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.FLOW, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, Flow.builder().setDstIp(Ip.ZERO).setIngressNode("a").setTag("a").build());
+    Row r2 = Row.of(col, Flow.builder().setDstIp(Ip.MAX).setIngressNode("a").setTag("a").build());
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorFlowTrace() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.FLOW_TRACE, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, new FlowTrace(FlowDisposition.ACCEPTED, ImmutableList.of(), ""));
+    Row r2 =
+        Row.of(col, new FlowTrace(FlowDisposition.DELIVERED_TO_SUBNET, ImmutableList.of(), ""));
+    Row r3 =
+        Row.of(
+            col,
+            new FlowTrace(
+                FlowDisposition.ACCEPTED,
+                ImmutableList.of(
+                    new FlowTraceHop(
+                        Edge.of("a", "a", "b", "b"),
+                        ImmutableSortedSet.of(),
+                        "a",
+                        "a",
+                        Flow.builder().setDstIp(Ip.ZERO).setIngressNode("a").setTag("a").build())),
+                ""));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), lessThan(0));
+    assertThat(comparator.compare(r2, r3), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorInteger() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.INTEGER, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, 0);
+    Row r2 = Row.of(col, 1);
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorInterface() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.INTERFACE, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, new NodeInterfacePair("a", "a"));
+    Row r2 = Row.of(col, new NodeInterfacePair("a", "b"));
+    Row r3 = Row.of(col, new NodeInterfacePair("b", "a"));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), lessThan(0));
+    assertThat(comparator.compare(r2, r3), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorIp() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.IP, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, Ip.ZERO);
+    Row r2 = Row.of(col, Ip.MAX);
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorIssue() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.ISSUE, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, new Issue("a", 1, new Issue.Type("major", "minor")));
+    Row r2 = Row.of(col, new Issue("a", 2, new Issue.Type("major", "minor")));
+    Row r3 = Row.of(col, new Issue("b", 1, new Issue.Type("major", "minor")));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), equalTo(0));
+    assertThat(comparator.compare(r2, r3), greaterThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorList() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.list(Schema.STRING), "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, ImmutableList.of());
+    Row r2 = Row.of(col, ImmutableList.of("a"));
+    Row r3 = Row.of(col, ImmutableList.of("a", "b"));
+    Row r4 = Row.of(col, ImmutableList.of("b"));
+    Row r5 = Row.of(col, ImmutableList.of("b", "a"));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), lessThan(0));
+    assertThat(comparator.compare(r1, r4), lessThan(0));
+    assertThat(comparator.compare(r1, r5), lessThan(0));
+    assertThat(comparator.compare(r2, r3), lessThan(0));
+    assertThat(comparator.compare(r2, r4), lessThan(0));
+    assertThat(comparator.compare(r2, r5), lessThan(0));
+    assertThat(comparator.compare(r3, r4), lessThan(0));
+    assertThat(comparator.compare(r3, r5), lessThan(0));
+    assertThat(comparator.compare(r4, r5), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorLong() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.LONG, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, 0L);
+    Row r2 = Row.of(col, 1L);
+    Row r3 = Row.of(col, Long.MAX_VALUE);
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), lessThan(0));
+    assertThat(comparator.compare(r2, r3), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorNode() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.NODE, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, new Node("a"));
+    Row r2 = Row.of(col, new Node("b"));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorPrefix() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.PREFIX, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, Prefix.parse("1.1.2.1/32"));
+    Row r2 = Row.of(col, Prefix.parse("1.1.11.1/32"));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorSet() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.set(Schema.STRING), "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r0 = Row.of(col, null);
+    Row r1 = Row.of(col, ImmutableSet.of());
+    Row r2 = Row.of(col, ImmutableSet.of("a"));
+    Row r3 = Row.of(col, ImmutableSet.of("b"));
+    Row r4 = Row.of(col, ImmutableSet.of("a", "b"));
+    Row r5 = Row.of(col, ImmutableSet.of("b", "a"));
+    Row r6 = Row.of(col, Collections.singleton(null));
+
+    assertThat(comparator.compare(r0, r1), lessThan(0));
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), lessThan(0));
+    assertThat(comparator.compare(r1, r4), lessThan(0));
+    assertThat(comparator.compare(r1, r5), lessThan(0));
+    assertThat(comparator.compare(r2, r3), lessThan(0));
+    assertThat(comparator.compare(r2, r4), not(equalTo(0)));
+    assertThat(comparator.compare(r2, r5), not(equalTo(0)));
+    assertThat(comparator.compare(r6, r2), lessThan(0));
+    assertThat(comparator.compare(r3, r4), not(equalTo(0)));
+    assertThat(comparator.compare(r3, r5), not(equalTo(0)));
+    // sets in r4 and r5 might end up in same order, so no guarantee on comparison order
+  }
+
+  @Test
+  public void testColumnComparatorString() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.STRING, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, "a");
+    Row r2 = Row.of(col, "b");
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorSelfDescribingObject() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.SELF_DESCRIBING, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, new SelfDescribingObject(Schema.STRING, "a"));
+    Row r2 = Row.of(col, new SelfDescribingObject(Schema.STRING, "b"));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+  }
+
+  @Test
+  public void testColumnComparatorTrace() {
+    String col = "col1";
+    ColumnMetadata columnMetadata = new ColumnMetadata(col, Schema.TRACE, "colDesc");
+    Comparator<Row> comparator = _manager.columnComparator(columnMetadata);
+    Row r1 = Row.of(col, new Trace(FlowDisposition.ACCEPTED, ImmutableList.of()));
+    Row r2 =
+        Row.of(
+            col,
+            new Trace(
+                FlowDisposition.ACCEPTED,
+                ImmutableList.of(new Hop(new Node("a"), ImmutableList.of()))));
+    Row r3 = Row.of(col, new Trace(FlowDisposition.DELIVERED_TO_SUBNET, ImmutableList.of()));
+
+    assertThat(comparator.compare(r1, r2), lessThan(0));
+    assertThat(comparator.compare(r1, r3), lessThan(0));
+    assertThat(comparator.compare(r2, r3), lessThan(0));
   }
 
   @Test
@@ -2340,7 +2858,7 @@ public final class WorkMgrTest {
             null);
     Answer answer = new Answer();
     answer.setStatus(AnswerStatus.SUCCESS);
-    answer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    answer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(answer, Main.getLogger());
     _storage.storeAnswerMetadata(answerMetadata, baseAnswerId);
@@ -2396,5 +2914,446 @@ public final class WorkMgrTest {
             ImmutableList.of(
                 new SnapshotMetadataEntry(
                     snapshot, Main.getWorkMgr().getSnapshotMetadata(network, snapshot)))));
+  }
+
+  @Test
+  public void testGetSnapshotSubdirInvalid() {
+    Path root = _folder.getRoot().toPath();
+    Path s1Path = root.resolve("s1");
+    s1Path.toFile().mkdirs();
+    Path s2Path = root.resolve("s2");
+    s2Path.toFile().mkdirs();
+    CommonUtil.writeFile(s1Path.resolve("file1"), "content");
+    CommonUtil.writeFile(s2Path.resolve("file2"), "content");
+
+    // invalid because there are two top-level dirs
+    _thrown.expect(BatfishException.class);
+    WorkMgr.getSnapshotSubdir(root);
+  }
+
+  @Test
+  public void testGetSnapshotSubdirValid() {
+    Path root = _folder.getRoot().toPath();
+    Path s1Path = root.resolve("s1");
+    s1Path.toFile().mkdirs();
+    Path s2Path = root.resolve("__MACOSX"); // ignored dir
+    s2Path.toFile().mkdirs();
+    CommonUtil.writeFile(s1Path.resolve("file1"), "content");
+    CommonUtil.writeFile(s2Path.resolve("file2"), "content");
+
+    // extra dir should be ignored, and s1Path should be considered the snapshot subdir
+    assertThat(WorkMgr.getSnapshotSubdir(root), equalTo(s1Path));
+  }
+
+  private void storeCompletionMetadata(
+      CompletionMetadata completionMetadata, String network, String snapshot) throws IOException {
+    NetworkId networkId = _idManager.generateNetworkId();
+    _idManager.assignNetwork(network, networkId);
+    SnapshotId snapshotId = _idManager.generateSnapshotId();
+    _idManager.assignSnapshot(snapshot, networkId, snapshotId);
+    _storage.storeCompletionMetadata(completionMetadata, networkId, snapshotId);
+  }
+
+  @Test
+  public void testAddressBookAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggestion = "book";
+    String notSuggestion = "addresses";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder()
+            .setAddressBooks(ImmutableSet.of(notSuggestion, suggestion))
+            .build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.ADDRESS_BOOK, "bo", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggestion)));
+  }
+
+  @Test
+  public void testAddressGroupAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggestion = "group";
+    String notSuggestion = "addresses";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder()
+            .setAddressGroups(ImmutableSet.of(suggestion, notSuggestion))
+            .build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.ADDRESS_GROUP, "gr", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggestion)));
+  }
+
+  @Test
+  public void testBgpPeerPropertySpecAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.BGP_PEER_PROPERTY_SPEC, "as", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(LOCAL_AS, IS_PASSIVE, REMOTE_AS)));
+  }
+
+  @Test
+  public void testBgpProcessPropertySpecAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.BGP_PROCESS_PROPERTY_SPEC, "multi", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(
+            ImmutableSet.of(
+                MULTIPATH_EQUIVALENT_AS_PATH_MATCH_MODE, MULTIPATH_EBGP, MULTIPATH_IBGP)));
+  }
+
+  @Test
+  public void testBgpSessionStatusAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.BGP_SESSION_STATUS, "match", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(
+            ImmutableSet.of(
+                DYNAMIC_MATCH.toString(), NO_MATCH_FOUND.toString(), UNIQUE_MATCH.toString())));
+  }
+
+  @Test
+  public void testBgpSessionTypeAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.BGP_SESSION_TYPE, "bgp", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(
+            ImmutableSet.of(IBGP.toString(), EBGP_SINGLEHOP.toString(), EBGP_MULTIHOP.toString())));
+  }
+
+  @Test
+  public void testFilterAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggestion = "someFilter";
+    String notSuggestion = "blah";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder()
+            .setFilterNames(ImmutableSet.of(suggestion, notSuggestion))
+            .build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.FILTER, "fil", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggestion)));
+  }
+
+  @Test
+  public void testFlowStateAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.FLOW_STATE, "e", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(ESTABLISHED.toString(), RELATED.toString(), NEW.toString())));
+  }
+
+  @Test
+  public void testInterfaceAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    NodeInterfacePair suggested = new NodeInterfacePair("hostname", "interface");
+    NodeInterfacePair notSuggested = new NodeInterfacePair("blah", "blahhh");
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder()
+            .setInterfaces(ImmutableSet.of(suggested, notSuggested))
+            .build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.INTERFACE, "int", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested.toString())));
+  }
+
+  @Test
+  public void testInterfacePropertySpecAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.INTERFACE_PROPERTY_SPEC, "vlan", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(ACCESS_VLAN, ALLOWED_VLANS, AUTO_STATE_VLAN, NATIVE_VLAN)));
+  }
+
+  @Test
+  public void testIpAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggested = "1.2.3.4";
+    String notSuggested = "1.3.2.4";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder().setIps(ImmutableSet.of(suggested, notSuggested)).build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.IP, "1.2", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested)));
+  }
+
+  @Test
+  public void testIpsecSessionStatusAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.IPSEC_SESSION_STATUS, "phase", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(
+            ImmutableSet.of(
+                IKE_PHASE1_FAILED.toString(),
+                IKE_PHASE1_KEY_MISMATCH.toString(),
+                IPSEC_PHASE2_FAILED.toString())));
+  }
+
+  @Test
+  public void testNamedStructureSpecAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.NAMED_STRUCTURE_SPEC, "access", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(AS_PATH_ACCESS_LIST, IP_ACCESS_LIST, IP_6_ACCESS_LIST)));
+  }
+
+  @Test
+  public void testNodePropertySpecAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.NODE_PROPERTY_SPEC, "dns", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(DNS_SERVERS, DNS_SOURCE_INTERFACE)));
+  }
+
+  @Test
+  public void testNodeRoleDimensionAutocomplete() throws IOException {
+    String network = "network";
+    NetworkId networkId = _idManager.generateNetworkId();
+    _idManager.assignNetwork(network, networkId);
+
+    NodeRoleDimension suggested = NodeRoleDimension.builder().setName("someDimension").build();
+    NodeRoleDimension notSuggested = NodeRoleDimension.builder().setName("blah").build();
+    NodeRolesData nodeRolesData =
+        NodeRolesData.builder()
+            .setRoleDimensions(ImmutableSortedSet.of(suggested, notSuggested))
+            .build();
+    _manager.putNetworkNodeRoles(nodeRolesData, network);
+
+    assertThat(
+        _manager
+            .autoComplete(network, "snapshot", Type.NODE_ROLE_DIMENSION, "dim", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested.getName())));
+  }
+
+  @Test
+  public void testNodeSpecAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    _manager.initNetwork(network, null);
+
+    // create a snapshot and write a topology object for it
+    createSnapshotWithMetadata(network, snapshot);
+    Topology topology = new Topology(snapshot);
+    topology.setNodes(ImmutableSet.of(new Node("a1"), new Node("b1")));
+    CommonUtil.writeFile(
+        _manager
+            .getdirSnapshot(network, snapshot)
+            .resolve(
+                Paths.get(BfConsts.RELPATH_OUTPUT, BfConsts.RELPATH_TESTRIG_POJO_TOPOLOGY_PATH)),
+        BatfishObjectMapper.mapper().writeValueAsString(topology));
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.NODE_SPEC, "a", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of("a1", "a.*")));
+  }
+
+  @Test
+  public void testOspfPropertySpecAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.OSPF_PROPERTY_SPEC, "area", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(AREA_BORDER_ROUTER, AREAS)));
+  }
+
+  @Test
+  public void testPrefixAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggested = "1.2.3.4/24";
+    String notSuggested = "1.3.2.4/30";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder().setPrefixes(ImmutableSet.of(suggested, notSuggested)).build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.PREFIX, "1.2", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested)));
+  }
+
+  @Test
+  public void testProtocolAutocomplete() throws IOException {
+    assertThat(
+        _manager
+            .autoComplete("network", "snapshot", Type.PROTOCOL, "h", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(HTTP.toString(), HTTPS.toString(), SSH.toString())));
+  }
+
+  @Test
+  public void testStructureNameAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggested = "someStructure";
+    String notSuggested = "blah";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder()
+            .setStructureNames(ImmutableSet.of(suggested, notSuggested))
+            .build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.STRUCTURE_NAME, "str", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested)));
+  }
+
+  @Test
+  public void testVrfAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggested = "someVrf";
+    String notSuggested = "blah";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder().setVrfs(ImmutableSet.of(suggested, notSuggested)).build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.VRF, "v", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested)));
+  }
+
+  @Test
+  public void testZoneAutocomplete() throws IOException {
+    String network = "network";
+    String snapshot = "snapshot";
+
+    String suggested = "someZone";
+    String notSuggested = "blah";
+
+    CompletionMetadata completionMetadata =
+        CompletionMetadata.builder().setZones(ImmutableSet.of(suggested, notSuggested)).build();
+    storeCompletionMetadata(completionMetadata, network, snapshot);
+
+    assertThat(
+        _manager
+            .autoComplete(network, snapshot, Type.ZONE, "z", 5)
+            .stream()
+            .map(AutocompleteSuggestion::getText)
+            .collect(Collectors.toSet()),
+        equalTo(ImmutableSet.of(suggested)));
+  }
+
+  @Test
+  public void testAutocompleteNonExistentNetwork() throws IOException {
+    // should return null if network is not set up
+    assertThat(_manager.autoComplete("network", "snapshot", Type.ZONE, "z", 5), equalTo(null));
+  }
+
+  @Test
+  public void testAutocompleteNonExistentSnapshot() throws IOException {
+    String network = "network";
+    _idManager.assignNetwork(network, _idManager.generateNetworkId());
+    // should return null if snapshot is not set up
+    assertThat(_manager.autoComplete(network, "snapshot", Type.ZONE, "z", 5), equalTo(null));
+  }
+
+  @Test
+  public void testAutocompleteUnsupportedType() throws IOException {
+    Type type = Type.ANSWER_ELEMENT;
+
+    _thrown.expect(IllegalArgumentException.class);
+    _thrown.expectMessage("Unsupported completion type: " + type);
+
+    _manager.autoComplete("network", "snapshot", type, "blah", 5);
   }
 }

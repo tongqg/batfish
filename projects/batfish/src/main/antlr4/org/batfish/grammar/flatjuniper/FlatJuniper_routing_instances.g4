@@ -52,6 +52,7 @@ ri_named_routing_instance
       | ri_vrf_import
       | ri_vrf_table_label
       | ri_vrf_target
+      | ri_vtep_source_interface
    )
 ;
 
@@ -111,6 +112,11 @@ ri_vrf_target
    )
 ;
 
+ri_vtep_source_interface
+:
+   VTEP_SOURCE_INTERFACE iface = interface_id
+;
+
 riv_community
 :
    extended_community
@@ -128,18 +134,12 @@ riv_import
 
 ro_aggregate
 :
-   AGGREGATE ROUTE
-   (
-      prefix = IP_PREFIX
-      | prefix6 = IPV6_PREFIX
-   )
-   (
-      apply
-      | roa_as_path
-      | roa_community
-      | roa_preference
-      | roa_tag
-   )
+  AGGREGATE
+  (
+    apply
+    | roa_defaults
+    | roa_route
+  )
 ;
 
 ro_auto_export
@@ -169,6 +169,14 @@ ro_bmp
    )
 ;
 
+ro_confederation
+:
+  CONFEDERATION num = DEC?
+  (
+    MEMBERS member += DEC
+  )*
+;
+
 ro_forwarding_table
 :
    FORWARDING_TABLE
@@ -181,16 +189,12 @@ ro_forwarding_table
 
 ro_generate
 :
-   GENERATE ROUTE
-   (
-      IP_PREFIX
-      | IPV6_PREFIX
-   )
-   (
-      rog_discard
-      | rog_metric
-      | rog_policy
-   )
+  GENERATE
+  (
+    apply
+    | rog_defaults
+    | rog_route
+  )
 ;
 
 ro_interface_routes
@@ -211,6 +215,7 @@ ro_null
 :
    (
       GRACEFUL_RESTART
+      | LSP_TELEMETRY
       | MULTICAST
       | MULTIPATH
       | NONSTOP_ROUTING
@@ -242,6 +247,11 @@ ro_rib_groups
    )
 ;
 
+ro_route_distinguisher_id
+:
+   ROUTE_DISTINGUISHER_ID addr = IP_ADDRESS
+;
+
 ro_router_id
 :
    ROUTER_ID id = IP_ADDRESS
@@ -265,6 +275,11 @@ ro_static
    )
 ;
 
+roa_active
+:
+  ACTIVE
+;
+
 roa_as_path
 :
    AS_PATH?
@@ -275,14 +290,57 @@ roa_as_path
    )
 ;
 
+roa_common
+:
+  apply
+  | roa_active
+  | roa_as_path
+  | roa_community
+  | roa_discard
+  | roa_passive
+  | roa_policy
+  | roa_preference
+  | roa_tag
+;
+
 roa_community
 :
    COMMUNITY community = COMMUNITY_LITERAL
 ;
 
+roa_defaults
+:
+  DEFAULTS roa_common
+;
+
+roa_discard
+:
+  DISCARD
+;
+
+roa_passive
+:
+  PASSIVE
+;
+
+roa_policy
+:
+  POLICY name = variable
+;
+
 roa_preference
 :
    PREFERENCE preference = DEC
+;
+
+roa_route
+:
+  ROUTE
+  (
+    prefix = IP_PREFIX
+    | prefix6 = IPV6_PREFIX
+  )
+  roa_common
 ;
 
 roa_tag
@@ -324,6 +382,19 @@ rob_station_port
 :
    STATION_PORT DEC
 ;
+roa_route
+:
+  ROUTE
+  (
+    prefix = IP_PREFIX
+    | prefix6 = IPV6_PREFIX
+  )
+  (
+    apply
+    | roa_common
+  )
+;
+
 
 rof_export
 :
@@ -343,6 +414,32 @@ rof_null
    ) null_filler
 ;
 
+rog_active
+:
+   ACTIVE
+;
+
+rog_common
+:
+  apply
+  | rog_active
+  | rog_community
+  | rog_discard
+  | rog_metric
+  | rog_passive
+  | rog_policy
+;
+
+rog_community
+:
+   COMMUNITY standard_community
+;
+
+rog_defaults
+:
+  DEFAULTS rog_common
+;
+
 rog_discard
 :
    DISCARD
@@ -353,9 +450,23 @@ rog_metric
    METRIC metric = DEC
 ;
 
+rog_passive
+:
+  PASSIVE
+;
+
 rog_policy
 :
    POLICY policy = variable
+;
+
+rog_route
+:
+  ROUTE
+  (
+    IP_PREFIX
+    | IPV6_PREFIX
+  ) rog_common
 ;
 
 roi_family
@@ -606,6 +717,7 @@ s_routing_options
       | ro_auto_export
       | ro_autonomous_system
       | ro_bmp
+      | ro_confederation
       | ro_forwarding_table
       | ro_generate
       | ro_interface_routes
@@ -613,6 +725,7 @@ s_routing_options
       | ro_null
       | ro_rib
       | ro_rib_groups
+      | ro_route_distinguisher_id
       | ro_router_id
       | ro_srlg
       | ro_static

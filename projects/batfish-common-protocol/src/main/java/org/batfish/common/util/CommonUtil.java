@@ -1,5 +1,8 @@
 package org.batfish.common.util;
 
+import static org.batfish.datamodel.transformation.TransformationUtil.hasSourceNat;
+import static org.batfish.datamodel.transformation.TransformationUtil.sourceNatPoolIps;
+
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.Comparators;
 import com.google.common.collect.ImmutableList;
@@ -601,7 +604,7 @@ public class CommonUtil {
       Set<InterfaceAddress> nonNattedInterfaceAddresses =
           interfaces
               .stream()
-              .filter(i -> i.getSourceNats().isEmpty())
+              .filter(i -> !hasSourceNat(i.getOutgoingTransformation()))
               .flatMap(i -> i.getAllAddresses().stream())
               .collect(ImmutableSet.toImmutableSet());
       Set<IpWildcard> blacklist =
@@ -618,16 +621,8 @@ public class CommonUtil {
           IpWildcardSetIpSpace.builder().including(whitelist).excluding(blacklist).build();
       interfaces
           .stream()
-          .flatMap(i -> i.getSourceNats().stream())
-          .forEach(
-              sourceNat -> {
-                for (long ipAsLong = sourceNat.getPoolIpFirst().asLong();
-                    ipAsLong <= sourceNat.getPoolIpLast().asLong();
-                    ipAsLong++) {
-                  Ip currentPoolIp = new Ip(ipAsLong);
-                  builder.put(currentPoolIp, ipSpace);
-                }
-              });
+          .flatMap(i -> sourceNatPoolIps(i.getOutgoingTransformation()))
+          .forEach(currentPoolIp -> builder.put(currentPoolIp, ipSpace));
     }
     return builder.build();
   }
@@ -752,8 +747,9 @@ public class CommonUtil {
     return ranges.stream().anyMatch(sr -> sr.includes(num));
   }
 
-  public static String readFile(Path file) {
-    String text = null;
+  @Nonnull
+  public static String readFile(Path file) throws BatfishException {
+    String text;
     try {
       text = new String(Files.readAllBytes(file), StandardCharsets.UTF_8);
     } catch (IOException e) {
@@ -869,7 +865,9 @@ public class CommonUtil {
       Set<Interface> candidateInterfaces = Sets.newIdentityHashSet();
       IntStream.range(0, Prefix.MAX_PREFIX_LENGTH)
           .mapToObj(
-              i -> prefixInterfaces.getOrDefault(new Prefix(p.getStartIp(), i), ImmutableList.of()))
+              i ->
+                  prefixInterfaces.getOrDefault(
+                      Prefix.create(p.getStartIp(), i), ImmutableList.of()))
           .flatMap(Collection::stream)
           .filter(
               iface -> iface.getAllAddresses().stream().anyMatch(ia -> p.containsIp(ia.getIp())))

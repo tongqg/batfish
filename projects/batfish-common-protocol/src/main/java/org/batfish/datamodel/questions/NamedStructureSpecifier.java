@@ -3,6 +3,7 @@ package org.batfish.datamodel.questions;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.collect.ImmutableMap;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -15,52 +16,57 @@ import org.batfish.datamodel.answers.Schema;
 /** Enables specification a set of named structures. */
 public class NamedStructureSpecifier extends PropertySpecifier {
 
+  public static final String AS_PATH_ACCESS_LIST = "AS_Path_Access_List";
+  public static final String AUTHENTICATION_KEY_CHAIN = "Authentication_Key_Chain";
+  public static final String COMMUNITY_LIST = "Community_List";
+  public static final String IKE_POLICIES = "IKE_Policies";
+  public static final String IP_ACCESS_LIST = "IP_Access_List";
+  public static final String IP_6_ACCESS_LIST = "IP6_Access_List";
+  public static final String IPSEC_POLICY = "IPSec_Policy";
+  public static final String IPSEC_PROPOSAL = "IPSec_Proposal";
+  public static final String IPSEC_VPN = "IPSec_Vpn";
+  public static final String ROUTE_FILTER_LIST = "Route_Filter_List";
+  public static final String ROUTE_6_FILTER_LIST = "Route6_Filter_List";
+  public static final String ROUTING_POLICY = "Routing_Policy";
+  public static final String VRF = "VRF";
+  public static final String ZONE = "Zone";
+
   public static Map<String, PropertyDescriptor<Configuration>> JAVA_MAP =
       new ImmutableMap.Builder<String, PropertyDescriptor<Configuration>>()
           .put(
-              "as-path-access-lists",
-              new PropertyDescriptor<>(
-                  Configuration::getAsPathAccessLists, Schema.set(Schema.STRING)))
+              AS_PATH_ACCESS_LIST,
+              new PropertyDescriptor<>(Configuration::getAsPathAccessLists, Schema.OBJECT))
           .put(
-              "authentication-key-chains",
-              new PropertyDescriptor<>(
-                  Configuration::getAuthenticationKeyChains, Schema.set(Schema.STRING)))
+              AUTHENTICATION_KEY_CHAIN,
+              new PropertyDescriptor<>(Configuration::getAuthenticationKeyChains, Schema.OBJECT))
           .put(
-              "community-lists",
-              new PropertyDescriptor<>(Configuration::getCommunityLists, Schema.set(Schema.STRING)))
+              COMMUNITY_LIST,
+              new PropertyDescriptor<>(Configuration::getCommunityLists, Schema.OBJECT))
+          .put(IKE_POLICIES, new PropertyDescriptor<>(Configuration::getIkePolicies, Schema.OBJECT))
           .put(
-              "ike-policies",
-              new PropertyDescriptor<>(Configuration::getIkePolicies, Schema.set(Schema.STRING)))
+              IP_ACCESS_LIST,
+              new PropertyDescriptor<>(Configuration::getIpAccessLists, Schema.OBJECT))
           .put(
-              "ip-access-lists",
-              new PropertyDescriptor<>(Configuration::getIpAccessLists, Schema.set(Schema.STRING)))
+              IP_6_ACCESS_LIST,
+              new PropertyDescriptor<>(Configuration::getIp6AccessLists, Schema.OBJECT))
           .put(
-              "ip6-access-lists",
-              new PropertyDescriptor<>(Configuration::getIp6AccessLists, Schema.set(Schema.STRING)))
+              IPSEC_POLICY,
+              new PropertyDescriptor<>(Configuration::getIpsecPolicies, Schema.OBJECT))
           .put(
-              "ipsec-policies",
-              new PropertyDescriptor<>(Configuration::getIpsecPolicies, Schema.set(Schema.STRING)))
+              IPSEC_PROPOSAL,
+              new PropertyDescriptor<>(Configuration::getIpsecProposals, Schema.OBJECT))
+          .put(IPSEC_VPN, new PropertyDescriptor<>(Configuration::getIpsecVpns, Schema.OBJECT))
           .put(
-              "ipsec-proposals",
-              new PropertyDescriptor<>(Configuration::getIpsecProposals, Schema.set(Schema.STRING)))
+              ROUTE_FILTER_LIST,
+              new PropertyDescriptor<>(Configuration::getRouteFilterLists, Schema.OBJECT))
           .put(
-              "ipsec-vpns",
-              new PropertyDescriptor<>(Configuration::getIpsecVpns, Schema.set(Schema.STRING)))
+              ROUTE_6_FILTER_LIST,
+              new PropertyDescriptor<>(Configuration::getRoute6FilterLists, Schema.OBJECT))
           .put(
-              "route-filter-lists",
-              new PropertyDescriptor<>(
-                  Configuration::getRouteFilterLists, Schema.set(Schema.STRING)))
-          .put(
-              "route6-filter-lists",
-              new PropertyDescriptor<>(
-                  Configuration::getRoute6FilterLists, Schema.set(Schema.STRING)))
-          .put(
-              "routing-policies",
-              new PropertyDescriptor<>(
-                  Configuration::getRoutingPolicies, Schema.set(Schema.STRING)))
-          .put("vrfs", new PropertyDescriptor<>(Configuration::getVrfs, Schema.set(Schema.STRING)))
-          .put(
-              "zones", new PropertyDescriptor<>(Configuration::getZones, Schema.set(Schema.STRING)))
+              ROUTING_POLICY,
+              new PropertyDescriptor<>(Configuration::getRoutingPolicies, Schema.OBJECT))
+          .put(VRF, new PropertyDescriptor<>(Configuration::getVrfs, Schema.OBJECT))
+          .put(ZONE, new PropertyDescriptor<>(Configuration::getZones, Schema.OBJECT))
           .build();
 
   public static final NamedStructureSpecifier ALL = new NamedStructureSpecifier(".*");
@@ -72,7 +78,18 @@ public class NamedStructureSpecifier extends PropertySpecifier {
   @JsonCreator
   public NamedStructureSpecifier(String expression) {
     _expression = expression;
-    _pattern = Pattern.compile(_expression.trim().toLowerCase()); // canonicalize
+    _pattern = Pattern.compile(_expression.trim(), Pattern.CASE_INSENSITIVE); // canonicalize
+  }
+
+  public NamedStructureSpecifier(Collection<String> structureTypes) {
+    // quote and join
+    _expression =
+        structureTypes
+            .stream()
+            .map(String::trim)
+            .map(Pattern::quote)
+            .collect(Collectors.joining("|"));
+    _pattern = Pattern.compile(_expression, Pattern.CASE_INSENSITIVE);
   }
 
   /**

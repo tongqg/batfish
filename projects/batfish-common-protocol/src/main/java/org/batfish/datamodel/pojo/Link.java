@@ -81,9 +81,11 @@ public class Link extends BfObject {
 
     switch (iface1type) {
       case PHYSICAL:
+      case LOGICAL:
         return LinkType.PHYSICAL;
 
       case AGGREGATED:
+      case AGGREGATE_CHILD:
       case REDUNDANT:
       case TUNNEL:
       case VLAN:

@@ -10,6 +10,8 @@ import com.google.common.collect.Sets;
 import com.google.common.graph.EndpointPair;
 import com.google.common.graph.Graph;
 import com.google.common.graph.Graphs;
+import io.opentracing.ActiveSpan;
+import io.opentracing.util.GlobalTracer;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -33,8 +35,6 @@ import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.InterfaceType;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpSpace;
-import org.batfish.datamodel.Route;
-import org.batfish.datamodel.SubRange;
 import org.batfish.datamodel.SwitchportMode;
 import org.batfish.datamodel.Topology;
 import org.batfish.datamodel.Vrf;
@@ -42,6 +42,13 @@ import org.batfish.datamodel.collections.NodeInterfacePair;
 
 public final class TopologyUtil {
 
+  /** Returns true iff the given trunk interface allows its own native vlan. */
+  private static boolean trunkWithNativeVlanAllowed(Interface i) {
+    return i.getSwitchportMode() == SwitchportMode.TRUNK
+        && i.getAllowedVlans().contains(i.getNativeVlan());
+  }
+
+  // Precondition: at least one of i1 and i2 is a trunk
   private static void addLayer2TrunkEdges(
       Interface i1,
       Interface i2,
@@ -50,21 +57,28 @@ public final class TopologyUtil {
       Layer1Node node2) {
     if (i1.getSwitchportMode() == SwitchportMode.TRUNK
         && i2.getSwitchportMode() == SwitchportMode.TRUNK) {
+      // Both sides are trunks, so add edges from n1,v to n2,v for all shared VLANs.
       i1.getAllowedVlans()
           .stream()
-          .flatMapToInt(SubRange::asStream)
-          .filter(
-              i1AllowedVlan ->
-                  i2.getAllowedVlans().stream().anyMatch(sr -> sr.includes(i1AllowedVlan)))
           .forEach(
-              allowedVlan ->
-                  edges.add(new Layer2Edge(node1, allowedVlan, node2, allowedVlan, allowedVlan)));
-      edges.add(new Layer2Edge(node1, i1.getNativeVlan(), node2, i2.getNativeVlan(), null));
-    } else if (i1.getSwitchportMode() == SwitchportMode.TRUNK) {
+              vlan -> {
+                if (i1.getNativeVlan() == vlan && trunkWithNativeVlanAllowed(i2)) {
+                  // This frame will not be tagged by i1, and i2 accepts untagged frames.
+                  edges.add(new Layer2Edge(node1, vlan, node2, vlan, null /* untagged */));
+                } else if (i2.getAllowedVlans().contains(vlan)) {
+                  // This frame will be tagged by i1 and we can directly check whether i2 allows.
+                  edges.add(new Layer2Edge(node1, vlan, node2, vlan, vlan));
+                }
+              });
+    } else if (trunkWithNativeVlanAllowed(i1)) {
+      // i1 is a trunk, but the other side is not. The only edge that will come up is i2 receiving
+      // untagged packets.
       Integer node2VlanId =
           i2.getSwitchportMode() == SwitchportMode.ACCESS ? i2.getAccessVlan() : null;
       edges.add(new Layer2Edge(node1, i1.getNativeVlan(), node2, node2VlanId, null));
-    } else if (i2.getSwitchportMode() == SwitchportMode.TRUNK) {
+    } else if (trunkWithNativeVlanAllowed(i2)) {
+      // i1 is not a trunk, but the other side is. The only edge that will come up is the other
+      // side receiving untagged packets and treating them as native VLAN.
       Integer node1VlanId =
           i1.getSwitchportMode() == SwitchportMode.ACCESS ? i1.getAccessVlan() : null;
       edges.add(new Layer2Edge(node1, node1VlanId, node2, i2.getNativeVlan(), null));
@@ -81,18 +95,13 @@ public final class TopologyUtil {
         .forEach(
             i -> {
               if (i.getSwitchportMode() == SwitchportMode.TRUNK) {
-                switchportsByVlan
-                    .computeIfAbsent(i.getNativeVlan(), n -> ImmutableList.builder())
-                    .add(i.getName());
                 i.getAllowedVlans()
                     .stream()
-                    .flatMapToInt(SubRange::asStream)
                     .forEach(
-                        allowedVlan -> {
-                          switchportsByVlan
-                              .computeIfAbsent(allowedVlan, n -> ImmutableList.builder())
-                              .add(i.getName());
-                        });
+                        vlan ->
+                            switchportsByVlan
+                                .computeIfAbsent(vlan, n -> ImmutableList.builder())
+                                .add(i.getName()));
               }
               if (i.getSwitchportMode() == SwitchportMode.ACCESS) {
                 switchportsByVlan
@@ -208,18 +217,13 @@ public final class TopologyUtil {
         .forEach(
             i -> {
               if (i.getSwitchportMode() == SwitchportMode.TRUNK) {
-                switchportsByVlan
-                    .computeIfAbsent(i.getNativeVlan(), n -> ImmutableList.builder())
-                    .add(i.getName());
                 i.getAllowedVlans()
                     .stream()
-                    .flatMapToInt(SubRange::asStream)
                     .forEach(
-                        allowedVlan -> {
-                          switchportsByVlan
-                              .computeIfAbsent(allowedVlan, n -> ImmutableList.builder())
-                              .add(i.getName());
-                        });
+                        vlan ->
+                            switchportsByVlan
+                                .computeIfAbsent(vlan, n -> ImmutableList.builder())
+                                .add(i.getName()));
               }
               if (i.getSwitchportMode() == SwitchportMode.ACCESS) {
                 switchportsByVlan
@@ -419,7 +423,7 @@ public final class TopologyUtil {
    * Invert a mapping from {@link Ip} to owner interfaces (Ip -&gt; hostname -&gt; interface name)
    * to (hostname -&gt; interface name -&gt; Ip).
    */
-  public static Map<String, Map<String, Set<Ip>>> computeInterfaceOwnedIps(
+  static Map<String, Map<String, Set<Ip>>> computeInterfaceOwnedIps(
       Map<Ip, Map<String, Set<String>>> ipInterfaceOwners) {
     Map<String, Map<String, Set<Ip>>> ownedIps = new HashMap<>();
 
@@ -446,28 +450,6 @@ public final class TopologyUtil {
   }
 
   /**
-   * Invert a mapping from {@link Ip} to owner interfaces (Ip -&gt; hostname -&gt; interface name)
-   * and convert the set of owned Ips into an IpSpace.
-   */
-  public static Map<String, Map<String, IpSpace>> computeInterfaceOwnedIpSpaces(
-      Map<Ip, Map<String, Set<String>>> ipInterfaceOwners) {
-    return CommonUtil.toImmutableMap(
-        computeInterfaceOwnedIps(ipInterfaceOwners),
-        Entry::getKey, /* host */
-        hostEntry ->
-            CommonUtil.toImmutableMap(
-                hostEntry.getValue(),
-                Entry::getKey, /* interface */
-                ifaceEntry ->
-                    AclIpSpace.union(
-                        ifaceEntry
-                            .getValue()
-                            .stream()
-                            .map(Ip::toIpSpace)
-                            .collect(Collectors.toList()))));
-  }
-
-  /**
    * Compute a mapping of IP addresses to a set of hostnames that "own" this IP (e.g., as a network
    * interface address)
    *
@@ -477,28 +459,36 @@ public final class TopologyUtil {
    */
   public static Map<Ip, Set<String>> computeIpNodeOwners(
       Map<String, Configuration> configurations, boolean excludeInactive) {
-    return CommonUtil.toImmutableMap(
-        computeIpInterfaceOwners(computeNodeInterfaces(configurations), excludeInactive),
-        Entry::getKey, /* Ip */
-        ipInterfaceOwnersEntry ->
-            /* project away interfaces */
-            ipInterfaceOwnersEntry.getValue().keySet());
+    try (ActiveSpan span =
+        GlobalTracer.get()
+            .buildSpan("TopologyUtil.computeIpNodeOwners excludeInactive=" + excludeInactive)
+            .startActive()) {
+      assert span != null; // avoid unused warning
+
+      return CommonUtil.toImmutableMap(
+          computeIpInterfaceOwners(computeNodeInterfaces(configurations), excludeInactive),
+          Entry::getKey, /* Ip */
+          ipInterfaceOwnersEntry ->
+              /* project away interfaces */
+              ipInterfaceOwnersEntry.getValue().keySet());
+    }
   }
 
   /**
-   * Compute a mapping from IP address to the interfaces that "own" that IP (e.g., as an network
-   * interface address)
+   * Compute a mapping from IP address to the interfaces that "own" that IP (e.g., as a network
+   * interface address).
    *
-   * @param enabledInterfaces A mapping of enabled interfaces hostname -&gt; interface name -&gt;
-   *     {@link Interface}
+   * <p>Takes into account VRRP configuration.
+   *
+   * @param allInterfaces A mapping of interfaces: hostname -&gt; set of {@link Interface}
    * @param excludeInactive whether to ignore inactive interfaces
-   * @return A map from {@link Ip}s to the {@link Interface}s that own them
+   * @return A map from {@link Ip}s to hostname to set of interface names that own that IP.
    */
   public static Map<Ip, Map<String, Set<String>>> computeIpInterfaceOwners(
-      Map<String, Set<Interface>> enabledInterfaces, boolean excludeInactive) {
+      Map<String, Set<Interface>> allInterfaces, boolean excludeInactive) {
     Map<Ip, Map<String, Set<String>>> ipOwners = new HashMap<>();
     Map<Pair<InterfaceAddress, Integer>, Set<Interface>> vrrpGroups = new HashMap<>();
-    enabledInterfaces.forEach(
+    allInterfaces.forEach(
         (hostname, interfaces) ->
             interfaces.forEach(
                 i -> {
@@ -657,22 +647,6 @@ public final class TopologyUtil {
                 nodeEntry.getValue(),
                 Entry::getKey, /* vrf */
                 vrfEntry -> vrfEntry.getValue().build()));
-  }
-
-  public static Map<Ip, String> computeIpOwnersSimple(Map<Ip, Set<String>> ipOwners) {
-    Map<Ip, String> ipOwnersSimple = new HashMap<>();
-    ipOwners.forEach(
-        (ip, owners) -> {
-          String hostname =
-              owners.size() == 1 ? owners.iterator().next() : Route.AMBIGUOUS_NEXT_HOP;
-          ipOwnersSimple.put(ip, hostname);
-        });
-    return ipOwnersSimple;
-  }
-
-  public static Map<Ip, String> computeIpOwnersSimple(
-      Map<String, Configuration> configurations, boolean excludeInactive) {
-    return computeIpOwnersSimple(computeIpNodeOwners(configurations, excludeInactive));
   }
 
   /**

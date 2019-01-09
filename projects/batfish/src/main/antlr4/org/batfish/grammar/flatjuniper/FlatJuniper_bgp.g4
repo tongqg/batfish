@@ -75,6 +75,7 @@ b_common
    | b_damping
    | b_description
    | b_disable_4byte_as
+   | b_drop_path_attributes
    | b_enforce_first_as
    | b_export
    | b_family
@@ -108,6 +109,11 @@ b_disable_4byte_as
    DISABLE_4BYTE_AS
 ;
 
+b_drop_path_attributes
+:
+   DROP_PATH_ATTRIBUTES attr = DEC
+;
+
 b_enable
 :
    ENABLE
@@ -127,7 +133,8 @@ b_family
 :
    FAMILY
    (
-      bf_inet
+      bf_evpn
+      | bf_inet
       | bf_inet6
       | bf_null
    ) bf_accepted_prefix_limit?
@@ -277,6 +284,11 @@ bf_accepted_prefix_limit
    )*
 ;
 
+bf_evpn
+:
+   EVPN SIGNALING
+;
+
 bf_inet
 :
    INET
@@ -336,6 +348,7 @@ bfi_unicast
    (
       apply
       | bfiu_add_path
+      | bfiu_loops
       | bfiu_prefix_limit
       | bfiu_rib_group
    )
@@ -375,6 +388,11 @@ bfiu_add_path
       bfiua_receive
       | bfiua_send
    )
+;
+
+bfiu_loops
+:
+   LOOPS count = DEC
 ;
 
 bfiu_prefix_limit

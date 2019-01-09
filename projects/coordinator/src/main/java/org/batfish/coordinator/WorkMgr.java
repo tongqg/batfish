@@ -2,6 +2,10 @@ package org.batfish.coordinator;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.collect.Comparators.lexicographical;
+import static java.util.Comparator.comparing;
+import static java.util.Comparator.naturalOrder;
+import static java.util.Comparator.nullsFirst;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.toCollection;
 
@@ -15,11 +19,14 @@ import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.Comparators;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import com.google.errorprone.annotations.MustBeClosed;
 import io.opentracing.ActiveSpan;
 import io.opentracing.References;
 import io.opentracing.SpanContext;
@@ -69,6 +76,7 @@ import org.batfish.common.BatfishLogger;
 import org.batfish.common.BfConsts;
 import org.batfish.common.BfConsts.TaskStatus;
 import org.batfish.common.ColumnSortOption;
+import org.batfish.common.CompletionMetadata;
 import org.batfish.common.Container;
 import org.batfish.common.CoordConsts.WorkStatusCode;
 import org.batfish.common.Task;
@@ -87,38 +95,54 @@ import org.batfish.coordinator.config.Settings;
 import org.batfish.coordinator.id.IdManager;
 import org.batfish.coordinator.resources.ForkSnapshotBean;
 import org.batfish.datamodel.AnalysisMetadata;
+import org.batfish.datamodel.BgpSessionProperties.SessionType;
 import org.batfish.datamodel.Edge;
+import org.batfish.datamodel.FlowState;
 import org.batfish.datamodel.InitializationMetadata.ProcessingStatus;
+import org.batfish.datamodel.Protocol;
 import org.batfish.datamodel.SnapshotMetadata;
 import org.batfish.datamodel.SnapshotMetadataEntry;
+import org.batfish.datamodel.acl.AclTrace;
+import org.batfish.datamodel.acl.TraceEvent;
 import org.batfish.datamodel.answers.Answer;
+import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.datamodel.answers.AnswerMetadata;
 import org.batfish.datamodel.answers.AnswerMetadataUtil;
 import org.batfish.datamodel.answers.AnswerStatus;
 import org.batfish.datamodel.answers.AnswerSummary;
 import org.batfish.datamodel.answers.AutocompleteSuggestion;
-import org.batfish.datamodel.answers.AutocompleteSuggestion.CompletionType;
 import org.batfish.datamodel.answers.Issue;
 import org.batfish.datamodel.answers.MajorIssueConfig;
 import org.batfish.datamodel.answers.Metrics;
 import org.batfish.datamodel.answers.MinorIssueConfig;
 import org.batfish.datamodel.answers.ParseVendorConfigurationAnswerElement;
 import org.batfish.datamodel.answers.Schema;
+import org.batfish.datamodel.answers.Schema.Type;
 import org.batfish.datamodel.collections.NodeInterfacePair;
+import org.batfish.datamodel.flow.Hop;
+import org.batfish.datamodel.flow.Step;
+import org.batfish.datamodel.flow.Trace;
 import org.batfish.datamodel.pojo.Node;
 import org.batfish.datamodel.pojo.Topology;
-import org.batfish.datamodel.questions.BgpPropertySpecifier;
+import org.batfish.datamodel.questions.BgpPeerPropertySpecifier;
+import org.batfish.datamodel.questions.BgpProcessPropertySpecifier;
+import org.batfish.datamodel.questions.ConfiguredSessionStatus;
 import org.batfish.datamodel.questions.InterfacePropertySpecifier;
+import org.batfish.datamodel.questions.IpsecSessionStatus;
 import org.batfish.datamodel.questions.NamedStructureSpecifier;
 import org.batfish.datamodel.questions.NodePropertySpecifier;
 import org.batfish.datamodel.questions.NodesSpecifier;
 import org.batfish.datamodel.questions.OspfPropertySpecifier;
+import org.batfish.datamodel.questions.PropertySpecifier;
 import org.batfish.datamodel.questions.Question;
+import org.batfish.datamodel.questions.Variable;
 import org.batfish.datamodel.table.ColumnMetadata;
 import org.batfish.datamodel.table.ExcludedRows;
 import org.batfish.datamodel.table.Row;
 import org.batfish.datamodel.table.TableAnswerElement;
 import org.batfish.datamodel.table.TableMetadata;
+import org.batfish.datamodel.table.TableView;
+import org.batfish.datamodel.table.TableViewRow;
 import org.batfish.identifiers.AnalysisId;
 import org.batfish.identifiers.AnswerId;
 import org.batfish.identifiers.IssueSettingsId;
@@ -128,6 +152,7 @@ import org.batfish.identifiers.QuestionId;
 import org.batfish.identifiers.QuestionSettingsId;
 import org.batfish.identifiers.SnapshotId;
 import org.batfish.referencelibrary.ReferenceLibrary;
+import org.batfish.role.NodeRoleDimension;
 import org.batfish.role.NodeRolesData;
 import org.batfish.storage.FileBasedStorageDirectoryProvider;
 import org.batfish.storage.StorageProvider;
@@ -137,6 +162,34 @@ import org.codehaus.jettison.json.JSONObject;
 import org.glassfish.jersey.uri.UriComponent;
 
 public class WorkMgr extends AbstractCoordinator {
+
+  private static final Set<String> IGNORED_PATHS =
+      ImmutableSet.<String>builder()
+          .add(".DS_STORE")
+          .add("__MACOSX")
+          .add(".git")
+          .add(".svn")
+          .build();
+
+  private static final Comparator<AclTrace> COMPARATOR_ACL_TRACE =
+      Comparator.comparing(
+          AclTrace::getEvents,
+          Comparators.lexicographical(Comparator.comparing(TraceEvent::getDescription)));
+
+  private static final Comparator<Node> COMPARATOR_NODE = Comparator.comparing(Node::getName);
+
+  private static final Comparator<Trace> COMPARATOR_TRACE =
+      Comparator.comparing(Trace::getDisposition)
+          .thenComparing(
+              Trace::getHops,
+              Comparators.lexicographical(
+                  Comparator.comparing(Hop::getNode, Comparator.comparing(Node::getName))
+                      .thenComparing(
+                          Hop::getSteps,
+                          Comparators.lexicographical(
+                              Comparator.<Step<?>, String>comparing(
+                                      step -> step.getDetail().toString())
+                                  .thenComparing(Step::getAction)))));
 
   static final class AssignWorkTask implements Runnable {
     @Override
@@ -349,52 +402,233 @@ public class WorkMgr extends AbstractCoordinator {
     }
   }
 
+  private CompletionMetadata getCompletionMetadata(String network, String snapshot)
+      throws IOException {
+    checkArgument(!isNullOrEmpty(network), "Network name should be supplied");
+    checkArgument(!isNullOrEmpty(snapshot), "Snapshot name should be supplied");
+
+    if (!_idManager.hasNetworkId(network)) {
+      return null;
+    }
+    NetworkId networkId = _idManager.getNetworkId(network);
+
+    if (!_idManager.hasSnapshotId(snapshot, networkId)) {
+      return null;
+    }
+    SnapshotId snapshotId = _idManager.getSnapshotId(snapshot, networkId);
+    return _storage.loadCompletionMetadata(networkId, snapshotId);
+  }
+
   public List<AutocompleteSuggestion> autoComplete(
-      String container,
-      String testrig,
-      CompletionType completionType,
+      String network,
+      String snapshot,
+      Variable.Type completionType,
       String query,
       int maxSuggestions)
       throws IOException {
+
+    List<AutocompleteSuggestion> suggestions;
+
     switch (completionType) {
-      case BGP_PROPERTY:
+      case ADDRESS_BOOK:
         {
-          List<AutocompleteSuggestion> suggestions = BgpPropertySpecifier.autoComplete(query);
-          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions =
+              PropertySpecifier.baseAutoComplete(query, completionMetadata.getAddressBooks());
+
+          break;
         }
-      case INTERFACE_PROPERTY:
+      case ADDRESS_GROUP:
         {
-          List<AutocompleteSuggestion> suggestions = InterfacePropertySpecifier.autoComplete(query);
-          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions =
+              PropertySpecifier.baseAutoComplete(query, completionMetadata.getAddressGroups());
+          break;
         }
-      case NAMED_STRUCTURE:
+      case BGP_PEER_PROPERTY_SPEC:
         {
-          List<AutocompleteSuggestion> suggestions = NamedStructureSpecifier.autoComplete(query);
-          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+          suggestions = BgpPeerPropertySpecifier.autoComplete(query);
+          break;
         }
-      case NODE:
+      case BGP_PROCESS_PROPERTY_SPEC:
+        {
+          suggestions = BgpProcessPropertySpecifier.autoComplete(query);
+          break;
+        }
+      case BGP_SESSION_STATUS:
+        {
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  Stream.of(ConfiguredSessionStatus.values())
+                      .map(ConfiguredSessionStatus::name)
+                      .collect(Collectors.toSet()));
+          break;
+        }
+      case BGP_SESSION_TYPE:
+        {
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  Stream.of(SessionType.values())
+                      .map(SessionType::name)
+                      .collect(Collectors.toSet()));
+
+          break;
+        }
+      case FILTER:
+        {
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions =
+              PropertySpecifier.baseAutoComplete(query, completionMetadata.getFilterNames());
+          break;
+        }
+      case FLOW_STATE:
+        {
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  Stream.of(FlowState.values()).map(FlowState::name).collect(Collectors.toSet()));
+          break;
+        }
+      case INTERFACE:
+        {
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  completionMetadata
+                      .getInterfaces()
+                      .stream()
+                      .map(NodeInterfacePair::toString)
+                      .collect(Collectors.toSet()));
+          break;
+        }
+      case INTERFACE_PROPERTY_SPEC:
+        {
+          suggestions = InterfacePropertySpecifier.autoComplete(query);
+          break;
+        }
+      case IP:
+        {
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions = PropertySpecifier.baseAutoComplete(query, completionMetadata.getIps());
+          break;
+        }
+      case IPSEC_SESSION_STATUS:
+        {
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  Stream.of(IpsecSessionStatus.values())
+                      .map(IpsecSessionStatus::name)
+                      .collect(Collectors.toSet()));
+          break;
+        }
+      case NAMED_STRUCTURE_SPEC:
+        {
+          suggestions = NamedStructureSpecifier.autoComplete(query);
+          break;
+        }
+      case NODE_PROPERTY_SPEC:
+        {
+          suggestions = NodePropertySpecifier.autoComplete(query);
+          break;
+        }
+      case NODE_ROLE_DIMENSION:
         {
           checkArgument(
-              !isNullOrEmpty(testrig),
+              !isNullOrEmpty(network),
+              "Network name should be supplied for 'NODE_ROLE_DIMENSION' autoCompletion");
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  getNetworkNodeRoles(network)
+                      .getNodeRoleDimensions()
+                      .stream()
+                      .map(NodeRoleDimension::getName)
+                      .collect(Collectors.toSet()));
+          break;
+        }
+      case NODE_SPEC:
+        {
+          checkArgument(
+              !isNullOrEmpty(snapshot),
               "Snapshot name should be supplied for 'NODE' autoCompletion");
-          List<AutocompleteSuggestion> suggestions =
+          suggestions =
               NodesSpecifier.autoComplete(
-                  query, getNodes(container, testrig), getNetworkNodeRoles(container));
-          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+                  query, getNodes(network, snapshot), getNetworkNodeRoles(network));
+          break;
         }
-      case NODE_PROPERTY:
+      case OSPF_PROPERTY_SPEC:
         {
-          List<AutocompleteSuggestion> suggestions = NodePropertySpecifier.autoComplete(query);
-          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+          suggestions = OspfPropertySpecifier.autoComplete(query);
+          break;
         }
-      case OSPF_PROPERTY:
+      case PREFIX:
         {
-          List<AutocompleteSuggestion> suggestions = OspfPropertySpecifier.autoComplete(query);
-          return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions = PropertySpecifier.baseAutoComplete(query, completionMetadata.getPrefixes());
+          break;
+        }
+      case PROTOCOL:
+        {
+          suggestions =
+              PropertySpecifier.baseAutoComplete(
+                  query,
+                  Stream.of(Protocol.values()).map(Protocol::name).collect(Collectors.toSet()));
+          break;
+        }
+      case STRUCTURE_NAME:
+        {
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions =
+              PropertySpecifier.baseAutoComplete(query, completionMetadata.getStructureNames());
+          break;
+        }
+      case VRF:
+        {
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions = PropertySpecifier.baseAutoComplete(query, completionMetadata.getVrfs());
+          break;
+        }
+      case ZONE:
+        {
+          CompletionMetadata completionMetadata = getCompletionMetadata(network, snapshot);
+          if (completionMetadata == null) {
+            return null;
+          }
+          suggestions = PropertySpecifier.baseAutoComplete(query, completionMetadata.getZones());
+          break;
         }
       default:
-        throw new UnsupportedOperationException("Unsupported completion type: " + completionType);
+        throw new IllegalArgumentException("Unsupported completion type: " + completionType);
     }
+    return suggestions.subList(0, Integer.min(suggestions.size(), maxSuggestions));
   }
 
   private void checkTask(QueuedWork work, String worker) {
@@ -808,6 +1042,19 @@ public class WorkMgr extends AbstractCoordinator {
     }
   }
 
+  /**
+   * Get all completed work for the specified network and snapshot.
+   *
+   * @param networkName name of the network to get completed work for.
+   * @param snapshotName name of the snapshot to get completed work for.
+   * @return {@link List} of completed {@link QueuedWork}.
+   */
+  public List<QueuedWork> getCompletedWork(String networkName, String snapshotName) {
+    NetworkId networkId = _idManager.getNetworkId(networkName);
+    return _workQueueMgr.getCompletedWork(
+        networkId, _idManager.getSnapshotId(snapshotName, networkId));
+  }
+
   private @Nonnull QuestionSettingsId getOrDefaultQuestionSettingsId(
       NetworkId networkId, QuestionId questionId, AnalysisId analysisId)
       throws FileNotFoundException, IOException {
@@ -940,8 +1187,17 @@ public class WorkMgr extends AbstractCoordinator {
         analysisQuestions.isEmpty() ? listAnalysisQuestions(network, analysis) : analysisQuestions;
     ImmutableSortedMap.Builder<String, String> result = ImmutableSortedMap.naturalOrder();
     for (String questionName : questions) {
-      result.put(
-          questionName, getAnswer(network, snapshot, questionName, referenceSnapshot, analysis));
+      try {
+        result.put(
+            questionName, getAnswer(network, snapshot, questionName, referenceSnapshot, analysis));
+      } catch (Exception e) {
+        _logger.errorf(
+            "Got exception in getAnalysisAnswers: %s\n", Throwables.getStackTraceAsString(e));
+        result.put(
+            questionName,
+            BatfishObjectMapper.mapper()
+                .writeValueAsString(Answer.failureAnswer(e.getMessage(), null)));
+      }
     }
     return result.build();
   }
@@ -957,8 +1213,15 @@ public class WorkMgr extends AbstractCoordinator {
         analysisQuestions.isEmpty() ? listAnalysisQuestions(network, analysis) : analysisQuestions;
     ImmutableSortedMap.Builder<String, AnswerMetadata> result = ImmutableSortedMap.naturalOrder();
     for (String question : questions) {
-      result.put(
-          question, getAnswerMetadata(network, snapshot, question, referenceSnapshot, analysis));
+      try {
+        result.put(
+            question, getAnswerMetadata(network, snapshot, question, referenceSnapshot, analysis));
+      } catch (Exception e) {
+        _logger.errorf(
+            "Got exception in getAnalysisAnswersMetadata: %s\n",
+            Throwables.getStackTraceAsString(e));
+        result.put(question, AnswerMetadata.forStatus(AnswerStatus.FAILURE));
+      }
     }
     return result.build();
   }
@@ -1419,6 +1682,31 @@ public class WorkMgr extends AbstractCoordinator {
     return _workQueueMgr.getWork(workItemId);
   }
 
+  /**
+   * Load and return the log file for a given work item ID in a given snapshot.
+   *
+   * @throws IOException if the log could not be read successfully.
+   * @return Content of the log file as a string; {@code null} if the network, snapshot or log file
+   *     is not available
+   */
+  @Nullable
+  public String getWorkLog(String networkName, String snapshotName, String workId)
+      throws IOException {
+    if (!_idManager.hasNetworkId(networkName)) {
+      return null;
+    }
+    NetworkId networkId = _idManager.getNetworkId(networkName);
+    if (!_idManager.hasSnapshotId(snapshotName, networkId)) {
+      return null;
+    }
+    SnapshotId snapshotId = _idManager.getSnapshotId(snapshotName, networkId);
+    try {
+      return _storage.loadWorkLog(networkId, snapshotId, workId);
+    } catch (FileNotFoundException e) {
+      return null;
+    }
+  }
+
   public String initNetwork(@Nullable String network, @Nullable String networkPrefix) {
     String newNetworkName =
         isNullOrEmpty(network) ? networkPrefix + "_" + UUID.randomUUID() : network;
@@ -1444,6 +1732,8 @@ public class WorkMgr extends AbstractCoordinator {
       boolean autoAnalyze,
       @Nullable SnapshotId parentSnapshotId) {
     Path subDir = getSnapshotSubdir(srcDir);
+    validateSnapshotDir(subDir);
+
     SortedSet<Path> subFileList = CommonUtil.getEntries(subDir);
 
     NetworkId networkId = _idManager.getNetworkId(networkName);
@@ -1520,11 +1810,40 @@ public class WorkMgr extends AbstractCoordinator {
   }
 
   /**
+   * Helper function to assert that the specified dir contains configs
+   *
+   * @throws BatfishException when specified dir does not contain network configs dir, AWS configs
+   *     dir, or a hosts dir
+   */
+  private static void validateSnapshotDir(Path subDir) {
+    // Confirm there is a configs, hosts, or AWS configs dir
+    Path hostConfigsPath = subDir.resolve(BfConsts.RELPATH_HOST_CONFIGS_DIR);
+    Path networkConfigsPath = subDir.resolve(BfConsts.RELPATH_CONFIGURATIONS_DIR);
+    Path awsConfigsPath = subDir.resolve(BfConsts.RELPATH_AWS_CONFIGS_DIR);
+    if (!Files.exists(hostConfigsPath)
+        && !Files.exists(networkConfigsPath)
+        && !Files.exists(awsConfigsPath)) {
+      Path srcDir = subDir.getParent();
+      throw new BatfishException(
+          String.format(
+              "Unexpected packaging of snapshot. No networks configs dir '%s', AWS configs dir '%s', or hosts dir '%s' found.",
+              srcDir.relativize(networkConfigsPath),
+              srcDir.relativize(awsConfigsPath),
+              srcDir.relativize(hostConfigsPath)));
+    }
+  }
+
+  /**
    * Helper function to assert there is only one subdir in the specified snapshot dir and return
    * that subdir
    */
-  private static Path getSnapshotSubdir(Path srcDir) {
-    SortedSet<Path> srcDirEntries = CommonUtil.getEntries(srcDir);
+  @VisibleForTesting
+  static Path getSnapshotSubdir(Path srcDir) {
+    SortedSet<Path> srcDirEntries =
+        CommonUtil.getEntries(srcDir)
+            .stream()
+            .filter(path -> !IGNORED_PATHS.contains(path.getFileName().toString()))
+            .collect(ImmutableSortedSet.toImmutableSortedSet(Comparator.naturalOrder()));
     /*
      * Sanity check what we got:
      *    There should be just one top-level folder.
@@ -2197,7 +2516,8 @@ public class WorkMgr extends AbstractCoordinator {
     try {
       initSnapshot(networkName, snapshotName, unzipDir, autoAnalyze);
     } catch (Exception e) {
-      throw new BatfishException("Error initializing snapshot", e);
+      throw new BatfishException(
+          String.format("Error initializing snapshot: %s", e.getMessage()), e);
     } finally {
       CommonUtil.deleteDirectory(unzipDir);
     }
@@ -2254,6 +2574,38 @@ public class WorkMgr extends AbstractCoordinator {
 
   @VisibleForTesting
   @Nonnull
+  Answer processAnswerRows2(String rawAnswerStr, AnswerRowsOptions options) {
+    if (rawAnswerStr == null) {
+      Answer answer = Answer.failureAnswer("Not found", null);
+      answer.setStatus(AnswerStatus.NOTFOUND);
+      return answer;
+    }
+    try {
+      Answer rawAnswer =
+          BatfishObjectMapper.mapper().readValue(rawAnswerStr, new TypeReference<Answer>() {});
+      // If the AnswerStatus is not SUCCESS, the answer cannot have any AnswerElements related to
+      // actual answers (but, e.g., it might have a BatfishStackTrace). Return that as-is.
+      if (rawAnswer.getStatus() != AnswerStatus.SUCCESS) {
+        return rawAnswer;
+      }
+      AnswerElement answerElement = rawAnswer.getAnswerElements().get(0);
+      if (!(answerElement instanceof TableAnswerElement)) {
+        return rawAnswer;
+      }
+      TableAnswerElement rawTable = (TableAnswerElement) answerElement;
+      Answer answer = new Answer();
+      answer.setStatus(rawAnswer.getStatus());
+      answer.addAnswerElement(processAnswerTable2(rawTable, options));
+      return answer;
+    } catch (Exception e) {
+      _logger.errorf(
+          "Failed to convert answer string to Answer: %s\n", Throwables.getStackTraceAsString(e));
+      return Answer.failureAnswer(e.getMessage(), null);
+    }
+  }
+
+  @VisibleForTesting
+  @Nonnull
   TableAnswerElement processAnswerTable(TableAnswerElement rawTable, AnswerRowsOptions options) {
     Map<String, ColumnMetadata> rawColumnMap = rawTable.getMetadata().toColumnMap();
     List<Row> filteredRows =
@@ -2296,6 +2648,62 @@ public class WorkMgr extends AbstractCoordinator {
 
   @VisibleForTesting
   @Nonnull
+  TableView processAnswerTable2(TableAnswerElement rawTable, AnswerRowsOptions options) {
+    Map<Row, Integer> rowIds = Maps.newIdentityHashMap();
+    CommonUtil.forEachWithIndex(rawTable.getRowsList(), (i, row) -> rowIds.put(row, i));
+    Map<String, ColumnMetadata> rawColumnMap = rawTable.getMetadata().toColumnMap();
+    List<Row> filteredRows =
+        rawTable
+            .getRowsList()
+            .stream()
+            .filter(row -> options.getFilters().stream().allMatch(filter -> filter.matches(row)))
+            .collect(ImmutableList.toImmutableList());
+
+    Stream<Row> rowStream = filteredRows.stream();
+    if (!options.getSortOrder().isEmpty()) {
+      // sort using specified sort order
+      rowStream = rowStream.sorted(buildComparator(rawColumnMap, options.getSortOrder()));
+    }
+    TableMetadata tableMetadata;
+    if (options.getColumns().isEmpty()) {
+      tableMetadata = rawTable.getMetadata();
+    } else {
+      // project to desired columns
+      rowStream =
+          rowStream.map(
+              rawRow -> {
+                Row row = Row.builder().putAll(rawRow, options.getColumns()).build();
+                rowIds.put(row, rowIds.get(rawRow));
+                return row;
+              });
+      Map<String, ColumnMetadata> columnMap = new LinkedHashMap<>(rawColumnMap);
+      columnMap.keySet().retainAll(options.getColumns());
+      List<ColumnMetadata> columnMetadata =
+          columnMap.values().stream().collect(ImmutableList.toImmutableList());
+      tableMetadata = new TableMetadata(columnMetadata, rawTable.getMetadata().getTextDesc());
+    }
+    if (options.getUniqueRows()) {
+      // uniquify if desired
+      rowStream = rowStream.distinct();
+    }
+    // offset, truncate, and add to table
+    TableView tableView =
+        new TableView(
+            options,
+            rowStream
+                .skip(options.getRowOffset())
+                .limit(options.getMaxRows())
+                .map(row -> new TableViewRow(rowIds.get(row), row))
+                .collect(ImmutableList.toImmutableList()),
+            tableMetadata);
+    tableView.setSummary(
+        rawTable.getSummary() != null ? rawTable.getSummary() : new AnswerSummary());
+    tableView.getSummary().setNumResults(filteredRows.size());
+    return tableView;
+  }
+
+  @VisibleForTesting
+  @Nonnull
   Comparator<Row> buildComparator(
       Map<String, ColumnMetadata> rawColumnMap, List<ColumnSortOption> sortOrder) {
     ColumnSortOption firstColumnSortOption = sortOrder.get(0);
@@ -2316,20 +2724,55 @@ public class WorkMgr extends AbstractCoordinator {
     return comparator;
   }
 
+  @SuppressWarnings({"rawtypes", "unchecked"})
   @VisibleForTesting
+  @Nonnull
   Comparator<Row> columnComparator(ColumnMetadata columnMetadata) {
     Schema schema = columnMetadata.getSchema();
-    String column = columnMetadata.getName();
-    if (schema.equals(Schema.INTEGER)) {
-      return Comparator.comparing(r -> r.getInteger(column));
+    Comparator schemaComparator = schemaComparator(schema);
+    Comparator comparator =
+        comparing((Row r) -> r.get(columnMetadata.getName(), schema), nullsFirst(schemaComparator));
+    return comparator;
+  }
+
+  @SuppressWarnings({"rawtypes", "unchecked"})
+  private @Nonnull Comparator<?> schemaComparator(Schema schema) {
+    if (schema.equals(Schema.ACL_TRACE)) {
+      return COMPARATOR_ACL_TRACE;
+    } else if (schema.equals(Schema.BOOLEAN)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.DOUBLE)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.FLOW)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.FLOW_TRACE)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.INTEGER)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.INTERFACE)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.IP)) {
+      return naturalOrder();
     } else if (schema.equals(Schema.ISSUE)) {
-      return Comparator.comparing(r -> r.getIssue(column).getSeverity());
+      return comparing(Issue::getSeverity);
+    } else if (schema.getType() == Type.LIST) {
+      Comparator schemaComparator = schemaComparator(schema.getInnerSchema());
+      return lexicographical(nullsFirst(schemaComparator));
+    } else if (schema.equals(Schema.LONG)) {
+      return naturalOrder();
+    } else if (schema.equals(Schema.NODE)) {
+      return COMPARATOR_NODE;
+    } else if (schema.equals(Schema.PREFIX)) {
+      return naturalOrder();
+    } else if (schema.getType() == Type.SET) {
+      Comparator schemaComparator = schemaComparator(schema.getInnerSchema());
+      return lexicographical(nullsFirst(schemaComparator));
     } else if (schema.equals(Schema.STRING)) {
-      return Comparator.comparing(r -> r.getString(column));
+      return naturalOrder();
+    } else if (schema.equals(Schema.TRACE)) {
+      return COMPARATOR_TRACE;
     } else {
-      String message = String.format("Unsupported Schema for sorting: %s", schema);
-      _logger.error(message);
-      throw new UnsupportedOperationException(message);
+      return comparing(Object::toString);
     }
   }
 
@@ -2534,7 +2977,9 @@ public class WorkMgr extends AbstractCoordinator {
    *
    * @throws IOException if there is an error reading the object
    */
-  public @Nullable InputStream getNetworkObject(@Nonnull String network, @Nonnull String key)
+  @MustBeClosed
+  @Nullable
+  public InputStream getNetworkObject(@Nonnull String network, @Nonnull String key)
       throws IOException {
     NetworkId networkId = _idManager.getNetworkId(network);
     try {
@@ -2605,7 +3050,9 @@ public class WorkMgr extends AbstractCoordinator {
    *
    * @throws IOException if there is an error reading the object
    */
-  public @Nullable InputStream getSnapshotObject(
+  @MustBeClosed
+  @Nullable
+  public InputStream getSnapshotObject(
       @Nonnull String network, @Nonnull String snapshot, @Nonnull String key) throws IOException {
     if (!_idManager.hasNetworkId(network)) {
       return null;
@@ -2698,6 +3145,7 @@ public class WorkMgr extends AbstractCoordinator {
    *
    * @throws IOException if there is an error reading the object
    */
+  @MustBeClosed
   public InputStream getSnapshotInputObject(String network, String snapshot, String key)
       throws IOException {
     if (!_idManager.hasNetworkId(network)) {

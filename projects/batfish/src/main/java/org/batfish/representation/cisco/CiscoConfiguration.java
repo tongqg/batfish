@@ -6,6 +6,7 @@ import static org.batfish.common.util.CommonUtil.toImmutableMap;
 import static org.batfish.common.util.CommonUtil.toImmutableSortedMap;
 import static org.batfish.datamodel.Interface.UNSET_LOCAL_INTERFACE;
 import static org.batfish.datamodel.Interface.computeInterfaceType;
+import static org.batfish.datamodel.Interface.isRealInterfaceName;
 import static org.batfish.datamodel.MultipathEquivalentAsPathMatchMode.EXACT_PATH;
 import static org.batfish.datamodel.MultipathEquivalentAsPathMatchMode.PATH_LENGTH;
 import static org.batfish.representation.cisco.CiscoConversions.convertCryptoMapSet;
@@ -47,7 +48,6 @@ import java.util.Map.Entry;
 import java.util.NavigableSet;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
@@ -79,6 +79,8 @@ import org.batfish.datamodel.IkePhase1Key;
 import org.batfish.datamodel.IkePhase1Proposal;
 import org.batfish.datamodel.IkePolicy;
 import org.batfish.datamodel.IkeProposal;
+import org.batfish.datamodel.Interface.Dependency;
+import org.batfish.datamodel.Interface.DependencyType;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.InterfaceType;
 import org.batfish.datamodel.Ip;
@@ -111,9 +113,11 @@ import org.batfish.datamodel.SnmpServer;
 import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.SubRange;
 import org.batfish.datamodel.SwitchportEncapsulationType;
+import org.batfish.datamodel.SwitchportMode;
 import org.batfish.datamodel.Zone;
 import org.batfish.datamodel.acl.AclLineMatchExpr;
 import org.batfish.datamodel.acl.AndMatchExpr;
+import org.batfish.datamodel.acl.FalseExpr;
 import org.batfish.datamodel.acl.MatchHeaderSpace;
 import org.batfish.datamodel.acl.MatchSrcInterface;
 import org.batfish.datamodel.acl.OrMatchExpr;
@@ -123,6 +127,7 @@ import org.batfish.datamodel.acl.TrueExpr;
 import org.batfish.datamodel.eigrp.EigrpInterfaceSettings;
 import org.batfish.datamodel.eigrp.EigrpMetric;
 import org.batfish.datamodel.isis.IsisInterfaceLevelSettings;
+import org.batfish.datamodel.isis.IsisInterfaceMode;
 import org.batfish.datamodel.isis.IsisInterfaceSettings;
 import org.batfish.datamodel.ospf.OspfArea;
 import org.batfish.datamodel.ospf.OspfAreaSummary;
@@ -162,6 +167,7 @@ import org.batfish.datamodel.vendor_family.cisco.AaaAuthentication;
 import org.batfish.datamodel.vendor_family.cisco.AaaAuthenticationLogin;
 import org.batfish.datamodel.vendor_family.cisco.CiscoFamily;
 import org.batfish.representation.cisco.Tunnel.TunnelMode;
+import org.batfish.representation.cisco.eos.AristaEosVxlan;
 import org.batfish.representation.cisco.nx.CiscoNxBgpGlobalConfiguration;
 import org.batfish.representation.cisco.nx.CiscoNxBgpRedistributionPolicy;
 import org.batfish.representation.cisco.nx.CiscoNxBgpVrfAddressFamilyAggregateNetworkConfiguration;
@@ -388,6 +394,8 @@ public final class CiscoConfiguration extends VendorConfiguration {
 
   private String _domainName;
 
+  private AristaEosVxlan _eosVxlan;
+
   private final Map<String, ExpandedCommunityList> _expandedCommunityLists;
 
   private final Map<String, ExtendedAccessList> _extendedAccessLists;
@@ -455,6 +463,16 @@ public final class CiscoConfiguration extends VendorConfiguration {
   private final Map<String, RouteMap> _routeMaps;
 
   private final Map<String, RoutePolicy> _routePolicies;
+
+  /**
+   * Maps zone names to integers. Only includes zones that were created for security levels. In
+   * effect, the reverse of computeSecurityLevelZoneName.
+   */
+  private final Map<String, Integer> _securityLevels;
+
+  private boolean _sameSecurityTrafficInter;
+
+  private boolean _sameSecurityTrafficIntra;
 
   private final Map<String, ServiceObject> _serviceObjects;
 
@@ -527,6 +545,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
     _protocolObjectGroups = new TreeMap<>();
     _routeMaps = new TreeMap<>();
     _routePolicies = new TreeMap<>();
+    _securityLevels = new TreeMap<>();
     _securityZonePairs = new TreeMap<>();
     _securityZones = new TreeMap<>();
     _serviceObjectGroups = new TreeMap<>();
@@ -582,10 +601,14 @@ public final class CiscoConfiguration extends VendorConfiguration {
       BooleanExpr expr, OriginType originType) {
     WithEnvironmentExpr we = new WithEnvironmentExpr();
     we.setExpr(expr);
-    we.getPreStatements().add(Statements.SetWriteIntermediateBgpAttributes.toStaticStatement());
-    we.getPostStatements().add(Statements.UnsetWriteIntermediateBgpAttributes.toStaticStatement());
-    we.getPostTrueStatements().add(Statements.SetReadIntermediateBgpAttributes.toStaticStatement());
-    we.getPostTrueStatements().add(new SetOrigin(new LiteralOrigin(originType, null)));
+    we.setPreStatements(
+        ImmutableList.of(Statements.SetWriteIntermediateBgpAttributes.toStaticStatement()));
+    we.setPostStatements(
+        ImmutableList.of(Statements.UnsetWriteIntermediateBgpAttributes.toStaticStatement()));
+    we.setPostTrueStatements(
+        ImmutableList.of(
+            Statements.SetReadIntermediateBgpAttributes.toStaticStatement(),
+            new SetOrigin(new LiteralOrigin(originType, null))));
     return we;
   }
 
@@ -716,6 +739,10 @@ public final class CiscoConfiguration extends VendorConfiguration {
     return _dnsSourceInterface;
   }
 
+  public AristaEosVxlan getEosVxlan() {
+    return _eosVxlan;
+  }
+
   public Map<String, ExpandedCommunityList> getExpandedCommunityLists() {
     return _expandedCommunityLists;
   }
@@ -825,6 +852,10 @@ public final class CiscoConfiguration extends VendorConfiguration {
     return _natPools;
   }
 
+  private String getNewInterfaceName(Interface iface) {
+    return firstNonNull(iface.getAlias(), iface.getName());
+  }
+
   public String getNtpSourceInterface() {
     return _ntpSourceInterface;
   }
@@ -919,6 +950,28 @@ public final class CiscoConfiguration extends VendorConfiguration {
       }
     }
     return maps;
+  }
+
+  @Nullable
+  private String getSecurityZoneName(Interface iface) {
+    String zoneName = iface.getSecurityZone();
+    if (zoneName == null) {
+      return null;
+    }
+    SecurityZone securityZone = _securityZones.get(zoneName);
+    if (securityZone == null) {
+      return null;
+    }
+    return zoneName;
+  }
+
+  @Nullable
+  private String getSecurityLevelZoneName(Interface iface) {
+    Integer level = iface.getSecurityLevel();
+    if (level == null) {
+      return null;
+    }
+    return computeSecurityLevelZoneName(level);
   }
 
   public SnmpServer getSnmpServer() {
@@ -1114,6 +1167,10 @@ public final class CiscoConfiguration extends VendorConfiguration {
     _domainName = domainName;
   }
 
+  public void setEosVxlan(AristaEosVxlan eosVxlan) {
+    _eosVxlan = eosVxlan;
+  }
+
   public void setFailover(boolean failover) {
     _failover = failover;
   }
@@ -1147,6 +1204,14 @@ public final class CiscoConfiguration extends VendorConfiguration {
 
   public void setNtpSourceInterface(String ntpSourceInterface) {
     _ntpSourceInterface = ntpSourceInterface;
+  }
+
+  public void setSameSecurityTrafficInter(boolean permit) {
+    _sameSecurityTrafficInter = permit;
+  }
+
+  public void setSameSecurityTrafficIntra(boolean permit) {
+    _sameSecurityTrafficIntra = permit;
   }
 
   public void setSnmpServer(SnmpServer snmpServer) {
@@ -1194,11 +1259,8 @@ public final class CiscoConfiguration extends VendorConfiguration {
     CiscoNxBgpVrfAddressFamilyConfiguration ipv4af = nxBgpVrf.getIpv4UnicastAddressFamily();
     if (ipv4af != null) {
       // Batfish seems to only track the IPv4 properties for multipath ebgp/ibgp.
-      newBgpProcess.setMultipathEbgp(
-          ipv4af.getMaximumPathsEbgp() > 1 || nxBgpVrf.getBestpathAsPathMultipathRelax());
+      newBgpProcess.setMultipathEbgp(ipv4af.getMaximumPathsEbgp() > 1);
       newBgpProcess.setMultipathIbgp(ipv4af.getMaximumPathsIbgp() > 1);
-    } else {
-      newBgpProcess.setMultipathEbgp(nxBgpVrf.getBestpathAsPathMultipathRelax());
     }
 
     // Next we build up the BGP common export policy.
@@ -1454,7 +1516,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
       multipathEbgp = true;
       multipathIbgp = true;
     }
-    if (firstNonNull(proc.getMaximumPathsEbgp(), 0) > 1 || proc.getAsPathMultipathRelax()) {
+    if (firstNonNull(proc.getMaximumPathsEbgp(), 0) > 1) {
       multipathEbgp = true;
     }
     if (firstNonNull(proc.getMaximumPathsIbgp(), 0) > 1) {
@@ -2056,7 +2118,10 @@ public final class CiscoConfiguration extends VendorConfiguration {
     if (!iface.getOspfShutdown()) {
       OspfProcess proc = vrf.getOspfProcess();
       if (proc != null) {
-        if (firstNonNull(iface.getOspfPassive(), proc.getPassiveInterfaceDefault())) {
+        if (firstNonNull(
+            iface.getOspfPassive(),
+            proc.getPassiveInterfaceDefault()
+                ^ proc.getNonDefaultInterfaces().contains(ifaceName))) {
           proc.getPassiveInterfaces().add(ifaceName);
         }
         newIface.setOspfAreaName(iface.getOspfArea());
@@ -2126,7 +2191,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
     boolean level1 = false;
     boolean level2 = false;
     IsisProcess isisProcess = vrf.getIsisProcess();
-    if (isisProcess != null) {
+    if (isisProcess != null && iface.getIsisInterfaceMode() != IsisInterfaceMode.UNSET) {
       switch (isisProcess.getLevel()) {
         case LEVEL_1:
           level1 = true;
@@ -2166,7 +2231,9 @@ public final class CiscoConfiguration extends VendorConfiguration {
       encapsulation = SwitchportEncapsulationType.DOT1Q;
     }
     newIface.setSwitchportTrunkEncapsulation(encapsulation);
-    newIface.addAllowedRanges(iface.getAllowedVlans());
+    if (iface.getSwitchportMode() == SwitchportMode.TRUNK) {
+      newIface.setAllowedVlans(iface.getAllowedVlans());
+    }
 
     String incomingFilterName = iface.getIncomingFilter();
     if (incomingFilterName != null) {
@@ -2200,12 +2267,8 @@ public final class CiscoConfiguration extends VendorConfiguration {
 
   private void applyZoneFilter(
       Interface iface, org.batfish.datamodel.Interface newIface, Configuration c) {
-    String zoneName = iface.getSecurityZone();
+    String zoneName = firstNonNull(getSecurityZoneName(iface), getSecurityLevelZoneName(iface));
     if (zoneName == null) {
-      return;
-    }
-    SecurityZone securityZone = _securityZones.get(zoneName);
-    if (securityZone == null) {
       return;
     }
     String zoneOutgoingAclName = computeZoneOutgoingAclName(zoneName);
@@ -2214,9 +2277,43 @@ public final class CiscoConfiguration extends VendorConfiguration {
       return;
     }
     String oldOutgoingFilterName = newIface.getOutgoingFilterName();
+    if (oldOutgoingFilterName == null && allowsIntraZoneTraffic(zoneName)) {
+      // No interface outbound filter and no interface-specific handling
+      newIface.setOutgoingFilter(zoneOutgoingAcl);
+      return;
+    }
+
+    // Construct a new ACL that combines filters, i.e. 1 AND (2 OR 3)
+    // 1) the interface outbound filter, if it exists
+    // 2) the zone filter
+    // 3) interface-specific zone filtering, if necessary
+
+    AclLineMatchExpr ifaceFilter = FalseExpr.INSTANCE;
+    if (_sameSecurityTrafficIntra && !_sameSecurityTrafficInter) {
+      ifaceFilter =
+          new MatchSrcInterface(
+              ImmutableList.of(newIface.getName()), "Allow traffic received on this interface");
+    } else if (!_sameSecurityTrafficIntra && _sameSecurityTrafficInter) {
+      ifaceFilter =
+          new MatchSrcInterface(
+              _interfacesBySecurityLevel
+                  .get(iface.getSecurityLevel())
+                  .stream()
+                  .filter(other -> !other.equals(iface))
+                  .map(this::getNewInterfaceName)
+                  .collect(ImmutableList.toImmutableList()),
+              String.format(
+                  "Allow traffic received on other interfaces with security level %d",
+                  iface.getSecurityLevel()));
+    }
+
+    String combinedOutgoingAclName = computeCombinedOutgoingAclName(newIface.getName());
+    IpAccessList combinedOutgoingAcl;
+    ImmutableList<AclLineMatchExpr> securityFilters =
+        ImmutableList.of(new PermittedByAcl(zoneOutgoingAclName), ifaceFilter);
+
     if (oldOutgoingFilterName != null) {
-      String combinedOutgoingAclName = computeCombinedOutgoingAclName(newIface.getName());
-      IpAccessList combinedOutgoingAcl =
+      combinedOutgoingAcl =
           IpAccessList.builder()
               .setOwner(c)
               .setName(combinedOutgoingAclName)
@@ -2226,17 +2323,31 @@ public final class CiscoConfiguration extends VendorConfiguration {
                           .setMatchCondition(
                               new AndMatchExpr(
                                   ImmutableList.of(
-                                      new PermittedByAcl(zoneOutgoingAclName),
+                                      new OrMatchExpr(securityFilters),
                                       new PermittedByAcl(oldOutgoingFilterName)),
                                   String.format(
-                                      "Permit if permitted by policy for zone '%s' and permitted by outgoing filter '%s'",
+                                      "Permit if permitted by policy for zone '%s' and permitted by"
+                                          + " outgoing filter '%s'",
                                       zoneName, oldOutgoingFilterName)))
                           .build()))
               .build();
-      newIface.setOutgoingFilter(combinedOutgoingAcl);
     } else {
-      newIface.setOutgoingFilter(zoneOutgoingAcl);
+      combinedOutgoingAcl =
+          IpAccessList.builder()
+              .setOwner(c)
+              .setName(combinedOutgoingAclName)
+              .setLines(
+                  ImmutableList.of(
+                      IpAccessListLine.accepting()
+                          .setMatchCondition(
+                              new OrMatchExpr(
+                                  securityFilters,
+                                  String.format(
+                                      "Permit if permitted by policy for zone '%s'", zoneName)))
+                          .build()))
+              .build();
     }
+    newIface.setOutgoingFilter(combinedOutgoingAcl);
   }
 
   public static String computeCombinedOutgoingAclName(String interfaceName) {
@@ -2298,7 +2409,9 @@ public final class CiscoConfiguration extends VendorConfiguration {
   private org.batfish.datamodel.ospf.OspfProcess toOspfProcess(
       OspfProcess proc, String vrfName, Configuration c, CiscoConfiguration oldConfig) {
     org.batfish.datamodel.ospf.OspfProcess newProcess =
-        new org.batfish.datamodel.ospf.OspfProcess();
+        org.batfish.datamodel.ospf.OspfProcess.builder()
+            .setReferenceBandwidth(proc.getReferenceBandwidth())
+            .build();
     org.batfish.datamodel.Vrf vrf = c.getVrfs().get(vrfName);
 
     if (proc.getMaxMetricRouterLsa()) {
@@ -2419,6 +2532,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
               new SubRange(0, Prefix.MAX_PREFIX_LENGTH)));
     }
     newProcess.setAreas(toImmutableSortedMap(areas, Entry::getKey, e -> e.getValue().build()));
+
     // set pointers from interfaces to their parent areas
     newProcess
         .getAreas()
@@ -2464,7 +2578,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
           route.setNetwork(Prefix.ZERO);
           route.setAdmin(MAX_ADMINISTRATIVE_COST);
           route.setGenerationPolicy(defaultOriginateMapName);
-          newProcess.getGeneratedRoutes().add(route.build());
+          newProcess.addGeneratedRoute(route.build());
         }
       } else if (proc.getDefaultInformationOriginateAlways()) {
         useAggregateDefaultOnly = true;
@@ -2472,7 +2586,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
         GeneratedRoute.Builder route = new GeneratedRoute.Builder();
         route.setNetwork(Prefix.ZERO);
         route.setAdmin(MAX_ADMINISTRATIVE_COST);
-        newProcess.getGeneratedRoutes().add(route.build());
+        newProcess.addGeneratedRoute(route.build());
       } else {
         // do not generate an aggregate default route;
         // just redistribute any existing default route with the new metric
@@ -2487,7 +2601,6 @@ public final class CiscoConfiguration extends VendorConfiguration {
       ospfExportDefault.setGuard(ospfExportDefaultConditions);
     }
 
-    newProcess.setReferenceBandwidth(proc.getReferenceBandwidth());
     Ip routerId = proc.getRouterId();
     if (routerId == null) {
       routerId = CiscoConversions.getHighestIp(oldConfig.getInterfaces());
@@ -2871,7 +2984,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
   }
 
   @Override
-  public Configuration toVendorIndependentConfiguration() {
+  public List<Configuration> toVendorIndependentConfigurations() {
     final Configuration c = new Configuration(_hostname, _vendor);
     c.getVendorFamily().setCisco(_cf);
     c.setDefaultInboundAction(LineAction.PERMIT);
@@ -3071,10 +3184,10 @@ public final class CiscoConfiguration extends VendorConfiguration {
     // create inspect policy-map ACLs
     createInspectPolicyMapAcls(c);
 
-    // create zones
+    // create zones based on IOS security zones
     _securityZones.forEach((name, securityZone) -> c.getZones().put(name, new Zone(name)));
 
-    // populate zone interfaces
+    // populate zone interfaces based on IOS security zones
     _interfaces.forEach(
         (ifaceName, iface) -> {
           String zoneName = iface.getSecurityZone();
@@ -3089,6 +3202,31 @@ public final class CiscoConfiguration extends VendorConfiguration {
               ImmutableSet.<String>builder().addAll(zone.getInterfaces()).add(ifaceName).build());
         });
 
+    _interfacesBySecurityLevel =
+        _interfaces
+            .values()
+            .stream()
+            .filter(iface -> iface.getSecurityLevel() != null)
+            .filter(iface -> iface.getAddress() != null)
+            .collect(
+                Multimaps.toMultimap(
+                    Interface::getSecurityLevel,
+                    Functions.identity(),
+                    MultimapBuilder.hashKeys().arrayListValues()::build));
+
+    // create and populate zones based on ASA security levels
+    _interfacesBySecurityLevel.forEach(
+        (level, iface) -> {
+          String zoneName = computeSecurityLevelZoneName(level);
+          Zone zone = c.getZones().computeIfAbsent(zoneName, Zone::new);
+          zone.setInterfaces(
+              ImmutableSet.<String>builder()
+                  .addAll(zone.getInterfaces())
+                  .add(getNewInterfaceName(iface))
+                  .build());
+          _securityLevels.putIfAbsent(zoneName, level);
+        });
+
     // create zone policies
     createZoneAcls(c);
 
@@ -3096,7 +3234,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
     _interfaces.forEach(
         (ifaceName, iface) -> {
           // Handle renaming interfaces for ASA devices
-          String newIfaceName = firstNonNull(iface.getAlias(), ifaceName);
+          String newIfaceName = getNewInterfaceName(iface);
           org.batfish.datamodel.Interface newInterface =
               toInterface(newIfaceName, iface, c.getIpAccessLists(), c);
           String vrfName = iface.getVrf();
@@ -3105,6 +3243,31 @@ public final class CiscoConfiguration extends VendorConfiguration {
           }
           c.getAllInterfaces().put(newIfaceName, newInterface);
           c.getVrfs().get(vrfName).getInterfaces().put(newIfaceName, newInterface);
+        });
+    /*
+     * Second pass over the interfaces to set dependency pointers correctly for portchannels
+     * and tunnel interfaces
+     * TODO: VLAN interfaces
+     */
+    _interfaces.forEach(
+        (ifaceName, iface) -> {
+          // Portchannels
+          String chGroup = iface.getChannelGroup();
+          if (chGroup != null) {
+            org.batfish.datamodel.Interface viIface = c.getAllInterfaces().get(chGroup);
+            if (viIface != null) {
+              viIface.addDependency(new Dependency(ifaceName, DependencyType.AGGREGATE));
+            }
+          }
+          // Tunnels
+          Tunnel tunnel = iface.getTunnel();
+          if (tunnel != null && isRealInterfaceName(tunnel.getSourceInterfaceName())) {
+            org.batfish.datamodel.Interface viIface = c.getAllInterfaces().get(ifaceName);
+            if (viIface != null) {
+              viIface.addDependency(
+                  new Dependency(tunnel.getSourceInterfaceName(), DependencyType.BIND));
+            }
+          }
         });
 
     // copy tracking groups
@@ -3174,12 +3337,12 @@ public final class CiscoConfiguration extends VendorConfiguration {
     // IPSec vpns
     ImmutableSortedMap.Builder<String, IpsecPeerConfig> ipsecPeerConfigBuilder =
         ImmutableSortedMap.naturalOrder();
-    ipsecPeerConfigBuilder.putAll(c.getIpsecPeerconfigs());
+    ipsecPeerConfigBuilder.putAll(c.getIpsecPeerConfigs());
     for (Entry<String, Interface> e : _interfaces.entrySet()) {
       String name = e.getKey();
       Interface iface = e.getValue();
       Tunnel tunnel = iface.getTunnel();
-      if (tunnel != null && tunnel.getMode() == TunnelMode.IPSEC) {
+      if (iface.getActive() && tunnel != null && tunnel.getMode() == TunnelMode.IPSEC) {
         if (tunnel.getIpsecProfileName() == null) {
           _w.redFlag(String.format("No IPSec Profile set for IPSec tunnel %s", name));
           continue;
@@ -3301,7 +3464,8 @@ public final class CiscoConfiguration extends VendorConfiguration {
         CiscoStructureUsage.OSPF_DISTRIBUTE_LIST_ROUTE_MAP_OUT,
         CiscoStructureUsage.SERVICE_POLICY_INTERFACE,
         CiscoStructureUsage.ROUTER_VRRP_INTERFACE,
-        CiscoStructureUsage.TRACK_INTERFACE);
+        CiscoStructureUsage.TRACK_INTERFACE,
+        CiscoStructureUsage.VXLAN_SOURCE_INTERFACE);
 
     // mark references to ACLs that may not appear in data model
     markIpOrMacAcls(
@@ -3335,14 +3499,19 @@ public final class CiscoConfiguration extends VendorConfiguration {
         CiscoStructureUsage.NTP_ACCESS_GROUP,
         CiscoStructureUsage.ROUTE_MAP_MATCH_IPV6_ACCESS_LIST,
         CiscoStructureUsage.SNMP_SERVER_COMMUNITY_ACL6,
-        CiscoStructureUsage.SSH_IPV6_ACL);
+        CiscoStructureUsage.SSH_IPV6_ACL,
+        CiscoStructureUsage.INTERFACE_IPV6_TRAFFIC_FILTER_IN,
+        CiscoStructureUsage.INTERFACE_IPV6_TRAFFIC_FILTER_OUT);
     markAcls(
+        CiscoStructureUsage.ACCESS_GROUP_GLOBAL_FILTER,
         CiscoStructureUsage.COPS_LISTENER_ACCESS_LIST,
         CiscoStructureUsage.CRYPTO_MAP_IPSEC_ISAKMP_ACL,
         CiscoStructureUsage.INSPECT_CLASS_MAP_MATCH_ACCESS_GROUP,
         CiscoStructureUsage.INTERFACE_IGMP_ACCESS_GROUP_ACL,
         CiscoStructureUsage.INTERFACE_IGMP_HOST_PROXY_ACCESS_LIST,
+        CiscoStructureUsage.INTERFACE_INCOMING_FILTER,
         CiscoStructureUsage.INTERFACE_IP_INBAND_ACCESS_GROUP,
+        CiscoStructureUsage.INTERFACE_OUTGOING_FILTER,
         CiscoStructureUsage.OSPF_DISTRIBUTE_LIST_ACCESS_LIST_IN,
         CiscoStructureUsage.OSPF_DISTRIBUTE_LIST_ACCESS_LIST_OUT,
         CiscoStructureUsage.RIP_DISTRIBUTE_LIST,
@@ -3486,6 +3655,8 @@ public final class CiscoConfiguration extends VendorConfiguration {
         CiscoStructureUsage.ZONE_PAIR_INSPECT_SERVICE_POLICY);
     markConcreteStructure(
         CiscoStructureType.POLICY_MAP,
+        CiscoStructureUsage.CONTROL_PLANE_SERVICE_POLICY_INPUT,
+        CiscoStructureUsage.CONTROL_PLANE_SERVICE_POLICY_OUTPUT,
         CiscoStructureUsage.INTERFACE_SERVICE_POLICY,
         CiscoStructureUsage.INTERFACE_SERVICE_POLICY_CONTROL_SUBSCRIBER,
         CiscoStructureUsage.POLICY_MAP_CLASS_SERVICE_POLICY,
@@ -3520,9 +3691,13 @@ public final class CiscoConfiguration extends VendorConfiguration {
         CiscoStructureType.ICMP_TYPE_OBJECT,
         CiscoStructureUsage.ICMP_TYPE_OBJECT_GROUP_ICMP_OBJECT);
     markConcreteStructure(
-        CiscoStructureType.NETWORK_OBJECT, CiscoStructureUsage.NETWORK_OBJECT_GROUP_NETWORK_OBJECT);
+        CiscoStructureType.NETWORK_OBJECT,
+        CiscoStructureUsage.EXTENDED_ACCESS_LIST_NETWORK_OBJECT,
+        CiscoStructureUsage.NETWORK_OBJECT_GROUP_NETWORK_OBJECT);
     markConcreteStructure(
-        CiscoStructureType.SERVICE_OBJECT, CiscoStructureUsage.SERVICE_OBJECT_GROUP_SERVICE_OBJECT);
+        CiscoStructureType.SERVICE_OBJECT,
+        CiscoStructureUsage.EXTENDED_ACCESS_LIST_SERVICE_OBJECT,
+        CiscoStructureUsage.SERVICE_OBJECT_GROUP_SERVICE_OBJECT);
     markConcreteStructure(
         CiscoStructureType.PROTOCOL_OBJECT,
         CiscoStructureUsage.PROTOCOL_OBJECT_GROUP_PROTOCOL_OBJECT);
@@ -3536,6 +3711,9 @@ public final class CiscoConfiguration extends VendorConfiguration {
 
     // track
     markConcreteStructure(CiscoStructureType.TRACK, CiscoStructureUsage.INTERFACE_STANDBY_TRACK);
+
+    // VXLAN
+    markConcreteStructure(CiscoStructureType.VXLAN, CiscoStructureUsage.VXLAN_SELF_REF);
 
     // zone
     markConcreteStructure(
@@ -3580,7 +3758,14 @@ public final class CiscoConfiguration extends VendorConfiguration {
 
     c.computeRoutingPolicySources(_w);
 
-    return c;
+    return ImmutableList.of(c);
+  }
+
+  private boolean allowsIntraZoneTraffic(String zoneName) {
+    if (!_securityLevels.containsKey(zoneName)) {
+      return true;
+    }
+    return _sameSecurityTrafficInter && _sameSecurityTrafficIntra;
   }
 
   private void createInspectClassMapAcls(Configuration c) {
@@ -3719,14 +3904,16 @@ public final class CiscoConfiguration extends VendorConfiguration {
                       .setName("Allow traffic originating from this device")
                       .build());
 
-              // Allow traffic staying within this zone
-              zonePolicies.add(
-                  IpAccessListLine.accepting()
-                      .setMatchCondition(matchSrcInterfaceBySrcZone.get(zoneName))
-                      .setName(
-                          String.format(
-                              "Allow traffic received on interface in same zone: '%s'", zoneName))
-                      .build());
+              // Allow traffic staying within this zone (always true for IOS)
+              if (allowsIntraZoneTraffic(zoneName)) {
+                zonePolicies.add(
+                    IpAccessListLine.accepting()
+                        .setMatchCondition(matchSrcInterfaceBySrcZone.get(zoneName))
+                        .setName(
+                            String.format(
+                                "Allow traffic received on interface in same zone: '%s'", zoneName))
+                        .build());
+              }
 
               /*
                * Add zone-pair policies
@@ -3747,7 +3934,7 @@ public final class CiscoConfiguration extends VendorConfiguration {
               }
 
               // Security level policies
-              zonePolicies.addAll(createSecurityLevelAcl(interfaces, zoneName));
+              zonePolicies.addAll(createSecurityLevelAcl(zoneName));
 
               IpAccessList.builder()
                   .setName(computeZoneOutgoingAclName(zoneName))
@@ -3803,42 +3990,13 @@ public final class CiscoConfiguration extends VendorConfiguration {
             .build());
   }
 
-  private List<IpAccessListLine> createSecurityLevelAcl(
-      Set<String> zoneInterfaces, String zoneName) {
-    OptionalInt firstSecurityLevel =
-        zoneInterfaces
-            .stream()
-            .map(_interfaces::get)
-            .map(Interface::getSecurityLevel)
-            .filter(Objects::nonNull)
-            .mapToInt(Integer::intValue)
-            .findFirst();
-
-    if (!firstSecurityLevel.isPresent()) {
+  private List<IpAccessListLine> createSecurityLevelAcl(String zoneName) {
+    Integer level = _securityLevels.get(zoneName);
+    if (level == null) {
       return ImmutableList.of();
     }
 
-    if (zoneInterfaces.size() != 1) {
-      _w.redFlag(
-          String.format("Security level zones should only have one interface: %s", zoneName));
-      return ImmutableList.of();
-    }
-
-    if (_interfacesBySecurityLevel == null) {
-      _interfacesBySecurityLevel =
-          _interfaces
-              .values()
-              .stream()
-              .filter(iface -> iface.getSecurityLevel() != null)
-              .collect(
-                  Multimaps.toMultimap(
-                      Interface::getSecurityLevel,
-                      Functions.identity(),
-                      MultimapBuilder.hashKeys().arrayListValues()::build));
-    }
-
-    int level = firstSecurityLevel.getAsInt();
-
+    // Allow outbound traffic from interfaces with higher security levels unconditionally
     List<IpAccessListLine> lines =
         _interfacesBySecurityLevel
             .keySet()
@@ -3853,10 +4011,37 @@ public final class CiscoConfiguration extends VendorConfiguration {
                                 _interfacesBySecurityLevel
                                     .get(l)
                                     .stream()
-                                    .map(Interface::getName)
+                                    .map(this::getNewInterfaceName)
                                     .collect(Collectors.toList())))
                         .build())
             .collect(Collectors.toList());
+
+    // Allow outbound traffic from interfaces with lower security levels if that interface has an
+    // inbound ACL
+    lines.addAll(
+        _interfacesBySecurityLevel
+            .keySet()
+            .stream()
+            .filter(l -> l < level)
+            .map(
+                l ->
+                    IpAccessListLine.accepting()
+                        .setName("Traffic from security level " + l + " with inbound filter")
+                        .setMatchCondition(
+                            new MatchSrcInterface(
+                                _interfacesBySecurityLevel
+                                    .get(l)
+                                    .stream()
+                                    .filter(iface -> iface.getIncomingFilter() != null)
+                                    .map(this::getNewInterfaceName)
+                                    .collect(Collectors.toList())))
+                        .build())
+            .filter(
+                line ->
+                    !((MatchSrcInterface) line.getMatchCondition()).getSrcInterfaces().isEmpty())
+            .collect(Collectors.toList()));
+
+    // Allow traffic for existing connections
     lines.add(ACL_LINE_EXISTING_CONNECTION);
     return lines;
   }
@@ -3878,9 +4063,8 @@ public final class CiscoConfiguration extends VendorConfiguration {
     return String.format("~INSPECT_CLASS_MAP_ACL~%s~", inspectClassMapName);
   }
 
-  public static String computeSecurityLevelZoneName(
-      int securityLevel, @Nonnull String interfaceName) {
-    return String.format("SECURITY_LEVEL_%s_%s", securityLevel, interfaceName);
+  public static String computeSecurityLevelZoneName(int securityLevel) {
+    return String.format("SECURITY_LEVEL_%s", securityLevel);
   }
 
   private void addIkePoliciesAndGateways(Configuration c) {

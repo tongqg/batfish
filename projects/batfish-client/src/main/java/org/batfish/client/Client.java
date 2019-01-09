@@ -86,6 +86,7 @@ import org.batfish.common.util.CommonUtil;
 import org.batfish.common.util.WorkItemBuilder;
 import org.batfish.common.util.ZipUtility;
 import org.batfish.datamodel.Configuration;
+import org.batfish.datamodel.FlowState;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpProtocol;
 import org.batfish.datamodel.IpWildcard;
@@ -98,15 +99,16 @@ import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.datamodel.answers.AnswerStatus;
 import org.batfish.datamodel.answers.AutocompleteSuggestion.CompletionType;
 import org.batfish.datamodel.pojo.WorkStatus;
-import org.batfish.datamodel.questions.BgpPropertySpecifier;
+import org.batfish.datamodel.questions.BgpPeerPropertySpecifier;
+import org.batfish.datamodel.questions.BgpProcessPropertySpecifier;
+import org.batfish.datamodel.questions.InstanceData;
 import org.batfish.datamodel.questions.InterfacePropertySpecifier;
 import org.batfish.datamodel.questions.NamedStructureSpecifier;
 import org.batfish.datamodel.questions.NodePropertySpecifier;
 import org.batfish.datamodel.questions.NodesSpecifier;
 import org.batfish.datamodel.questions.OspfPropertySpecifier;
 import org.batfish.datamodel.questions.Question;
-import org.batfish.datamodel.questions.Question.InstanceData;
-import org.batfish.datamodel.questions.Question.InstanceData.Variable;
+import org.batfish.datamodel.questions.Variable;
 import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
@@ -275,8 +277,8 @@ public class Client extends AbstractClient implements IClient {
   /**
    * This method calls {@link Client#validateType(JsonNode, Variable)} to check that the contents
    * encoded in {@code value} match the requirement specified in {@code variable}. Also, this method
-   * validates the input {@code value} is allowed according to {@link
-   * Question.InstanceData.Variable#_values values} specified in {@code variable}.
+   * validates the input {@code value} is allowed according to {@link Variable#_values values}
+   * specified in {@code variable}.
    *
    * @throws BatfishException if the content type encoded in input {@code value} does not satisfy
    *     the type requirements specified in {@code variable}, or the input {@code value} is not an
@@ -319,6 +321,18 @@ public class Client extends AbstractClient implements IClient {
     }
     Variable.Type expectedType = variable.getType();
     switch (expectedType) {
+      case ADDRESS_BOOK:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        break;
+      case ADDRESS_GROUP:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        break;
       case ANSWER_ELEMENT:
         // this will barf with JsonProcessingException if the value is not castable
         try {
@@ -328,12 +342,31 @@ public class Client extends AbstractClient implements IClient {
               String.format("Could not cast value to AnswerElement: %s", value), e);
         }
         break;
-      case BGP_PROPERTY_SPEC:
+      case BGP_PEER_PROPERTY_SPEC:
         if (!(value.isTextual())) {
           throw new BatfishException(
               String.format("A Batfish %s must be a JSON string", expectedType.getName()));
         }
-        new BgpPropertySpecifier(value.textValue());
+        new BgpPeerPropertySpecifier(value.textValue());
+        break;
+      case BGP_PROCESS_PROPERTY_SPEC:
+        if (!(value.isTextual())) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        new BgpProcessPropertySpecifier(value.textValue());
+        break;
+      case BGP_SESSION_STATUS:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        break;
+      case BGP_SESSION_TYPE:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
         break;
       case BOOLEAN:
         if (!value.isBoolean()) {
@@ -361,11 +394,24 @@ public class Client extends AbstractClient implements IClient {
               String.format("It is not a valid JSON %s value", expectedType.getName()));
         }
         break;
+      case FILTER:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        break;
       case FLOAT:
         if (!value.isFloat()) {
           throw new BatfishException(
               String.format("It is not a valid JSON %s value", expectedType.getName()));
         }
+        break;
+      case FLOW_STATE:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        FlowState.fromString(value.textValue());
         break;
       case HEADER_CONSTRAINT:
         if (!value.isObject() && !value.isNull()) {
@@ -377,6 +423,12 @@ public class Client extends AbstractClient implements IClient {
         if (!value.isInt()) {
           throw new BatfishException(
               String.format("It is not a valid JSON %s value", expectedType.getName()));
+        }
+        break;
+      case INTERFACE:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
         }
         break;
       case INTERFACE_PROPERTY_SPEC:
@@ -392,7 +444,7 @@ public class Client extends AbstractClient implements IClient {
           throw new BatfishException(
               String.format("A Batfish %s must be a JSON string", expectedType.getName()));
         }
-        new Ip(value.textValue());
+        Ip.parse(value.textValue());
         break;
       case IP_PROTOCOL:
         if (!value.isTextual()) {
@@ -412,6 +464,12 @@ public class Client extends AbstractClient implements IClient {
               String.format("A Batfish %s must be a JSON string", expectedType.getName()));
         }
         new IpWildcard(value.textValue());
+        break;
+      case IPSEC_SESSION_STATUS:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
         break;
       case JAVA_REGEX:
         if (!value.isTextual()) {
@@ -451,6 +509,12 @@ public class Client extends AbstractClient implements IClient {
         }
         new NodePropertySpecifier(value.textValue());
         break;
+      case NODE_ROLE_DIMENSION:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        break;
       case NODE_SPEC:
         if (!(value.isTextual())) {
           throw new BatfishException(
@@ -485,11 +549,24 @@ public class Client extends AbstractClient implements IClient {
         }
         PrefixRange.fromString(value.textValue());
         break;
+      case PROTOCOL:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        Protocol.fromString(value.textValue());
+        break;
       case QUESTION:
         // TODO: Implement
         break;
 
       case STRING:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
+        break;
+      case STRUCTURE_NAME:
         if (!value.isTextual()) {
           throw new BatfishException(
               String.format("A Batfish %s must be a JSON string", expectedType.getName()));
@@ -504,12 +581,17 @@ public class Client extends AbstractClient implements IClient {
         Object actualValue = value.isTextual() ? value.textValue() : value.asInt();
         new SubRange(actualValue);
         break;
-      case PROTOCOL:
+      case VRF:
         if (!value.isTextual()) {
           throw new BatfishException(
               String.format("A Batfish %s must be a JSON string", expectedType.getName()));
         }
-        Protocol.fromString(value.textValue());
+        break;
+      case ZONE:
+        if (!value.isTextual()) {
+          throw new BatfishException(
+              String.format("A Batfish %s must be a JSON string", expectedType.getName()));
+        }
         break;
       case JSON_PATH:
         validateJsonPath(value);
@@ -643,6 +725,18 @@ public class Client extends AbstractClient implements IClient {
       questionName = parameters.get("questionName").asText();
       parameters.remove("questionName");
     }
+    // check if differential parameter was provided
+    boolean differentialParamValue = false;
+    if (parameters.containsKey("differential")) {
+      if (!parameters.get("differential").isBoolean()) {
+        throw new IllegalArgumentException(
+            String.format(
+                "The value of 'differential' should be boolean. Got '%s'",
+                parameters.get("differential").asText()));
+      }
+      differentialParamValue = parameters.get("differential").asBoolean();
+      parameters.remove("differential");
+    }
     try {
       questionJson = QuestionHelper.fillTemplate(questionJson, parameters, questionName);
     } catch (IOException | JSONException e) {
@@ -684,7 +778,7 @@ public class Client extends AbstractClient implements IClient {
             _currContainerName,
             _currTestrig,
             _currDeltaTestrig,
-            questionJsonDifferential,
+            questionJsonDifferential || differentialParamValue,
             isDelta);
     return execute(wItemAs, outWriter);
   }
@@ -2193,16 +2287,14 @@ public class Client extends AbstractClient implements IClient {
       // that case
       String answerStringToPrint = answerString;
       if (outWriter == null && _settings.getPrettyPrintAnswers()) {
-        Answer answer;
         try {
-          answer = BatfishObjectMapper.mapper().readValue(answerString, Answer.class);
+          Answer answer = BatfishObjectMapper.mapper().readValue(answerString, Answer.class);
+          answerStringToPrint = answer.prettyPrint();
         } catch (IOException e) {
-          throw new BatfishException(
-              "Response does not appear to be valid JSON representation of "
-                  + Answer.class.getSimpleName(),
-              e);
+          _logger.warnf(
+              "Using Json for pretty printing because could not deserialize response as %s: %s",
+              Answer.class.getSimpleName(), e.getMessage());
         }
-        answerStringToPrint = answer.prettyPrint();
       }
 
       logOutput(outWriter, answerStringToPrint);

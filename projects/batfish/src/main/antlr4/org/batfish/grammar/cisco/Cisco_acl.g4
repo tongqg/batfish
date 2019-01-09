@@ -121,6 +121,31 @@ as_path_set_stanza
    )? END_SET NEWLINE
 ;
 
+asa_access_group
+:
+   ACCESS_GROUP
+   (
+      asa_ag_interface
+      | asa_ag_global
+   )
+   NEWLINE
+;
+
+asa_ag_interface
+:
+   name = variable
+   (
+      IN
+      | OUT
+   )
+   INTERFACE iface = variable
+;
+
+asa_ag_global
+:
+   name = variable GLOBAL
+;
+
 bandwidth_irs_stanza
 :
    BANDWIDTH null_rest_of_line
@@ -166,11 +191,16 @@ etype
 extended_access_list_additional_feature
 :
    ACK
+   | ADMINISTRATIVELY_PROHIBITED
+   | ALTERNATE_ADDRESS
    | BEYOND_SCOPE
    | BFD_ECHO
+   | CONVERSION_ERROR
    | COUNT
    | CWR
    | DESTINATION_UNREACHABLE
+   | DOD_HOST_PROHIBITED
+   | DOD_NET_PROHIBITED
    |
    (
       DSCP dscp_type
@@ -190,35 +220,65 @@ extended_access_list_additional_feature
    | ESTABLISHED
    | FIN
    | FRAGMENTS
+   | GENERAL_PARAMETER_PROBLEM
    | HOP_LIMIT
    | HOPLIMIT
+   | HOST_ISOLATED
+   | HOST_PRECEDENCE_UNREACHABLE
+   | HOST_REDIRECT
+   | HOST_TOS_REDIRECT
+   | HOST_TOS_UNREACHABLE
    | HOST_UNKNOWN
    | HOST_UNREACHABLE
-   | LOG
+   | INFORMATION_REPLY
+   | INFORMATION_REQUEST
+   |
+   (
+      LOG
+      (
+         DEFAULT
+         | DISABLE
+         | (level = DEC (INTERVAL secs = DEC)?)
+      )?
+   )
    | LOG_INPUT
+   | MASK_REPLY
+   | MASK_REQUEST
    | MLD_QUERY
    | MLD_REDUCTION
    | MLD_REPORT
    | MLDV2
+   | MOBILE_HOST_REDIRECT
    | ND
    | ND_NA
    | ND_NS
    | ND_TYPE
    | NEIGHBOR
-   | NETWORK_UNKNOWN
+   | NET_REDIRECT
+   | NET_TOS_REDIRECT
+   | NET_TOS_UNREACHABLE
    | NET_UNREACHABLE
+   | NETWORK_UNKNOWN
+   | NO_ROOM_FOR_OPTION
+   | OPTION_MISSING
    | PACKET_TOO_BIG
    | PARAMETER_PROBLEM
    | PORT_UNREACHABLE
+   | PRECEDENCE_UNREACHABLE
+   | PROTOCOL_UNREACHABLE
    | PSH
+   | REASSEMBLY_TIMEOUT
    | REDIRECT
    | ROUTER
    | ROUTER_ADVERTISEMENT
    | ROUTER_SOLICITATION
    | RST
    | SOURCE_QUENCH
+   | SOURCE_ROUTE_FAILED
    | SYN
    | TIME_EXCEEDED
+   | TIMESTAMP_REPLY
+   | TIMESTAMP_REQUEST
    | TRACEROUTE
    | TRACKED
    | TTL_EXCEEDED
@@ -306,6 +366,10 @@ extended_access_list_tail
       |
       (
          OBJECT_GROUP ogs = variable
+      )
+      |
+      (
+         OBJECT obj = variable
       )
    ) srcipr = access_list_ip_range
    (

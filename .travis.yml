@@ -7,11 +7,12 @@ jdk:
 
 env:
   - BF_BUILDER="mvn"
-  - BF_BUILDER="bazel" V="0.18.1"
+  # Disable for now - no one is using it
+  # - BF_BUILDER="bazel" V="0.19.2"
 matrix:
   fast_finish: true
   allow_failures:
-  - env: BF_BUILDER="bazel" V="0.18.1"
+  - env: BF_BUILDER="bazel" V="0.19.2"
 
 before_install:
   - rm -rf $HOME/.cache/bazel/_bazel_$USER/install

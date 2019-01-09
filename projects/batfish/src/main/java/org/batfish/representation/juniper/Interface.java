@@ -2,14 +2,15 @@ package org.batfish.representation.juniper;
 
 import com.google.common.collect.ImmutableSet;
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IsoAddress;
@@ -29,9 +30,27 @@ public class Interface implements Serializable {
       return 1E9;
     } else if (name.startsWith("fe")) {
       return 1E8;
+    } else if (name.startsWith("irb")) {
+      return 1E9;
+    } else if (name.startsWith("et")) {
+      return 1E11;
     } else {
       return 1E12;
     }
+  }
+
+  /** Represents the type of interface for OSPF */
+  public enum OspfInterfaceType {
+    /** This is not an explicit type -- assumed by default */
+    BROADCAST,
+    /** non-broadcast multi-access */
+    NBMA,
+    /** Point to multipoint */
+    P2MP,
+    /** Point to multipoint over lan */
+    P2MP_OVER_LAN,
+    /** Point to point */
+    P2P
   }
 
   private String _accessVlan;
@@ -42,9 +61,14 @@ public class Interface implements Serializable {
 
   private final Set<InterfaceAddress> _allAddresses;
 
+  // Dumb name to appease checkstyle
+  private String _agg8023adInterface;
+
   private final Set<Ip> _allAddressIps;
 
   private final List<SubRange> _allowedVlans;
+
+  private final List<String> _allowedVlanNames;
 
   private double _bandwidth;
 
@@ -74,7 +98,7 @@ public class Interface implements Serializable {
 
   private boolean _ospfPassive;
 
-  private boolean _ospfPointToPoint;
+  private OspfInterfaceType _ospfInterfaceType;
 
   private String _outgoingFilter;
 
@@ -83,6 +107,8 @@ public class Interface implements Serializable {
   private InterfaceAddress _preferredAddress;
 
   private InterfaceAddress _primaryAddress;
+
+  @Nullable private String _redundantParentInterface;
 
   private String _routingInstance;
 
@@ -94,6 +120,8 @@ public class Interface implements Serializable {
 
   private final SortedMap<Integer, VrrpGroup> _vrrpGroups;
 
+  private Integer _tcpMss;
+
   public Interface(String name) {
     _active = true;
     _additionalArpIps = ImmutableSet.of();
@@ -103,9 +131,11 @@ public class Interface implements Serializable {
     _isisSettings = new IsisInterfaceSettings();
     _name = name;
     _nativeVlan = 1;
+    _ospfInterfaceType = OspfInterfaceType.BROADCAST;
     _switchportMode = SwitchportMode.NONE;
     _switchportTrunkEncapsulation = SwitchportEncapsulationType.DOT1Q;
-    _allowedVlans = new ArrayList<>();
+    _allowedVlans = new LinkedList<>();
+    _allowedVlanNames = new LinkedList<>();
     _ospfCost = null;
     _units = new TreeMap<>();
     _vrrpGroups = new TreeMap<>();
@@ -113,6 +143,10 @@ public class Interface implements Serializable {
 
   public void addAllowedRanges(List<SubRange> ranges) {
     _allowedVlans.addAll(ranges);
+  }
+
+  public String get8023adInterface() {
+    return _agg8023adInterface;
   }
 
   public String getAccessVlan() {
@@ -137,6 +171,10 @@ public class Interface implements Serializable {
 
   public List<SubRange> getAllowedVlans() {
     return _allowedVlans;
+  }
+
+  public List<String> getAllowedVlanNames() {
+    return _allowedVlanNames;
   }
 
   public double getBandwidth() {
@@ -188,12 +226,12 @@ public class Interface implements Serializable {
     return _ospfHelloMultiplier;
   }
 
-  public boolean getOspfPassive() {
-    return _ospfPassive;
+  public OspfInterfaceType getOspfInterfaceType() {
+    return _ospfInterfaceType;
   }
 
-  public boolean getOspfPointToPoint() {
-    return _ospfPointToPoint;
+  public boolean getOspfPassive() {
+    return _ospfPassive;
   }
 
   public String getOutgoingFilter() {
@@ -210,6 +248,11 @@ public class Interface implements Serializable {
 
   public InterfaceAddress getPrimaryAddress() {
     return _primaryAddress;
+  }
+
+  @Nullable
+  public String getRedundantParentInterface() {
+    return _redundantParentInterface;
   }
 
   public String getRoutingInstance() {
@@ -252,6 +295,32 @@ public class Interface implements Serializable {
     }
   }
 
+  /**
+   * Copies the values of fields associated with physical interfaces from {@code bestower} to this
+   * interface.
+   *
+   * <p>TODO: This list is incomplete. We don't have a clean separation of which properties are
+   * physical only
+   */
+  public void inheritUnsetPhysicalFields(Interface bestower) {
+    if (_agg8023adInterface == null) {
+      _agg8023adInterface = bestower._agg8023adInterface;
+    }
+    if (_description == null) {
+      _description = bestower._description;
+    }
+    if (_mtu == null) {
+      _mtu = bestower._mtu;
+    }
+    if (_redundantParentInterface == null) {
+      _redundantParentInterface = bestower._redundantParentInterface;
+    }
+  }
+
+  public void set8023adInterface(String interfaceName) {
+    _agg8023adInterface = interfaceName;
+  }
+
   public void setAccessVlan(String vlan) {
     _accessVlan = vlan;
   }
@@ -264,7 +333,7 @@ public class Interface implements Serializable {
     _additionalArpIps = ImmutableSet.copyOf(additionalArpIps);
   }
 
-  public void setBandwidth(Double bandwidth) {
+  public void setBandwidth(double bandwidth) {
     _bandwidth = bandwidth;
   }
 
@@ -308,8 +377,8 @@ public class Interface implements Serializable {
     _ospfPassive = true;
   }
 
-  public void setOspfPointToPoint(boolean opsfPointToPoint) {
-    _ospfPointToPoint = opsfPointToPoint;
+  public void setOspfInterfaceType(OspfInterfaceType ospfInterfaceType) {
+    _ospfInterfaceType = ospfInterfaceType;
   }
 
   public void setOutgoingFilter(String accessListName) {
@@ -328,6 +397,10 @@ public class Interface implements Serializable {
     _primaryAddress = address;
   }
 
+  public void setRedundantParentInterface(@Nullable String redundantParentInterface) {
+    _redundantParentInterface = redundantParentInterface;
+  }
+
   public void setRoutingInstance(String routingInstance) {
     _routingInstance = routingInstance;
   }
@@ -338,5 +411,13 @@ public class Interface implements Serializable {
 
   public void setSwitchportTrunkEncapsulation(SwitchportEncapsulationType encapsulation) {
     _switchportTrunkEncapsulation = encapsulation;
+  }
+
+  public void setTcpMss(@Nullable Integer tcpMss) {
+    _tcpMss = tcpMss;
+  }
+
+  public @Nullable Integer getTcpMss() {
+    return _tcpMss;
   }
 }

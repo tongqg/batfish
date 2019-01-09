@@ -1,19 +1,36 @@
 package org.batfish.datamodel;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import java.io.Serializable;
+import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
+import javax.annotation.ParametersAreNonnullByDefault;
 import org.batfish.common.BatfishException;
 
+/** An IPv4 Prefix */
+@ParametersAreNonnullByDefault
 public final class Prefix implements Comparable<Prefix>, Serializable {
 
+  // Soft values: let it be garbage collected in times of pressure.
+  // Maximum size 2^20: Just some upper bound on cache size, well less than GiB.
+  //   (12 bytes seems smallest possible entry (long + int), would be 12 MiB total).
+  private static final Cache<Prefix, Prefix> CACHE =
+      CacheBuilder.newBuilder().softValues().maximumSize(1 << 20).build();
+
+  /** Maximum prefix length (number of bits) for a IPv4 address, which is 32 */
   public static final int MAX_PREFIX_LENGTH = 32;
 
-  /** */
   private static final long serialVersionUID = 1L;
 
-  public static final Prefix ZERO = new Prefix(Ip.ZERO, 0);
+  /** A "0.0.0.0/0" prefix */
+  public static final Prefix ZERO = create(Ip.ZERO, 0);
 
   private static long getNetworkEnd(long networkStart, int prefixLength) {
     return networkStart | ((1L << (32 - prefixLength)) - 1);
@@ -27,30 +44,41 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
     return wildcard;
   }
 
+  /** Parse a {@link Prefix} from a string. */
+  @Nonnull
   @JsonCreator
-  public static Prefix parse(String text) {
+  public static Prefix parse(@Nullable String text) {
+    checkArgument(text != null, "Invalid IPv4 prefix %s", text);
     String[] parts = text.split("/");
     if (parts.length != 2) {
       throw new BatfishException("Invalid prefix string: \"" + text + "\"");
     }
-    Ip ip = new Ip(parts[0]);
+    Ip ip = Ip.parse(parts[0]);
     int prefixLength;
     try {
       prefixLength = Integer.parseInt(parts[1]);
     } catch (NumberFormatException e) {
       throw new BatfishException("Invalid prefix length: \"" + parts[1] + "\"", e);
     }
-    return new Prefix(ip, prefixLength);
+    return create(ip, prefixLength);
   }
 
-  private Ip _ip;
+  /**
+   * Parse a {@link Prefix} from a string.
+   *
+   * @throws IllegalArgumentException if the string does not represent a prefix in canonical form.
+   */
+  public static @Nonnull Prefix strict(String prefixStr) {
+    Prefix prefix = parse(prefixStr);
+    checkArgument(prefix.toString().equals(prefixStr), "Non-canonical prefix: %s", prefixStr);
+    return prefix;
+  }
 
-  private int _prefixLength;
+  private final Ip _ip;
 
-  public Prefix(@Nonnull Ip ip, int prefixLength) {
-    if (ip == null) {
-      throw new BatfishException("Cannot create prefix with null network");
-    }
+  private final int _prefixLength;
+
+  private Prefix(Ip ip, int prefixLength) {
     if (ip.valid()) {
       // TODO: stop using Ip as a holder for invalid values.
       _ip = ip.getNetworkAddress(prefixLength);
@@ -60,12 +88,22 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
     _prefixLength = prefixLength;
   }
 
-  public Prefix(@Nonnull Ip address, @Nonnull Ip mask) {
-    this(address, mask.numSubnetBits());
+  public static Prefix create(Ip ip, int prefixLength) {
+    Prefix p = new Prefix(ip, prefixLength);
+    try {
+      return CACHE.get(p, () -> p);
+    } catch (ExecutionException e) {
+      // This shouldn't happen, but handle anyway.
+      return p;
+    }
+  }
+
+  public static Prefix create(Ip address, Ip mask) {
+    return create(address, mask.numSubnetBits());
   }
 
   @Override
-  public int compareTo(@Nonnull Prefix rhs) {
+  public int compareTo(Prefix rhs) {
     int ret = _ip.compareTo(rhs._ip);
     if (ret != 0) {
       return ret;
@@ -73,19 +111,19 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
     return Integer.compare(_prefixLength, rhs._prefixLength);
   }
 
-  public boolean containsIp(@Nonnull Ip ip) {
+  public boolean containsIp(Ip ip) {
     long start = _ip.asLong();
     long end = getNetworkEnd(start, _prefixLength);
     long ipAsLong = ip.asLong();
     return start <= ipAsLong && ipAsLong <= end;
   }
 
-  public boolean containsPrefix(@Nonnull Prefix prefix) {
+  public boolean containsPrefix(Prefix prefix) {
     return containsIp(prefix._ip) && _prefixLength <= prefix._prefixLength;
   }
 
   @Override
-  public boolean equals(Object o) {
+  public boolean equals(@Nullable Object o) {
     if (o == this) {
       return true;
     } else if (!(o instanceof Prefix)) {
@@ -95,35 +133,76 @@ public final class Prefix implements Comparable<Prefix>, Serializable {
     return _ip.equals(rhs._ip) && _prefixLength == rhs._prefixLength;
   }
 
+  @Nonnull
   public Ip getEndIp() {
-    return new Ip(getNetworkEnd(_ip.asLong(), _prefixLength));
+    return Ip.create(getNetworkEnd(_ip.asLong(), _prefixLength));
   }
 
   public int getPrefixLength() {
     return _prefixLength;
   }
 
+  @Nonnull
   public Ip getPrefixWildcard() {
     int numWildcardBits = MAX_PREFIX_LENGTH - _prefixLength;
     long wildcardLong = numWildcardBitsToWildcardLong(numWildcardBits);
-    return new Ip(wildcardLong);
+    return Ip.create(wildcardLong);
   }
 
+  @Nonnull
   public Ip getStartIp() {
     return _ip;
   }
 
   @Override
   public int hashCode() {
-    final int prime = 31;
-    int result = 1;
-    result = prime * result + _ip.hashCode();
-    result = prime * result + _prefixLength;
-    return result;
+    return Objects.hash(_ip, _prefixLength);
   }
 
   public PrefixIpSpace toIpSpace() {
     return new PrefixIpSpace(this);
+  }
+
+  /**
+   * Returns an {@link IpSpace} that contains this prefix except for the network and broadcast
+   * addresses, if applicable. Following RFC 3021, the entire {@code /31} is treated as host IP
+   * space. A prefix of length {@code /32} is preserved, though may be a degenerate case.
+   */
+  public IpSpace toHostIpSpace() {
+    if (_prefixLength >= Prefix.MAX_PREFIX_LENGTH - 1) {
+      return toIpSpace();
+    }
+    return AclIpSpace.builder()
+        .thenRejecting(getStartIp().toIpSpace())
+        .thenRejecting(getEndIp().toIpSpace())
+        .thenPermitting(toIpSpace())
+        .build();
+  }
+
+  /**
+   * Returns the first ip in the prefix that is not a subnet address. When the prefix is /32 or /31,
+   * returns the getStartIp(), otherwise, returns the ip after getStartIp().
+   */
+  public Ip getFirstHostIp() {
+    if (_prefixLength >= Prefix.MAX_PREFIX_LENGTH - 1) {
+      return getStartIp();
+    } else {
+      Ip subnetIp = getStartIp();
+      return Ip.create(subnetIp.asLong() + 1);
+    }
+  }
+
+  /**
+   * Returns the last ip in the prefix that is not a broadcast address. When the prefix is /32 or
+   * /31, returns the getEndIp(), otherwise, returns the ip before getEndIp().
+   */
+  public Ip getLastHostIp() {
+    if (_prefixLength >= Prefix.MAX_PREFIX_LENGTH - 1) {
+      return getEndIp();
+    } else {
+      Ip broadcastIp = getEndIp();
+      return Ip.create(broadcastIp.asLong() - 1);
+    }
   }
 
   @Override

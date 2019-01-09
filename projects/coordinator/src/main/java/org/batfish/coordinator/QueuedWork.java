@@ -2,9 +2,11 @@ package org.batfish.coordinator;
 
 import java.util.Date;
 import java.util.UUID;
+import javax.annotation.Nonnull;
 import org.batfish.common.CoordConsts.WorkStatusCode;
 import org.batfish.common.Task;
 import org.batfish.common.WorkItem;
+import org.batfish.datamodel.pojo.WorkStatus;
 
 public class QueuedWork {
 
@@ -40,6 +42,14 @@ public class QueuedWork {
 
   public String getAssignedWorker() {
     return _assignedWorker;
+  }
+
+  public Date getDateCreated() {
+    return _dateCreated;
+  }
+
+  public Date getDateTerminated() {
+    return _dateTerminated;
   }
 
   public WorkDetails getDetails() {
@@ -81,6 +91,9 @@ public class QueuedWork {
               + ". Desired = "
               + status);
     }
+    if (!_status.isTerminated() && status.isTerminated()) {
+      _dateTerminated = new Date();
+    }
     _status = status;
   }
 
@@ -96,5 +109,9 @@ public class QueuedWork {
         _assignedWorker,
         (_lastTaskCheckResult == null) ? "null" : _lastTaskCheckResult.getStatus(),
         _dateLastTaskCheckedStatus);
+  }
+
+  public @Nonnull WorkStatus toWorkStatus() {
+    return new WorkStatus(_workItem, _status, _lastTaskCheckResult);
   }
 }

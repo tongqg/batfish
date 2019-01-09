@@ -30,7 +30,6 @@ public class IncrementalDataPlanePlugin extends DataPlanePlugin {
   public static final String PLUGIN_NAME = "ibdp";
 
   private final Map<IncrementalDataPlane, Map<Flow, Set<FlowTrace>>> _flowTraces;
-
   private IncrementalBdpEngine _engine;
 
   public IncrementalDataPlanePlugin() {
@@ -111,26 +110,18 @@ public class IncrementalDataPlanePlugin extends DataPlanePlugin {
   }
 
   @Override
-  public void processFlows(Set<Flow> flows, DataPlane dataPlane, boolean ignoreAcls) {
+  public void processFlows(Set<Flow> flows, DataPlane dataPlane, boolean ignoreFilters) {
     _flowTraces.put(
         (IncrementalDataPlane) dataPlane,
         TracerouteEngineImpl.getInstance()
-            .processFlows(dataPlane, flows, dataPlane.getFibs(), ignoreAcls));
+            .processFlows(dataPlane, flows, dataPlane.getFibs(), ignoreFilters));
   }
 
-  /**
-   * Builds the {@link Trace}s for a {@link Set} of {@link Flow}s
-   *
-   * @param flows {@link Set} of {@link Flow} for which {@link Trace}s are to be found
-   * @param dataPlane {@link DataPlane} for this network snapshot
-   * @param ignoreAcls if true, will ignore ACLs
-   * @return {@link SortedMap} of {@link Flow} to {@link List} of {@link Trace}s
-   */
   @Override
   public SortedMap<Flow, List<Trace>> buildFlows(
-      Set<Flow> flows, DataPlane dataPlane, boolean ignoreAcls) {
+      Set<Flow> flows, DataPlane dataPlane, boolean ignoreFilters) {
     return TracerouteEngineImpl.getInstance()
-        .buildFlows(dataPlane, flows, dataPlane.getFibs(), ignoreAcls);
+        .buildFlows(dataPlane, flows, dataPlane.getFibs(), ignoreFilters);
   }
 
   private IncrementalDataPlane loadDataPlane() {

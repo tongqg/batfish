@@ -17,6 +17,7 @@ import java.util.SortedMap;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.Configuration.Builder;
 import org.batfish.datamodel.ConfigurationFormat;
+import org.batfish.datamodel.IntegerSpace;
 import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.InterfaceType;
@@ -115,7 +116,7 @@ public final class TopologyUtilTest {
     Interface c1i4 = _ib.setName(c1i4Name).build();
     c1i4.setSwitchport(true);
     c1i4.setSwitchportMode(SwitchportMode.TRUNK);
-    c1i4.setAllowedVlans(ImmutableList.of(new SubRange(1, 3)));
+    c1i4.setAllowedVlans(IntegerSpace.of(new SubRange(0, 3)));
     c1i4.setNativeVlan(0);
     Interface c1i5 = _ib.setName(c1i5Name).build();
     c1i5.setSwitchport(true);
@@ -124,6 +125,7 @@ public final class TopologyUtilTest {
     Interface c1i6 = _ib.setName(c1i6Name).build();
     c1i6.setSwitchport(true);
     c1i6.setSwitchportMode(SwitchportMode.TRUNK);
+    c1i6.setAllowedVlans(IntegerSpace.of(4));
     c1i6.setNativeVlan(4);
 
     Configuration c2 = _cb.setHostname(c2Name).build();
@@ -133,7 +135,7 @@ public final class TopologyUtilTest {
     Interface c2i4 = _ib.setName(c2i4Name).build();
     c2i4.setSwitchport(true);
     c2i4.setSwitchportMode(SwitchportMode.TRUNK);
-    c2i4.setAllowedVlans(ImmutableList.of(new SubRange(1, 2)));
+    c2i4.setAllowedVlans(IntegerSpace.of(new SubRange(0, 2)));
     c2i4.setNativeVlan(0);
 
     Configuration c3 = _cb.setHostname(c3Name).build();
@@ -231,16 +233,16 @@ public final class TopologyUtilTest {
     Prefix p3 = Prefix.parse("10.0.0.2/31");
 
     int vlanPrefixLength = 24;
-    Ip c1Vlan1Ip = new Ip("10.10.1.1");
-    Ip c1Vlan2Ip = new Ip("10.10.2.1");
-    Ip c1Vlan3Ip = new Ip("10.10.3.1");
-    Ip c1Vlan4Ip = new Ip("10.10.4.1");
-    Ip c2Vlan1Ip = new Ip("10.10.1.2");
-    Ip c2Vlan2Ip = new Ip("10.10.2.2");
-    Ip c2Vlan3Ip = new Ip("10.10.3.2");
-    Ip c2Vlan4Ip = new Ip("10.10.4.2");
-    Ip c3i5Ip = new Ip("10.10.1.3");
-    Ip c3i6Ip = new Ip("10.10.4.3");
+    Ip c1Vlan1Ip = Ip.parse("10.10.1.1");
+    Ip c1Vlan2Ip = Ip.parse("10.10.2.1");
+    Ip c1Vlan3Ip = Ip.parse("10.10.3.1");
+    Ip c1Vlan4Ip = Ip.parse("10.10.4.1");
+    Ip c2Vlan1Ip = Ip.parse("10.10.1.2");
+    Ip c2Vlan2Ip = Ip.parse("10.10.2.2");
+    Ip c2Vlan3Ip = Ip.parse("10.10.3.2");
+    Ip c2Vlan4Ip = Ip.parse("10.10.4.2");
+    Ip c3i5Ip = Ip.parse("10.10.1.3");
+    Ip c3i6Ip = Ip.parse("10.10.4.3");
 
     Configuration c1 = _cb.setHostname(c1Name).build();
     Vrf v1 = _vb.setOwner(c1).build();
@@ -255,7 +257,7 @@ public final class TopologyUtilTest {
     Interface c1i4 = _ib.setName(c1i4Name).setAddresses(null).build();
     c1i4.setSwitchport(true);
     c1i4.setSwitchportMode(SwitchportMode.TRUNK);
-    c1i4.setAllowedVlans(ImmutableList.of(new SubRange(1, 3)));
+    c1i4.setAllowedVlans(IntegerSpace.of(new SubRange(0, 3)));
     c1i4.setNativeVlan(0);
     Interface c1i5 = _ib.setName(c1i5Name).build();
     c1i5.setSwitchport(true);
@@ -264,6 +266,7 @@ public final class TopologyUtilTest {
     Interface c1i6 = _ib.setName(c1i6Name).build();
     c1i6.setSwitchport(true);
     c1i6.setSwitchportMode(SwitchportMode.TRUNK);
+    c1i6.setAllowedVlans(IntegerSpace.of(4));
     c1i6.setNativeVlan(4);
     Interface c1Vlan1 =
         _ib.setName(vlan1Name)
@@ -303,7 +306,7 @@ public final class TopologyUtilTest {
     Interface c2i4 = _ib.setName(c2i4Name).setAddresses(null).build();
     c2i4.setSwitchport(true);
     c2i4.setSwitchportMode(SwitchportMode.TRUNK);
-    c2i4.setAllowedVlans(ImmutableList.of(new SubRange(1, 2)));
+    c2i4.setAllowedVlans(IntegerSpace.of(new SubRange(1, 2)));
     c2i4.setNativeVlan(0);
     Interface c2Vlan1 =
         _ib.setName(vlan1Name)
@@ -430,13 +433,13 @@ public final class TopologyUtilTest {
         computeIpInterfaceOwners(nodeInterfaces, true),
         equalTo(
             ImmutableMap.of(
-                new Ip("1.1.1.1"), ImmutableMap.of("node", ImmutableSet.of("active")))));
+                Ip.parse("1.1.1.1"), ImmutableMap.of("node", ImmutableSet.of("active")))));
 
     assertThat(
         computeIpInterfaceOwners(nodeInterfaces, false),
         equalTo(
             ImmutableMap.of(
-                new Ip("1.1.1.1"),
+                Ip.parse("1.1.1.1"),
                 ImmutableMap.of(
                     "node", ImmutableSet.of("active", "shut", "active-black", "shut-black")))));
   }

@@ -12,6 +12,7 @@ public class CoordConstsV2 {
   public static final String QP_VERBOSE = "verbose";
 
   public static final String RSC_ANALYSES = "analyses";
+  public static final String RSC_COMPLETED_WORK = "completed_work";
   public static final String RSC_CONTAINER = "container";
   public static final String RSC_CONTAINERS = "containers";
   public static final String RSC_FORK = "fork";
@@ -29,4 +30,6 @@ public class CoordConstsV2 {
   public static final String RSC_SETTINGS = "settings";
   public static final String RSC_SNAPSHOTS = "snapshots";
   public static final String RSC_TOPOLOGY = "topology";
+  public static final String RSC_WORK = "work";
+  public static final String RSC_WORK_LOG = "worklog";
 }

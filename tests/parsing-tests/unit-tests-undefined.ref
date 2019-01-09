@@ -110,7 +110,19 @@
         "Lines" : {
           "filename" : "configs/asa_acl",
           "lines" : [
-            7
+            9
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/asa_interface",
+        "Struct_Type" : "policy-map",
+        "Ref_Name" : "some-interface-policy",
+        "Context" : "service-policy interface policy",
+        "Lines" : {
+          "filename" : "configs/asa_interface",
+          "lines" : [
+            8
           ]
         }
       },
@@ -346,6 +358,30 @@
           "filename" : "configs/cadant_interface",
           "lines" : [
             130
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/cadant_interface",
+        "Struct_Type" : "ipv6 acl",
+        "Ref_Name" : "bar-filter",
+        "Context" : "interface ipv6 traffic-filter out",
+        "Lines" : {
+          "filename" : "configs/cadant_interface",
+          "lines" : [
+            86
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/cadant_interface",
+        "Struct_Type" : "ipv6 acl",
+        "Ref_Name" : "foo-filter",
+        "Context" : "interface ipv6 traffic-filter in",
+        "Lines" : {
+          "filename" : "configs/cadant_interface",
+          "lines" : [
+            85
           ]
         }
       },
@@ -604,6 +640,30 @@
         }
       },
       {
+        "File_Name" : "configs/cisco_control_plane",
+        "Struct_Type" : "policy-map",
+        "Ref_Name" : "copp-policy",
+        "Context" : "control-plane service-policy input",
+        "Lines" : {
+          "filename" : "configs/cisco_control_plane",
+          "lines" : [
+            5
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/cisco_control_plane",
+        "Struct_Type" : "policy-map",
+        "Ref_Name" : "copp-policy-out",
+        "Context" : "control-plane service-policy output",
+        "Lines" : {
+          "filename" : "configs/cisco_control_plane",
+          "lines" : [
+            6
+          ]
+        }
+      },
+      {
         "File_Name" : "configs/cisco_crypto",
         "Struct_Type" : "crypto ipsec transform-set",
         "Ref_Name" : "bleep",
@@ -797,6 +857,18 @@
       },
       {
         "File_Name" : "configs/cisco_interface",
+        "Struct_Type" : "interface",
+        "Ref_Name" : "Loopback1",
+        "Context" : "vxlan source-interface",
+        "Lines" : {
+          "filename" : "configs/cisco_interface",
+          "lines" : [
+            323
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/cisco_interface",
         "Struct_Type" : "ipv4 acl",
         "Ref_Name" : "167",
         "Context" : "interface ip verify access-list",
@@ -931,11 +1003,11 @@
         "File_Name" : "configs/cisco_interface",
         "Struct_Type" : "zone security",
         "Ref_Name" : "z1",
-        "Context" : "interface zone-member",
+        "Context" : "interface zone-member security",
         "Lines" : {
           "filename" : "configs/cisco_interface",
           "lines" : [
-            292
+            291
           ]
         }
       },
@@ -1050,18 +1122,6 @@
       },
       {
         "File_Name" : "configs/cisco_misc",
-        "Struct_Type" : "interface",
-        "Ref_Name" : "Loopback0",
-        "Context" : "service-policy interface",
-        "Lines" : {
-          "filename" : "configs/cisco_misc",
-          "lines" : [
-            238
-          ]
-        }
-      },
-      {
-        "File_Name" : "configs/cisco_misc",
         "Struct_Type" : "ipv4/6 acl",
         "Ref_Name" : "cops-acl",
         "Context" : "cops listener access-list",
@@ -1069,18 +1129,6 @@
           "filename" : "configs/cisco_misc",
           "lines" : [
             42
-          ]
-        }
-      },
-      {
-        "File_Name" : "configs/cisco_misc",
-        "Struct_Type" : "policy-map",
-        "Ref_Name" : "some-interface-policy",
-        "Context" : "service-policy interface policy",
-        "Lines" : {
-          "filename" : "configs/cisco_misc",
-          "lines" : [
-            238
           ]
         }
       },
@@ -2455,10 +2503,10 @@
         "Lines" : {
           "filename" : "configs/juniper_bgp",
           "lines" : [
-            8,
-            15,
-            22,
-            31
+            10,
+            20,
+            27,
+            36
           ]
         }
       },
@@ -2470,10 +2518,10 @@
         "Lines" : {
           "filename" : "configs/juniper_bgp",
           "lines" : [
-            10,
-            17,
-            24,
-            33
+            13,
+            22,
+            29,
+            38
           ]
         }
       },
@@ -2540,13 +2588,25 @@
       },
       {
         "File_Name" : "configs/juniper_interfaces",
+        "Struct_Type" : "interface",
+        "Ref_Name" : "ge-0/0/1",
+        "Context" : "routing-instance interface",
+        "Lines" : {
+          "filename" : "configs/juniper_interfaces",
+          "lines" : [
+            21
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/juniper_interfaces",
         "Struct_Type" : "vlan",
         "Ref_Name" : "bippetyboppety",
         "Context" : "interface vlan",
         "Lines" : {
           "filename" : "configs/juniper_interfaces",
           "lines" : [
-            12
+            19
           ]
         }
       },
@@ -2558,9 +2618,40 @@
         "Lines" : {
           "filename" : "configs/juniper_isis",
           "lines" : [
-            4,
-            5,
-            6
+            6,
+            7,
+            8,
+            9,
+            10
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/juniper_misc",
+        "Struct_Type" : "interface",
+        "Ref_Name" : "lo0.0",
+        "Context" : "routing-instances vtep-source-interface",
+        "Lines" : {
+          "filename" : "configs/juniper_misc",
+          "lines" : [
+            9
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/juniper_ospf",
+        "Struct_Type" : "interface",
+        "Ref_Name" : "ae16.0",
+        "Context" : "ospf area interface",
+        "Lines" : {
+          "filename" : "configs/juniper_ospf",
+          "lines" : [
+            17,
+            18,
+            19,
+            20,
+            22,
+            23
           ]
         }
       },
@@ -2572,7 +2663,7 @@
         "Lines" : {
           "filename" : "configs/juniper_ospf",
           "lines" : [
-            12
+            15
           ]
         }
       },
@@ -2584,7 +2675,10 @@
         "Lines" : {
           "filename" : "configs/juniper_ospf",
           "lines" : [
-            3
+            3,
+            4,
+            5,
+            6
           ]
         }
       },
@@ -2596,7 +2690,7 @@
         "Lines" : {
           "filename" : "configs/juniper_ospf",
           "lines" : [
-            4
+            7
           ]
         }
       },
@@ -2621,6 +2715,18 @@
           "filename" : "configs/juniper_relay",
           "lines" : [
             8
+          ]
+        }
+      },
+      {
+        "File_Name" : "configs/juniper_routing_policy",
+        "Struct_Type" : "interface",
+        "Ref_Name" : "ge-0/0/0.99",
+        "Context" : "policy-statement from interface",
+        "Lines" : {
+          "filename" : "configs/juniper_routing_policy",
+          "lines" : [
+            9
           ]
         }
       },
@@ -3070,10 +3176,10 @@
       }
     ],
     "summary" : {
-      "notes" : "Found 249 results",
+      "notes" : "Found 257 results",
       "numFailed" : 0,
       "numPassed" : 0,
-      "numResults" : 249
+      "numResults" : 257
     }
   }
 ]

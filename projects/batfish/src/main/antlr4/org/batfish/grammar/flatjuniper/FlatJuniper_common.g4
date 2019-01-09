@@ -106,7 +106,8 @@ extended_community
 
 icmp_code
 :
-  COMMUNICATION_PROHIBITED_BY_FILTERING
+  DEC
+  | COMMUNICATION_PROHIBITED_BY_FILTERING
   | DESTINATION_HOST_PROHIBITED
   | DESTINATION_HOST_UNKNOWN
   | DESTINATION_NETWORK_PROHIBITED
@@ -134,7 +135,8 @@ icmp_code
 
 icmp_type
 :
-  DESTINATION_UNREACHABLE
+  DEC
+  | DESTINATION_UNREACHABLE
   | ECHO_REPLY
   | ECHO_REQUEST
   | INFO_REPLY
@@ -152,21 +154,19 @@ icmp_type
   | UNREACHABLE
 ;
 
+icmp6_only_type
+:
+    NEIGHBOR_ADVERTISEMENT
+    | NEIGHBOR_SOLICIT
+    | PACKET_TOO_BIG
+;
+
+
 interface_id
 :
-  (
-    node = variable COLON
-  )?
-  (
-    name = VARIABLE
-    (
-      COLON suffix = DEC
-    )?
-    (
-      PERIOD unit = DEC
-    )?
-  )
+   (node=variable COLON)? name = INTERFACE_NAME (COLON chnl=DEC)? (PERIOD unit = DEC)?
 ;
+
 
 ip_option
 :
@@ -519,11 +519,12 @@ range
   )*
 ;
 
-reference_bandwidth
+bandwidth
 :
   base = DEC
   (
-    K
+    C
+    | K
     | M
     | G
   )?
@@ -534,6 +535,7 @@ routing_protocol
   AGGREGATE
   | BGP
   | DIRECT
+  | EVPN
   | ISIS
   | LDP
   | LOCAL
@@ -552,6 +554,13 @@ sc_named
 :
   NO_ADVERTISE
   | NO_EXPORT
+  | NO_EXPORT_SUBCONFED
+;
+
+secret
+:
+  DOUBLE_QUOTED_STRING
+  | SCRUBBED
 ;
 
 standard_community

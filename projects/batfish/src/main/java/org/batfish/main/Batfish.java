@@ -3,9 +3,20 @@ package org.batfish.main;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.base.Verify.verify;
+import static java.util.regex.Pattern.CASE_INSENSITIVE;
 import static java.util.stream.Collectors.toMap;
 import static org.batfish.bddreachability.BDDMultipathInconsistency.computeMultipathInconsistencies;
+import static org.batfish.common.util.CompletionMetadataUtils.getAddressBooks;
+import static org.batfish.common.util.CompletionMetadataUtils.getAddressGroups;
+import static org.batfish.common.util.CompletionMetadataUtils.getFilterNames;
+import static org.batfish.common.util.CompletionMetadataUtils.getInterfaces;
+import static org.batfish.common.util.CompletionMetadataUtils.getIps;
+import static org.batfish.common.util.CompletionMetadataUtils.getPrefixes;
+import static org.batfish.common.util.CompletionMetadataUtils.getStructureNames;
+import static org.batfish.common.util.CompletionMetadataUtils.getVrfs;
+import static org.batfish.common.util.CompletionMetadataUtils.getZones;
 import static org.batfish.datamodel.acl.AclLineMatchExprs.TRUE;
+import static org.batfish.datamodel.acl.AclLineMatchExprs.not;
 import static org.batfish.datamodel.acl.SourcesReferencedByIpAccessLists.SOURCE_ORIGINATING_FROM_DEVICE;
 import static org.batfish.datamodel.acl.SourcesReferencedByIpAccessLists.referencedSources;
 import static org.batfish.main.ReachabilityParametersResolver.resolveReachabilityParameters;
@@ -15,14 +26,15 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.cache.Cache;
+import com.google.common.collect.HashMultimap;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
 import com.google.common.collect.Sets;
-import com.google.common.collect.Streams;
 import io.opentracing.ActiveSpan;
 import io.opentracing.util.GlobalTracer;
 import java.io.File;
@@ -39,11 +51,12 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
@@ -70,6 +83,7 @@ import org.batfish.common.BatfishException.BatfishStackTrace;
 import org.batfish.common.BatfishLogger;
 import org.batfish.common.BfConsts;
 import org.batfish.common.CleanBatfishException;
+import org.batfish.common.CompletionMetadata;
 import org.batfish.common.CoordConsts;
 import org.batfish.common.CoordConstsV2;
 import org.batfish.common.NetworkSnapshot;
@@ -90,6 +104,7 @@ import org.batfish.common.plugin.PluginConsumer;
 import org.batfish.common.topology.Layer1Topology;
 import org.batfish.common.topology.Layer2Topology;
 import org.batfish.common.topology.Layer3Topology;
+import org.batfish.common.topology.TopologyProvider;
 import org.batfish.common.topology.TopologyUtil;
 import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.common.util.CommonUtil;
@@ -109,12 +124,16 @@ import org.batfish.datamodel.FlowHistory;
 import org.batfish.datamodel.FlowTrace;
 import org.batfish.datamodel.GenericConfigObject;
 import org.batfish.datamodel.HeaderSpace;
+import org.batfish.datamodel.IntegerSpace;
 import org.batfish.datamodel.Interface;
+import org.batfish.datamodel.Interface.Dependency;
+import org.batfish.datamodel.Interface.DependencyType;
 import org.batfish.datamodel.InterfaceType;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.IpsecVpn;
+import org.batfish.datamodel.NetworkConfigurations;
 import org.batfish.datamodel.RipNeighbor;
 import org.batfish.datamodel.RipProcess;
 import org.batfish.datamodel.SubRange;
@@ -130,6 +149,7 @@ import org.batfish.datamodel.answers.AnswerMetadataUtil;
 import org.batfish.datamodel.answers.AnswerStatus;
 import org.batfish.datamodel.answers.AnswerSummary;
 import org.batfish.datamodel.answers.ConvertConfigurationAnswerElement;
+import org.batfish.datamodel.answers.ConvertStatus;
 import org.batfish.datamodel.answers.DataPlaneAnswerElement;
 import org.batfish.datamodel.answers.FlattenVendorConfigurationAnswerElement;
 import org.batfish.datamodel.answers.InitInfoAnswerElement;
@@ -142,7 +162,6 @@ import org.batfish.datamodel.answers.ParseEnvironmentRoutingTablesAnswerElement;
 import org.batfish.datamodel.answers.ParseStatus;
 import org.batfish.datamodel.answers.ParseVendorConfigurationAnswerElement;
 import org.batfish.datamodel.answers.RunAnalysisAnswerElement;
-import org.batfish.datamodel.answers.ValidateSnapshotAnswerElement;
 import org.batfish.datamodel.collections.BgpAdvertisementsByVrf;
 import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.datamodel.collections.RoutesByVrf;
@@ -213,6 +232,7 @@ import org.batfish.symbolic.abstraction.BatfishCompressor;
 import org.batfish.symbolic.abstraction.Roles;
 import org.batfish.symbolic.bdd.BDDAcl;
 import org.batfish.symbolic.smt.PropertyChecker;
+import org.batfish.topology.TopologyProviderImpl;
 import org.batfish.vendor.VendorConfiguration;
 import org.batfish.z3.BlacklistDstIpQuerySynthesizer;
 import org.batfish.z3.CompositeNodJob;
@@ -228,14 +248,22 @@ import org.batfish.z3.Synthesizer;
 import org.batfish.z3.SynthesizerInputImpl;
 import org.batfish.z3.expr.BooleanExpr;
 import org.batfish.z3.expr.OrExpr;
-import org.codehaus.jettison.json.JSONArray;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
+import org.jgrapht.Graph;
+import org.jgrapht.graph.SimpleDirectedGraph;
+import org.jgrapht.traverse.TopologicalOrderIterator;
 
 /** This class encapsulates the main control logic for Batfish. */
 public class Batfish extends PluginConsumer implements IBatfish {
 
   public static final String DIFFERENTIAL_FLOW_TAG = "DIFFERENTIAL";
+
+  private static final Pattern MANAGEMENT_INTERFACES =
+      Pattern.compile("(\\Amgmt)|(\\Amanagement)|(\\Afxp0)|(\\Aem0)|(\\Ame0)", CASE_INSENSITIVE);
+
+  private static final Pattern MANAGEMENT_VRFS =
+      Pattern.compile("(\\Amgmt)|(\\Amanagement)", CASE_INSENSITIVE);
 
   /** The name of the [optional] topology file within a test-rig */
   public static void applyBaseDir(TestrigSettings settings, Path containerDir, SnapshotId testrig) {
@@ -442,6 +470,8 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
   private Map<String, DataPlanePlugin> _dataPlanePlugins;
 
+  private final TopologyProvider _topologyProvider;
+
   public Batfish(
       Settings settings,
       Cache<NetworkSnapshot, SortedMap<String, Configuration>> cachedCompressedConfigurations,
@@ -478,6 +508,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
         alternateIdResolver != null
             ? alternateIdResolver
             : new FileBasedIdResolver(_settings.getStorageBase());
+    _topologyProvider = new TopologyProviderImpl(this);
   }
 
   private Answer analyze() {
@@ -639,18 +670,28 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return answer;
   }
 
-  private void computeAggregatedInterfaceBandwidth(
+  private static void computeAggregatedInterfaceBandwidth(
       Interface iface, Map<String, Interface> interfaces) {
-    if (iface.getInterfaceType() != InterfaceType.AGGREGATED) {
-      return;
+    if (iface.getInterfaceType() == InterfaceType.AGGREGATED) {
+      /* Bandwidth should be sum of bandwidth of channel-group members. */
+      iface.setBandwidth(
+          iface
+              .getChannelGroupMembers()
+              .stream()
+              .mapToDouble(ifaceName -> interfaces.get(ifaceName).getBandwidth())
+              .sum());
+    } else if (iface.getInterfaceType() == InterfaceType.AGGREGATE_CHILD) {
+      /* Bandwidth for aggregate child interfaces (e.g. units) should be inherited from the parent. */
+      iface
+          .getDependencies()
+          .stream()
+          .filter(d -> d.getType() == DependencyType.BIND)
+          .findFirst()
+          .map(Dependency::getInterfaceName)
+          .map(interfaces::get)
+          .map(Interface::getBandwidth)
+          .ifPresent(iface::setBandwidth);
     }
-    /* Bandwidth should be sum of bandwidth of channel-group members. */
-    iface.setBandwidth(
-        iface
-            .getChannelGroupMembers()
-            .stream()
-            .mapToDouble(ifaceName -> interfaces.get(ifaceName).getBandwidth())
-            .sum());
   }
 
   public static Warnings buildWarnings(Settings settings) {
@@ -998,22 +1039,22 @@ public class Batfish extends PluginConsumer implements IBatfish {
       }
       // Update vlanMemberCounts:
       for (Interface iface : nonVlanInterfaces) {
-        List<SubRange> vlans = new ArrayList<>();
+        IntegerSpace.Builder vlans = IntegerSpace.builder();
         if (iface.getSwitchportMode() == SwitchportMode.TRUNK) { // vlan trunked interface
-          Collection<SubRange> allowed = iface.getAllowedVlans();
+          IntegerSpace allowed = iface.getAllowedVlans();
           if (!allowed.isEmpty()) {
             // Explicit list of allowed VLANs
-            vlans.addAll(allowed);
+            vlans.including(allowed);
           } else {
             // No explicit list, so all VLANs are allowed.
-            vlanInterfaces.keySet().forEach(v -> vlans.add(new SubRange(v, v)));
+            vlanInterfaces.keySet().forEach(vlans::including);
           }
           // Add the native VLAN as well.
           vlanNumber = iface.getNativeVlan();
-          vlans.add(new SubRange(vlanNumber, vlanNumber));
+          vlans.including(vlanNumber);
         } else if (iface.getSwitchportMode() == SwitchportMode.ACCESS) { // access mode ACCESS
           vlanNumber = iface.getAccessVlan();
-          vlans.add(new SubRange(vlanNumber, vlanNumber));
+          vlans.including(vlanNumber);
           // Any other Switch Port mode is unsupported
         } else if (iface.getSwitchportMode() != SwitchportMode.NONE) {
           _logger.warnf(
@@ -1021,11 +1062,11 @@ public class Batfish extends PluginConsumer implements IBatfish {
               iface.getSwitchportMode(), hostname, iface.getName());
         }
 
-        for (SubRange sr : vlans) {
-          for (int vlanId = sr.getStart(); vlanId <= sr.getEnd(); ++vlanId) {
-            vlanMemberCounts.compute(vlanId, (k, v) -> (v == null) ? 1 : (v + 1));
-          }
-        }
+        vlans
+            .build()
+            .stream()
+            .forEach(
+                vlanId -> vlanMemberCounts.compute(vlanId, (k, v) -> (v == null) ? 1 : (v + 1)));
       }
       // Disable all "normal" vlan interfaces with zero member counts:
       SubRange normalVlanRange = c.getNormalVlanRange();
@@ -1096,7 +1137,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return Files.exists(answerPath);
   }
 
-  private void flatten(Path inputPath, Path outputPath) {
+  public void flatten(Path inputPath, Path outputPath) {
     Map<Path, String> configurationData =
         readConfigurationFiles(inputPath, BfConsts.RELPATH_CONFIGURATIONS_DIR);
     Map<Path, String> outputConfigurationData = new TreeMap<>();
@@ -1428,18 +1469,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return new NetworkSnapshot(_settings.getContainer(), _testrigSettings.getName());
   }
 
-  private Set<Edge> getSymmetricEdgePairs(SortedSet<Edge> edges) {
-    Set<Edge> consumedEdges = new LinkedHashSet<>();
-    for (Edge edge : edges) {
-      if (consumedEdges.contains(edge)) {
-        continue;
-      }
-      consumedEdges.add(edge);
-      consumedEdges.add(edge.reverse());
-    }
-    return consumedEdges;
-  }
-
   @Override
   public String getTaskId() {
     return _settings.getTaskId();
@@ -1452,6 +1481,12 @@ public class Batfish extends PluginConsumer implements IBatfish {
   @Override
   public SnapshotId getTestrigName() {
     return _testrigSettings.getName();
+  }
+
+  @Nonnull
+  @Override
+  public TopologyProvider getTopologyProvider() {
+    return _topologyProvider;
   }
 
   @Override
@@ -1657,11 +1692,8 @@ public class Batfish extends PluginConsumer implements IBatfish {
     }
   }
 
-  /**
-   * Returns the configurations for given snapshot, including any environmental features such as
-   * failed links.
-   */
-  SortedMap<String, Configuration> loadConfigurations(NetworkSnapshot snapshot) {
+  @Override
+  public SortedMap<String, Configuration> loadConfigurations(NetworkSnapshot snapshot) {
     // Do we already have configurations in the cache?
     SortedMap<String, Configuration> configurations = _cachedConfigurations.getIfPresent(snapshot);
     if (configurations != null) {
@@ -1673,7 +1705,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
     configurations = _storage.loadConfigurations(snapshot.getNetwork(), snapshot.getSnapshot());
     if (configurations != null) {
       _logger.debugf("Loaded configurations for %s off disk", snapshot);
-      applyEnvironment(configurations);
+      postProcessSnapshot(configurations);
     } else {
       // Otherwise, we have to parse the configurations. Fall back to old, hacky code.
       configurations = parseConfigurationsAndApplyEnvironment();
@@ -1692,7 +1724,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
     verify(
         configurations != null,
         "Configurations should not be null when loaded immediately after repair.");
-    applyEnvironment(configurations);
+    postProcessSnapshot(configurations);
     return configurations;
   }
 
@@ -1899,36 +1931,17 @@ public class Batfish extends PluginConsumer implements IBatfish {
     }
   }
 
-  private ValidateSnapshotAnswerElement loadValidateSnapshotAnswerElement() {
-    return loadValidateSnapshotAnswerElement(true);
-  }
-
-  private ValidateSnapshotAnswerElement loadValidateSnapshotAnswerElement(boolean firstAttempt) {
-    Path answerPath = _testrigSettings.getValidateSnapshotAnswerPath();
-    if (Files.exists(answerPath)) {
-      ValidateSnapshotAnswerElement veae =
-          deserializeObject(answerPath, ValidateSnapshotAnswerElement.class);
-      if (Version.isCompatibleVersion("Service", "Old processed environment", veae.getVersion())) {
-        return veae;
-      }
-    }
-    if (firstAttempt) {
-      parseConfigurationsAndApplyEnvironment();
-      return loadValidateSnapshotAnswerElement(false);
-    } else {
-      throw new BatfishException(
-          "Version error repairing environment for validate environment answer element");
-    }
-  }
-
   private void mergeConvertAnswer(
       boolean summary, boolean verboseError, InitInfoAnswerElement answerElement) {
     ConvertConfigurationAnswerElement convertAnswer =
         loadConvertConfigurationAnswerElementOrReparse();
     mergeInitStepAnswer(answerElement, convertAnswer, summary, verboseError);
-    for (String failed : convertAnswer.getFailed()) {
-      answerElement.getParseStatus().put(failed, ParseStatus.FAILED);
-    }
+    convertAnswer
+        .getConvertStatus()
+        .entrySet()
+        .stream()
+        .filter(s -> s.getValue() == ConvertStatus.FAILED)
+        .forEach(s -> answerElement.getParseStatus().put(s.getKey(), ParseStatus.FAILED));
   }
 
   private void mergeInitStepAnswer(
@@ -2174,11 +2187,14 @@ public class Batfish extends PluginConsumer implements IBatfish {
       String fileText = vendorFile.getValue();
 
       Warnings warnings = buildWarnings(_settings);
+
+      Multimap<String, String> duplicateHostnames = HashMultimap.create();
+
       String filename =
           _settings.getActiveTestrigSettings().getInputPath().relativize(currentFile).toString();
       ParseVendorConfigurationJob job =
           new ParseVendorConfigurationJob(
-              _settings, fileText, filename, warnings, configurationFormat);
+              _settings, fileText, filename, warnings, configurationFormat, duplicateHostnames);
       jobs.add(job);
     }
     BatfishJobExecutor.runJobsInExecutor(
@@ -2412,18 +2428,30 @@ public class Batfish extends PluginConsumer implements IBatfish {
     interfaces.forEach(
         (ifaceName, iface) -> populateChannelGroupMembers(interfaces, ifaceName, iface));
 
-    /* Disable aggregated interfaces with no members. */
+    /* Compute bandwidth for aggregated interfaces. */
+    interfaces.values().forEach(iface -> computeAggregatedInterfaceBandwidth(iface, interfaces));
+
+    /*
+     * For aggregated logical interfaces, inherit a subset of properties
+     * from the parent aggregated interfaces
+     */
     interfaces
         .values()
         .stream()
-        .filter(
-            i ->
-                i.getInterfaceType() == InterfaceType.AGGREGATED
-                    && i.getChannelGroupMembers().isEmpty())
-        .forEach(i -> i.setActive(false));
-
-    /* Compute bandwidth for aggregated interfaces. */
-    interfaces.values().forEach(iface -> computeAggregatedInterfaceBandwidth(iface, interfaces));
+        .filter(iface -> iface.getInterfaceType() == InterfaceType.AGGREGATED)
+        .filter(iface -> !iface.getDependencies().isEmpty())
+        .forEach(
+            iface ->
+                iface.setBandwidth(
+                    iface
+                        .getDependencies()
+                        .stream()
+                        .map(dependency -> interfaces.get(dependency.getInterfaceName()))
+                        .filter(Objects::nonNull)
+                        .map(Interface::getBandwidth)
+                        .filter(Objects::nonNull)
+                        .mapToDouble(Double::doubleValue)
+                        .sum()));
   }
 
   private void identifyDeviceTypes(Collection<Configuration> configurations) {
@@ -2452,9 +2480,68 @@ public class Batfish extends PluginConsumer implements IBatfish {
     }
   }
 
-  private void postProcessForEnvironment(Map<String, Configuration> configurations) {
-    postProcessAggregatedInterfaces(configurations);
-    postProcessOspfCosts(configurations);
+  @VisibleForTesting
+  static void postProcessInterfaceDependencies(Map<String, Configuration> configurations) {
+    configurations
+        .values()
+        .forEach(
+            config -> {
+              NavigableMap<String, Interface> allInterfaces = config.getAllInterfaces();
+              Graph<String, Dependency> graph = new SimpleDirectedGraph<>(Dependency.class);
+              allInterfaces.keySet().forEach(graph::addVertex);
+              allInterfaces
+                  .values()
+                  .forEach(
+                      iface ->
+                          iface
+                              .getDependencies()
+                              .forEach(
+                                  dependency ->
+                                      graph.addEdge(
+                                          // Reverse edge direction to aid topological sort
+                                          dependency.getInterfaceName(),
+                                          iface.getName(),
+                                          dependency)));
+
+              // Traverse interfaces in topological order and deactivate if necessary
+              for (TopologicalOrderIterator<String, Dependency> iterator =
+                      new TopologicalOrderIterator<>(graph);
+                  iterator.hasNext(); ) {
+                String ifaceName = iterator.next();
+                deactivateInterfaceIfNeeded(allInterfaces.get(ifaceName));
+              }
+            });
+  }
+
+  /** Deactivate an interface if it is blacklisted or its dependencies are not active */
+  private static void deactivateInterfaceIfNeeded(Interface iface) {
+    Configuration config = iface.getOwner();
+    Set<Dependency> dependencies = iface.getDependencies();
+    if (dependencies
+        .stream()
+        // Look at bind dependencies
+        .filter(d -> d.getType() == DependencyType.BIND)
+        .map(d -> config.getAllInterfaces().get(d.getInterfaceName()))
+        // Find any missing or inactive interfaces
+        .anyMatch(parent -> parent == null || !parent.getActive())) {
+      iface.setActive(false);
+    }
+
+    // Look at aggregate dependencies only now
+    Set<Dependency> aggregateDependencies =
+        dependencies
+            .stream()
+            .filter(d -> d.getType() == DependencyType.AGGREGATE)
+            .collect(ImmutableSet.toImmutableSet());
+    if (iface.getInterfaceType() == InterfaceType.AGGREGATED
+        && aggregateDependencies
+            .stream()
+            // Extract existing and active interfaces
+            .map(d -> config.getAllInterfaces().get(d.getInterfaceName()))
+            .filter(Objects::nonNull)
+            .noneMatch(Interface::getActive)) {
+      iface.setActive(false);
+    }
   }
 
   private void postProcessOspfCosts(Map<String, Configuration> configurations) {
@@ -2474,35 +2561,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
                         }));
   }
 
-  private void printSymmetricEdgePairs() {
-    Map<String, Configuration> configs = loadConfigurations();
-    SortedSet<Edge> edges = CommonUtil.synthesizeTopology(configs).getEdges();
-    Set<Edge> symmetricEdgePairs = getSymmetricEdgePairs(edges);
-    List<Edge> edgeList = new ArrayList<>(symmetricEdgePairs);
-    for (int i = 0; i < edgeList.size() / 2; i++) {
-      Edge edge1 = edgeList.get(2 * i);
-      Edge edge2 = edgeList.get(2 * i + 1);
-      _logger.output(
-          edge1.getNode1()
-              + ":"
-              + edge1.getInt1()
-              + ","
-              + edge1.getNode2()
-              + ":"
-              + edge1.getInt2()
-              + " "
-              + edge2.getNode1()
-              + ":"
-              + edge2.getInt1()
-              + ","
-              + edge2.getNode2()
-              + ":"
-              + edge2.getInt2()
-              + "\n");
-    }
-    _logger.printElapsedTime();
-  }
-
   @Override
   public Set<BgpAdvertisement> loadExternalBgpAnnouncements(
       Map<String, Configuration> configurations) {
@@ -2514,125 +2572,66 @@ public class Batfish extends PluginConsumer implements IBatfish {
     return advertSet;
   }
 
-  /**
-   * Reads the external bgp announcement specified in the environment, and populates the
-   * vendor-independent configurations with data about those announcements
-   *
-   * @param configurations The vendor-independent configurations to be modified
-   */
-  public Set<BgpAdvertisement> processExternalBgpAnnouncements(
-      Map<String, Configuration> configurations, SortedSet<Long> allCommunities) {
-    Set<BgpAdvertisement> advertSet = new LinkedHashSet<>();
-    Path externalBgpAnnouncementsPath = _testrigSettings.getExternalBgpAnnouncementsPath();
-    if (Files.exists(externalBgpAnnouncementsPath)) {
-      String externalBgpAnnouncementsFileContents =
-          CommonUtil.readFile(externalBgpAnnouncementsPath);
-      // Populate advertSet with BgpAdvertisements that
-      // gets passed to populatePrecomputedBgpAdvertisements.
-      // See populatePrecomputedBgpAdvertisements for the things that get
-      // extracted from these advertisements.
-
-      try {
-        JSONObject jsonObj = new JSONObject(externalBgpAnnouncementsFileContents);
-
-        JSONArray announcements = jsonObj.getJSONArray(BfConsts.PROP_BGP_ANNOUNCEMENTS);
-
-        for (int index = 0; index < announcements.length(); index++) {
-          JSONObject announcement = new JSONObject();
-          announcement.put("@id", index);
-          JSONObject announcementSrc = announcements.getJSONObject(index);
-          for (Iterator<?> i = announcementSrc.keys(); i.hasNext(); ) {
-            String key = (String) i.next();
-            if (!key.equals("@id")) {
-              announcement.put(key, announcementSrc.get(key));
-            }
-          }
-          BgpAdvertisement bgpAdvertisement =
-              BatfishObjectMapper.mapper()
-                  .readValue(announcement.toString(), BgpAdvertisement.class);
-          allCommunities.addAll(bgpAdvertisement.getCommunities());
-          advertSet.add(bgpAdvertisement);
-        }
-
-      } catch (JSONException | IOException e) {
-        throw new BatfishException("Problems parsing JSON in " + externalBgpAnnouncementsPath, e);
-      }
-    }
-    return advertSet;
-  }
-
   @Override
-  public void processFlows(Set<Flow> flows, boolean ignoreAcls) {
+  public void processFlows(Set<Flow> flows, boolean ignoreFilters) {
     DataPlane dp = loadDataPlane();
-    getDataPlanePlugin().processFlows(flows, dp, ignoreAcls);
+    getDataPlanePlugin().processFlows(flows, dp, ignoreFilters);
   }
 
   /**
    * Builds the {@link Trace}s for a {@link Set} of {@link Flow}s
    *
    * @param flows {@link Set} of {@link Flow} for which {@link Trace}s are to be found
-   * @param ignoreAcls if true, will ignore ACLs
+   * @param ignoreFilters if true, will ignore ACLs
    * @return {@link SortedMap} of {@link Flow}s to {@link List} of {@link Trace}s
    */
   @Override
-  public SortedMap<Flow, List<Trace>> buildFlows(Set<Flow> flows, boolean ignoreAcls) {
+  public SortedMap<Flow, List<Trace>> buildFlows(Set<Flow> flows, boolean ignoreFilters) {
     DataPlane dp = loadDataPlane();
-    return getDataPlanePlugin().buildFlows(flows, dp, ignoreAcls);
+    return getDataPlanePlugin().buildFlows(flows, dp, ignoreFilters);
   }
 
-  /**
-   * Helper function to disable a blacklisted interface and update the given {@link
-   * ValidateSnapshotAnswerElement} if the interface does not actually exist.
-   */
-  private static void blacklistInterface(
-      Map<String, Configuration> configurations,
-      ValidateSnapshotAnswerElement veae,
-      NodeInterfacePair iface) {
-    String hostname = iface.getHostname();
-    String ifaceName = iface.getInterface();
-    @Nullable Configuration node = configurations.get(hostname);
-    if (node == null) {
-      veae.setValid(false);
-      veae.getUndefinedInterfaceBlacklistNodes().add(hostname);
-      return;
-    }
-
-    @Nullable Interface nodeIface = node.getAllInterfaces().get(ifaceName);
-    if (nodeIface == null) {
-      veae.setValid(false);
-      veae.getUndefinedInterfaceBlacklistInterfaces()
-          .computeIfAbsent(hostname, k -> new TreeSet<>())
-          .add(ifaceName);
-      return;
-    }
-
-    nodeIface.setActive(false);
-    nodeIface.setBlacklisted(true);
+  /** Function that processes an interface blacklist across all configurations */
+  private static void processInterfaceBlacklist(
+      Set<NodeInterfacePair> interfaceBlacklist, NetworkConfigurations configurations) {
+    interfaceBlacklist
+        .stream()
+        .map(iface -> configurations.getInterface(iface.getHostname(), iface.getInterface()))
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .forEach(Interface::blacklist);
   }
 
-  private void processInterfaceBlacklist(
-      Map<String, Configuration> configurations, ValidateSnapshotAnswerElement veae) {
-    Set<NodeInterfacePair> blacklistInterfaces = getInterfaceBlacklist();
-    for (NodeInterfacePair p : blacklistInterfaces) {
-      blacklistInterface(configurations, veae, p);
-    }
+  @VisibleForTesting
+  static Set<NodeInterfacePair> nodeToInterfaceBlacklist(
+      SortedSet<String> blacklistNodes, NetworkConfigurations configurations) {
+    return blacklistNodes
+        .stream()
+        // Get all valid/present node configs
+        .map(configurations::get)
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        // All interfaces in each config
+        .flatMap(c -> c.getAllInterfaces().values().stream())
+        .map(NodeInterfacePair::new)
+        .collect(ImmutableSet.toImmutableSet());
   }
 
-  private void processNodeBlacklist(
-      Map<String, Configuration> configurations, ValidateSnapshotAnswerElement veae) {
-    SortedSet<String> blacklistNodes = getNodeBlacklist();
-    for (String hostname : blacklistNodes) {
-      Configuration node = configurations.get(hostname);
-      if (node != null) {
-        for (Interface iface : node.getAllInterfaces().values()) {
-          iface.setActive(false);
-          iface.setBlacklisted(true);
-        }
-      } else {
-        veae.setValid(false);
-        veae.getUndefinedNodeBlacklistNodes().add(hostname);
-      }
-    }
+  @VisibleForTesting
+  static void processManagementInterfaces(Map<String, Configuration> configurations) {
+    configurations
+        .values()
+        .stream()
+        .forEach(
+            configuration -> {
+              for (Interface iface : configuration.getAllInterfaces().values()) {
+                if (MANAGEMENT_INTERFACES.matcher(iface.getName()).find()
+                    || MANAGEMENT_VRFS.matcher(iface.getVrfName()).find()) {
+                  iface.setActive(false);
+                  iface.setBlacklisted(true);
+                }
+              }
+            });
   }
 
   @Override
@@ -2955,43 +2954,73 @@ public class Batfish extends PluginConsumer implements IBatfish {
   }
 
   /**
-   * Applies the current environment to the specified configurations and updates the given {@link
-   * ValidateSnapshotAnswerElement}. Applying the environment includes:
+   * Post-process the configuration in the current snapshot. Post-processing includes:
    *
    * <ul>
    *   <li>Applying node and interface blacklists.
-   *   <li>Applying node and interface blacklists.
+   *   <li>Process interface dependencies and deactivate interfaces that cannot be up
    * </ul>
    */
-  private void updateBlacklistedAndInactiveConfigs(
-      Map<String, Configuration> configurations, ValidateSnapshotAnswerElement veae) {
-    processNodeBlacklist(configurations, veae);
-    processInterfaceBlacklist(configurations, veae);
+  private void updateBlacklistedAndInactiveConfigs(Map<String, Configuration> configurations) {
+    NetworkConfigurations nc = NetworkConfigurations.of(configurations);
+    processInterfaceBlacklist(nodeToInterfaceBlacklist(getNodeBlacklist(), nc), nc);
+    processInterfaceBlacklist(getInterfaceBlacklist(), nc);
+    if (_settings.ignoreManagementInterfaces()) {
+      processManagementInterfaces(configurations);
+    }
+    postProcessInterfaceDependencies(configurations);
+
     // We do not process the edge blacklist here. Instead, we rely on these edges being explicitly
     // deleted from the Topology (aka list of edges) that is used along with configurations in
     // answering questions.
+
+    // TODO: take this out once dependencies are *the* definitive way to disable interfaces
     disableUnusableVlanInterfaces(configurations);
     disableUnusableVpnInterfaces(configurations);
   }
 
   /**
-   * Ensures that the current configurations for the current testrig+environment are up to date.
-   * Among other things, this includes:
+   * Ensures that the current configurations for the current snapshot are correct by performing some
+   * post-processing on the vendor-independent datamodel. Among other things, this includes:
    *
    * <ul>
    *   <li>Invalidating cached configs if the in-memory copy has been changed by question
    *       processing.
    *   <li>Re-loading configurations from disk, including re-parsing if the configs were parsed on a
    *       previous version of Batfish.
-   *   <li>Re-applying the environment to the configs, to ensure that blacklists are honored.
+   *   <li>Ensuring that blacklists are honored.
    * </ul>
    */
-  private void applyEnvironment(Map<String, Configuration> configurationsWithoutEnvironment) {
-    ValidateSnapshotAnswerElement veae = new ValidateSnapshotAnswerElement();
-    updateBlacklistedAndInactiveConfigs(configurationsWithoutEnvironment, veae);
-    postProcessForEnvironment(configurationsWithoutEnvironment);
+  private void postProcessSnapshot(Map<String, Configuration> configurations) {
+    updateBlacklistedAndInactiveConfigs(configurations);
+    postProcessAggregatedInterfaces(configurations);
+    postProcessOspfCosts(configurations);
+    computeAndStoreCompletionMetadata(configurations);
+  }
 
-    serializeObject(veae, _testrigSettings.getValidateSnapshotAnswerPath());
+  private void computeAndStoreCompletionMetadata(Map<String, Configuration> configurations) {
+    try {
+      _storage.storeCompletionMetadata(
+          computeCompletionMetadata(configurations),
+          _settings.getContainer(),
+          _testrigSettings.getName());
+    } catch (IOException e) {
+      _logger.errorf("Error storing CompletionMetadata: %s", e);
+    }
+  }
+
+  private CompletionMetadata computeCompletionMetadata(Map<String, Configuration> configurations) {
+    ReferenceLibrary referenceLibrary = getReferenceLibraryData();
+    return new CompletionMetadata(
+        getAddressBooks(referenceLibrary),
+        getAddressGroups(referenceLibrary),
+        getFilterNames(configurations),
+        getInterfaces(configurations),
+        getIps(configurations),
+        getPrefixes(configurations),
+        getStructureNames(configurations),
+        getVrfs(configurations),
+        getZones(configurations));
   }
 
   private void repairEnvironmentBgpTables() {
@@ -3022,16 +3051,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     loadPlugins();
     boolean action = false;
     Answer answer = new Answer();
-
-    if (_settings.getPrintSymmetricEdgePairs()) {
-      printSymmetricEdgePairs();
-      return answer;
-    }
-
-    if (_settings.getSynthesizeJsonTopology()) {
-      writeJsonTopology();
-      return answer;
-    }
 
     if (_settings.getFlatten()) {
       Path flattenSource = _testrigSettings.getInputPath();
@@ -3078,11 +3097,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
     if (_settings.getDataPlane()) {
       answer.addAnswerElement(computeDataPlane(_settings.getDiffActive()));
-      action = true;
-    }
-
-    if (_settings.getValidateSnapshot()) {
-      answer.append(validateSnapshot());
       action = true;
     }
 
@@ -3270,7 +3284,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
     _storage.storeConfigurations(
         configurations, answerElement, _settings.getContainer(), _testrigSettings.getName());
 
-    applyEnvironment(configurations);
+    postProcessSnapshot(configurations);
     Topology envTopology = computeEnvironmentTopology(configurations);
     serializeAsJson(
         _testrigSettings.getSerializeTopologyPath(), envTopology, "environment topology");
@@ -3777,7 +3791,12 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
   @Override
   public SpecifierContext specifierContext() {
-    return new SpecifierContextImpl(this, loadConfigurations());
+    return new SpecifierContextImpl(this, getNetworkSnapshot());
+  }
+
+  @Override
+  public SpecifierContext specifierContext(NetworkSnapshot networkSnapshot) {
+    return new SpecifierContextImpl(this, networkSnapshot);
   }
 
   @Override
@@ -3802,19 +3821,18 @@ public class Batfish extends PluginConsumer implements IBatfish {
         "Requiring or forbidding Source NAT is currently unsupported");
 
     BDDPacket pkt = new BDDPacket();
-    boolean ignoreAcls = params.getIgnoreAcls();
+    boolean ignoreFilters = params.getIgnoreFilters();
     BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
-        getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
+        getBddReachabilityAnalysisFactory(pkt, ignoreFilters);
+
     Map<IngressLocation, BDD> reachableBDDs =
-        bddReachabilityAnalysisFactory
-            .bddReachabilityAnalysis(
-                params.getSourceIpAssignment(),
-                params.getHeaderSpace(),
-                params.getForbiddenTransitNodes(),
-                params.getRequiredTransitNodes(),
-                params.getFinalNodes(),
-                params.getActions())
-            .getIngressLocationReachableBDDs();
+        bddReachabilityAnalysisFactory.getAllBDDs(
+            params.getSourceIpAssignment(),
+            params.getHeaderSpace(),
+            params.getForbiddenTransitNodes(),
+            params.getRequiredTransitNodes(),
+            params.getFinalNodes(),
+            params.getActions());
 
     String flowTag = getFlowTag();
     Set<Flow> flows =
@@ -3849,20 +3867,20 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
     DataPlane dp = loadDataPlane();
     if (_settings.debugFlagEnabled("oldtraceroute")) {
-      getDataPlanePlugin().processFlows(flows, dp, ignoreAcls);
+      getDataPlanePlugin().processFlows(flows, dp, ignoreFilters);
       return getHistory();
     } else {
-      return new TraceWrapperAsAnswerElement(buildFlows(flows, ignoreAcls));
+      return new TraceWrapperAsAnswerElement(buildFlows(flows, ignoreFilters));
     }
   }
 
   @Override
   public Set<Flow> bddLoopDetection() {
     BDDPacket pkt = new BDDPacket();
-    // TODO add ignoreAcls parameter
-    boolean ignoreAcls = false;
+    // TODO add ignoreFilters parameter
+    boolean ignoreFilters = false;
     BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
-        getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
+        getBddReachabilityAnalysisFactory(pkt, ignoreFilters);
     BDDReachabilityAnalysis analysis =
         bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
             getAllSourcesInferFromLocationIpSpaceAssignment());
@@ -3947,68 +3965,52 @@ public class Batfish extends PluginConsumer implements IBatfish {
   @Override
   public Set<Flow> bddMultipathConsistency(MultipathConsistencyParameters parameters) {
     BDDPacket pkt = new BDDPacket();
-    // TODO add ignoreAcls parameter
-    boolean ignoreAcls = false;
+    // TODO add ignoreFilters parameter
+    boolean ignoreFilters = false;
     BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
-        getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
+        getBddReachabilityAnalysisFactory(pkt, ignoreFilters);
     IpSpaceAssignment srcIpSpaceAssignment = parameters.getSrcIpSpaceAssignment();
     Set<String> finalNodes = parameters.getFinalNodes();
-    Set<FlowDisposition> dropDispositions =
+    Set<FlowDisposition> failureDispositions =
         ImmutableSet.of(
             FlowDisposition.DENIED_IN,
             FlowDisposition.DENIED_OUT,
+            FlowDisposition.LOOP,
+            FlowDisposition.INSUFFICIENT_INFO,
+            FlowDisposition.NEIGHBOR_UNREACHABLE,
             FlowDisposition.NO_ROUTE,
             FlowDisposition.NULL_ROUTED);
+    Set<FlowDisposition> successDispositions =
+        ImmutableSet.of(
+            FlowDisposition.ACCEPTED,
+            FlowDisposition.DELIVERED_TO_SUBNET,
+            FlowDisposition.EXITS_NETWORK);
     Set<String> forbiddenTransitNodes = parameters.getForbiddenTransitNodes();
     Set<String> requiredTransitNodes = parameters.getRequiredTransitNodes();
-    Map<IngressLocation, BDD> acceptedBDDs =
-        bddReachabilityAnalysisFactory
-            .bddReachabilityAnalysis(
-                srcIpSpaceAssignment,
-                parameters.getHeaderSpace(),
-                forbiddenTransitNodes,
-                requiredTransitNodes,
-                finalNodes,
-                ImmutableSet.of(FlowDisposition.ACCEPTED))
-            .getIngressLocationReachableBDDs();
-    Map<IngressLocation, BDD> droppedBDDs =
-        bddReachabilityAnalysisFactory
-            .bddReachabilityAnalysis(
-                srcIpSpaceAssignment,
-                parameters.getHeaderSpace(),
-                forbiddenTransitNodes,
-                requiredTransitNodes,
-                finalNodes,
-                dropDispositions)
-            .getIngressLocationReachableBDDs();
-    Map<IngressLocation, BDD> neighborUnreachableBDDs =
-        bddReachabilityAnalysisFactory
-            .bddReachabilityAnalysis(
-                srcIpSpaceAssignment,
-                parameters.getHeaderSpace(),
-                forbiddenTransitNodes,
-                requiredTransitNodes,
-                finalNodes,
-                ImmutableSet.of(
-                    FlowDisposition.NEIGHBOR_UNREACHABLE,
-                    FlowDisposition.DELIVERED_TO_SUBNET,
-                    FlowDisposition.EXITS_NETWORK,
-                    FlowDisposition.INSUFFICIENT_INFO))
-            .getIngressLocationReachableBDDs();
+    Map<IngressLocation, BDD> successBdds =
+        bddReachabilityAnalysisFactory.getAllBDDs(
+            srcIpSpaceAssignment,
+            parameters.getHeaderSpace(),
+            forbiddenTransitNodes,
+            requiredTransitNodes,
+            finalNodes,
+            successDispositions);
+    Map<IngressLocation, BDD> failureBdds =
+        bddReachabilityAnalysisFactory.getAllBDDs(
+            srcIpSpaceAssignment,
+            parameters.getHeaderSpace(),
+            forbiddenTransitNodes,
+            requiredTransitNodes,
+            finalNodes,
+            failureDispositions);
 
-    String flowTag = getFlowTag();
-    return Streams.concat(
-            computeMultipathInconsistencies(pkt, flowTag, acceptedBDDs, droppedBDDs).stream(),
-            computeMultipathInconsistencies(pkt, flowTag, acceptedBDDs, neighborUnreachableBDDs)
-                .stream(),
-            computeMultipathInconsistencies(pkt, flowTag, droppedBDDs, neighborUnreachableBDDs)
-                .stream())
-        .collect(ImmutableSet.toImmutableSet());
+    return ImmutableSet.copyOf(
+        computeMultipathInconsistencies(pkt, getFlowTag(), successBdds, failureBdds));
   }
 
   @Nonnull
   public IpSpaceAssignment getAllSourcesInferFromLocationIpSpaceAssignment() {
-    SpecifierContextImpl specifierContext = new SpecifierContextImpl(this, loadConfigurations());
+    SpecifierContextImpl specifierContext = new SpecifierContextImpl(this, getNetworkSnapshot());
     Set<Location> locations =
         new UnionLocationSpecifier(
                 AllInterfacesLocationSpecifier.INSTANCE,
@@ -4019,9 +4021,9 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
   @Nonnull
   private BDDReachabilityAnalysisFactory getBddReachabilityAnalysisFactory(
-      BDDPacket pkt, boolean ignoreAcls) {
+      BDDPacket pkt, boolean ignoreFilters) {
     return new BDDReachabilityAnalysisFactory(
-        pkt, loadConfigurations(), loadDataPlane().getForwardingAnalysis(), ignoreAcls);
+        pkt, loadConfigurations(), loadDataPlane().getForwardingAnalysis(), ignoreFilters);
   }
 
   /**
@@ -4035,6 +4037,11 @@ public class Batfish extends PluginConsumer implements IBatfish {
         !parameters.getFlowDispositions().isEmpty(), "Must specify at least one FlowDisposition");
     BDDPacket pkt = new BDDPacket();
 
+    AclLineMatchExpr headerSpace =
+        parameters.getInvertSearch()
+            ? not(parameters.getHeaderSpace())
+            : parameters.getHeaderSpace();
+
     /*
      * TODO should we have separate parameters for base and delta?
      * E.g. suppose we add a host subnet in the delta network. This would be a source of
@@ -4044,27 +4051,25 @@ public class Batfish extends PluginConsumer implements IBatfish {
     pushBaseSnapshot();
     Map<IngressLocation, BDD> baseAcceptBDDs =
         getBddReachabilityAnalysisFactory(pkt, parameters.getIgnoreFilters())
-            .bddReachabilityAnalysis(
+            .getAllBDDs(
                 parameters.getIpSpaceAssignment(),
-                parameters.getHeaderSpace(),
+                headerSpace,
                 parameters.getForbiddenTransitNodes(),
                 parameters.getRequiredTransitNodes(),
                 parameters.getFinalNodes(),
-                parameters.getFlowDispositions())
-            .getIngressLocationReachableBDDs();
+                parameters.getFlowDispositions());
     popSnapshot();
 
     pushDeltaSnapshot();
     Map<IngressLocation, BDD> deltaAcceptBDDs =
         getBddReachabilityAnalysisFactory(pkt, parameters.getIgnoreFilters())
-            .bddReachabilityAnalysis(
+            .getAllBDDs(
                 parameters.getIpSpaceAssignment(),
-                parameters.getHeaderSpace(),
+                headerSpace,
                 parameters.getForbiddenTransitNodes(),
                 parameters.getRequiredTransitNodes(),
                 parameters.getFinalNodes(),
-                parameters.getFlowDispositions())
-            .getIngressLocationReachableBDDs();
+                parameters.getFlowDispositions());
     popSnapshot();
 
     Set<IngressLocation> commonSources =
@@ -4209,16 +4214,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
         .build();
   }
 
-  private Answer validateSnapshot() {
-    Answer answer = new Answer();
-    ValidateSnapshotAnswerElement ae = loadValidateSnapshotAnswerElement();
-    answer.addAnswerElement(ae);
-    Topology envTopology = computeEnvironmentTopology(loadConfigurations());
-    serializeAsJson(
-        _testrigSettings.getSerializeTopologyPath(), envTopology, "environment topology");
-    return answer;
-  }
-
   private void writeJsonAnswer(String structuredAnswerString) {
     SnapshotId deltaSnapshot = _settings.getDiffQuestion() ? _deltaTestrigSettings.getName() : null;
     NetworkId networkId = _settings.getContainer();
@@ -4267,32 +4262,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
     // Write answer.json and answer-pretty.json if WorkItem was answering a question
     if (_settings.getQuestionName() != null) {
       writeJsonAnswer(structuredAnswerString);
-    }
-  }
-
-  private void writeJsonTopology() {
-    try {
-      Map<String, Configuration> configs = loadConfigurations();
-      SortedSet<Edge> textEdges = CommonUtil.synthesizeTopology(configs).getEdges();
-      JSONArray jEdges = new JSONArray();
-      for (Edge textEdge : textEdges) {
-        Configuration node1 = configs.get(textEdge.getNode1());
-        Configuration node2 = configs.get(textEdge.getNode2());
-        Interface interface1 = node1.getAllInterfaces().get(textEdge.getInt1());
-        Interface interface2 = node2.getAllInterfaces().get(textEdge.getInt2());
-        JSONObject jEdge = new JSONObject();
-        jEdge.put("interface1", interface1.toJSONObject());
-        jEdge.put("interface2", interface2.toJSONObject());
-        jEdges.put(jEdge);
-      }
-      JSONObject master = new JSONObject();
-      JSONObject topology = new JSONObject();
-      topology.put("edges", jEdges);
-      master.put("topology", topology);
-      String text = master.toString(3);
-      _logger.output(text);
-    } catch (JSONException e) {
-      throw new BatfishException("Failed to synthesize JSON topology", e);
     }
   }
 

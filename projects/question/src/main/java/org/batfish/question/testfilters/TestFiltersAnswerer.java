@@ -14,6 +14,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import org.batfish.common.Answerer;
+import org.batfish.common.BatfishException;
 import org.batfish.common.plugin.IBatfish;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.EmptyIpSpace;
@@ -62,7 +63,7 @@ public class TestFiltersAnswerer extends Answerer {
   public static final String COL_ACTION = "Action";
   public static final String COL_LINE_CONTENT = "Line_Content";
   public static final String COL_TRACE = "Trace";
-  private static final Ip DEFAULT_IP_ADDRESS = new Ip("8.8.8.8");
+  private static final Ip DEFAULT_IP_ADDRESS = Ip.parse("8.8.8.8");
 
   private final IpSpaceRepresentative _ipSpaceRepresentative;
   private final IpSpaceAssignment _sourceIpAssignment;
@@ -216,16 +217,23 @@ public class TestFiltersAnswerer extends Answerer {
     // collect all errors while building flows; return this set when no valid flow is found
     ImmutableSet.Builder<String> allProblems = ImmutableSet.builder();
 
+    // keep track of whether any matching filters have been found; if none get found, throw error
+    boolean foundMatchingFilter = false;
+
     for (String node : includeNodes) {
       Configuration c = configurations.get(node);
       Set<Flow> flows = getFlows(c, allProblems);
 
       // there should be another for loop for v6 filters when we add v6 support
       for (IpAccessList filter : filterSpecifier.resolve(node, _batfish.specifierContext())) {
+        foundMatchingFilter = true;
         for (Flow flow : flows) {
           rows.add(getRow(filter, flow, c));
         }
       }
+    }
+    if (!foundMatchingFilter) {
+      throw new BatfishException("No matching filters");
     }
     checkArgument(
         rows.size() > 0,

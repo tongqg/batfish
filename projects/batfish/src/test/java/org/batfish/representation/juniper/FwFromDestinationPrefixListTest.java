@@ -34,7 +34,9 @@ public class FwFromDestinationPrefixListTest {
   @Before
   public void setup() {
     _jc = new JuniperConfiguration();
-    _jc.getPrefixLists().put(BASE_PREFIX_LIST_NAME, new PrefixList(BASE_PREFIX_LIST_NAME));
+    _jc.getMasterLogicalSystem()
+        .getPrefixLists()
+        .put(BASE_PREFIX_LIST_NAME, new PrefixList(BASE_PREFIX_LIST_NAME));
     _w = new Warnings();
     _c = new Configuration("test", ConfigurationFormat.FLAT_JUNIPER);
     RouteFilterList rflist = new RouteFilterList(BASE_PREFIX_LIST_NAME);
@@ -46,7 +48,7 @@ public class FwFromDestinationPrefixListTest {
 
   @Test
   public void testApplyTo() {
-    IpSpace additionalIpSpace = new Ip("2.2.2.2").toIpSpace();
+    IpSpace additionalIpSpace = Ip.parse("2.2.2.2").toIpSpace();
     IpSpace baseIpSpace = new IpWildcard(BASE_IP_PREFIX).toIpSpace();
 
     HeaderSpace.Builder headerSpaceBuilder = HeaderSpace.builder();

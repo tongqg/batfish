@@ -28,13 +28,17 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import org.batfish.common.BatfishException;
 import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.datamodel.Flow;
+import org.batfish.datamodel.FlowTrace;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.Prefix;
+import org.batfish.datamodel.acl.AclTrace;
 import org.batfish.datamodel.answers.Issue;
 import org.batfish.datamodel.answers.Schema;
 import org.batfish.datamodel.answers.SchemaUtils;
+import org.batfish.datamodel.answers.SelfDescribingObject;
 import org.batfish.datamodel.collections.FileLines;
 import org.batfish.datamodel.collections.NodeInterfacePair;
+import org.batfish.datamodel.flow.Trace;
 import org.batfish.datamodel.pojo.Node;
 import org.batfish.datamodel.questions.Exclusion;
 
@@ -250,6 +254,10 @@ public class Row implements Comparable<Row>, Serializable {
     }
   }
 
+  public @Nullable AclTrace getAclTrace(String column) {
+    return (AclTrace) get(column, Schema.ACL_TRACE);
+  }
+
   public Boolean getBoolean(String column) {
     return (Boolean) get(column, Schema.BOOLEAN);
   }
@@ -280,6 +288,10 @@ public class Row implements Comparable<Row>, Serializable {
 
   public Flow getFlow(String column) {
     return (Flow) get(column, Schema.FLOW);
+  }
+
+  public @Nullable FlowTrace getFlowTrace(String column) {
+    return (FlowTrace) get(column, Schema.FLOW_TRACE);
   }
 
   public Integer getInteger(String column) {
@@ -320,6 +332,10 @@ public class Row implements Comparable<Row>, Serializable {
     return (Issue) get(column, Schema.ISSUE);
   }
 
+  public @Nullable Long getLong(String column) {
+    return (Long) get(column, Schema.LONG);
+  }
+
   public Node getNode(String column) {
     return (Node) get(column, Schema.NODE);
   }
@@ -332,8 +348,16 @@ public class Row implements Comparable<Row>, Serializable {
     return (Prefix) get(column, Schema.PREFIX);
   }
 
+  public SelfDescribingObject getSelfDescribing(String column) {
+    return (SelfDescribingObject) get(column, Schema.SELF_DESCRIBING);
+  }
+
   public String getString(String column) {
     return (String) get(column, Schema.STRING);
+  }
+
+  public @Nullable Trace getTrace(String column) {
+    return (Trace) get(column, Schema.TRACE);
   }
 
   /**

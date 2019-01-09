@@ -1,10 +1,10 @@
 load-questions questions/experimental
 
 # validate filterLineReachability
-test -raw tests/questions/experimental/filterLineReachability.ref validate-template filterLineReachability filters=".*", nodes=".*"
+test -raw tests/questions/experimental/filterLineReachability.ref validate-template filterLineReachability filters=".*", ignoreComposites=false, nodes=".*"
 
 # validate bgpPeerConfiguration
-test -raw tests/questions/experimental/bgpPeerConfiguration.ref validate-template bgpPeerConfiguration nodes=".*"
+test -raw tests/questions/experimental/bgpPeerConfiguration.ref validate-template bgpPeerConfiguration nodes=".*", properties="local_.*"
 
 # validate bgpProcessConfiguration
 test -raw tests/questions/experimental/bgpProcessConfiguration.ref validate-template bgpProcessConfiguration nodes=".*", properties="multipath-.*"
@@ -16,10 +16,13 @@ test -raw tests/questions/experimental/bgpSessionCompatibility.ref validate-temp
 test -raw tests/questions/experimental/bgpSessionStatus.ref validate-template bgpSessionStatus nodes=".*", remoteNodes=".*", status=".*", type=".*"
 
 # validate detectLoops
-test -raw tests/questions/experimental/detectLoops.ref validate-template detectLoops
+test -raw tests/questions/experimental/detectLoops.ref validate-template detectLoops maxTraces=0
 
 # validate filterTable
 test -raw tests/questions/experimental/filterTable.ref validate-template filterTable filter = "mtu == 1500", innerQuestion={"class": "org.batfish.question.interfaceproperties.InterfacePropertiesQuestion"}, columns=["interface", "mtu"]
+
+# validate loopbackMultipathConsistency
+test -raw tests/questions/experimental/loopbackMultipathConsistency.ref validate-template loopbackMultipathConsistency maxTraces=1
 
 # validate interfaceMtu
 test -raw tests/questions/experimental/interfaceMtu.ref validate-template interfaceMtu comparator='>', interfaces='Gig.*', mtuBytes=0, nodes='as1core2'
@@ -28,10 +31,10 @@ test -raw tests/questions/experimental/interfaceMtu.ref validate-template interf
 test -raw tests/questions/experimental/interfaceProperties.ref validate-template interfaceProperties excludeShutInterfaces=false, nodes=".*", interfaces=".*", properties=".*"
 
 # validate multipathConsistency
-test -raw tests/questions/experimental/multipathConsistency.ref validate-template multipathConsistency pathConstraints={startLocation: "aaa", "endLocation":"bbb", "transitLocations": "ccc", forbiddenLocations:"ddd"}, headers={srcIps: "sss", dstIps="ddd"}
+test -raw tests/questions/experimental/multipathConsistency.ref validate-template multipathConsistency pathConstraints={startLocation: "aaa", "endLocation":"bbb", "transitLocations": "ccc", forbiddenLocations:"ddd"}, headers={srcIps: "sss", dstIps="ddd"}, maxTraces=1
 
 # validate namedStructures
-test -raw tests/questions/experimental/namedStructures.ref validate-template namedStructures nodes=".*", properties=".*"
+test -raw tests/questions/experimental/namedStructures.ref validate-template namedStructures ignoreGenerated=false, indicatePresence=false, nodes=".*", structureNames=".*", structureTypes=".*"
 
 # validate neighbors
 test -raw tests/questions/experimental/neighbors.ref validate-template neighbors neighborTypes=["ebgp"], nodes=".*", remoteNodes=".*", style="summary", roleDimension="default"
@@ -49,10 +52,10 @@ test -raw tests/questions/experimental/ospfProperties.ref validate-template ospf
 test -raw tests/questions/experimental/prefixTracer.ref validate-template prefixTracer nodes=".*", prefix="0.0.0.0/0"
 
 # validate reachability
-test -raw tests/questions/experimental/reachability.ref validate-template reachability actions="success", pathConstraints={startLocation: "aaa", "endLocation":"bbb", "transitLocations": "ccc", forbiddenLocations:"ddd"}, headers={srcIps: "sss", dstIps="ddd"}, ignoreFilters=False
+test -raw tests/questions/experimental/reachability.ref validate-template reachability actions="success", pathConstraints={startLocation: "aaa", "endLocation":"bbb", "transitLocations": "ccc", forbiddenLocations:"ddd"}, headers={srcIps: "sss", dstIps="ddd"}, ignoreFilters=False, invertSearch=False, maxTraces=1
 
 # validate differentialReachability
-test -raw tests/questions/experimental/differentialReachability.ref validate-template differentialReachability actions="success", pathConstraints={startLocation: "aaa", "endLocation":"bbb", "transitLocations": "ccc", forbiddenLocations:"ddd"}, headers={srcIps: "sss", dstIps="ddd"}, ignoreFilters=false
+test -raw tests/questions/experimental/differentialReachability.ref validate-template differentialReachability actions="success", pathConstraints={startLocation: "aaa", "endLocation":"bbb", "transitLocations": "ccc", forbiddenLocations:"ddd"}, headers={srcIps: "sss", dstIps="ddd"}, ignoreFilters=false, invertSearch=false, maxTraces=1
 
 # validate resolveFilterSpecifier
 test -raw tests/questions/experimental/resolveFilterSpecifier.ref validate-template resolveFilterSpecifier filters="input", nodes="input"
@@ -75,14 +78,11 @@ test -raw tests/questions/experimental/resolveNodeSpecifier.ref validate-templat
 # validate searchfilters
 test -raw tests/questions/experimental/searchfilters.ref validate-template searchfilters invertSearch=false, filters=".*", action="matchLine 0", headers={dstIps="2.2.2.2", ipProtocols="tcp", srcIps="1.1.1.1", srcPorts="0", dstPorts="0-1000,!22"}, nodes=".*", startLocation="somenode", explain=false
 
+# validate subnetMultipathConsistency
+test -raw tests/questions/experimental/subnetMultipathConsistency.ref validate-template subnetMultipathConsistency maxTraces=1
+
 # test traceroute
-test -raw tests/questions/experimental/traceroute.ref validate-template traceroute startLocation="location", ignoreAcls=false, maxTraces=0, headers=null
+test -raw tests/questions/experimental/traceroute.ref validate-template traceroute startLocation="location", ignoreFilters=false, maxTraces=0, headers={"dstIps" : "1.1.1.1/32"}
 
 # test viModel
 test -raw tests/questions/experimental/viModel.ref validate-template viModel
-
-# test traceroute new version
-add-batfish-option debugflags=traceroute
-init-network test_traceroute
-init-snapshot networks/example/live
-test tests/questions/experimental/tracerouteListHops.ref answer traceroute startLocation="host1", ignoreAcls=false, headers={dstIps="1.0.2.2"}

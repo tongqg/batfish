@@ -69,7 +69,7 @@
         "Source_Lines" : {
           "filename" : "configs/asa_acl",
           "lines" : [
-            7
+            9
           ]
         }
       },
@@ -79,7 +79,7 @@
         "Source_Lines" : {
           "filename" : "configs/asa_acl",
           "lines" : [
-            4
+            6
           ]
         }
       },
@@ -88,6 +88,16 @@
         "Structure_Name" : "Local_LAN_Access",
         "Source_Lines" : {
           "filename" : "configs/asa_acl",
+          "lines" : [
+            7
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "extended ipv4 access-list",
+        "Structure_Name" : "ALLOW_SERVER02",
+        "Source_Lines" : {
+          "filename" : "configs/asa_object_groups",
           "lines" : [
             5
           ]
@@ -289,6 +299,18 @@
             26,
             27,
             28
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "extended ipv4 access-list",
+        "Structure_Name" : "TEST",
+        "Source_Lines" : {
+          "filename" : "configs/cisco_acl",
+          "lines" : [
+            66,
+            67,
+            68
           ]
         }
       },
@@ -1127,6 +1149,16 @@
         }
       },
       {
+        "Structure_Type" : "zone",
+        "Structure_Name" : "t1",
+        "Source_Lines" : {
+          "filename" : "configs/cisco_zone",
+          "lines" : [
+            10
+          ]
+        }
+      },
+      {
         "Structure_Type" : "zone-pair security",
         "Structure_Name" : "zp1",
         "Source_Lines" : {
@@ -1945,6 +1977,37 @@
         }
       },
       {
+        "Structure_Type" : "as-path-group",
+        "Structure_Name" : "AS_PATH_GROUP1",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_as_path_group",
+          "lines" : [
+            5,
+            6
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "as-path-group as-path",
+        "Structure_Name" : "AS_PATH_REGEX_NAME1",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_as_path_group",
+          "lines" : [
+            5
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "as-path-group as-path",
+        "Structure_Name" : "AS_PATH_REGEX_NAME2",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_as_path_group",
+          "lines" : [
+            6
+          ]
+        }
+      },
+      {
         "Structure_Type" : "bgp group",
         "Structure_Name" : "someipv4bgpgroup",
         "Source_Lines" : {
@@ -1969,6 +2032,16 @@
             14,
             15,
             16
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "firewall filter",
+        "Structure_Name" : "ISP-INBOUND-L2",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_firewall",
+          "lines" : [
+            38
           ]
         }
       },
@@ -2000,7 +2073,21 @@
             24,
             25,
             26,
-            27
+            27,
+            30,
+            31
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "firewall filter",
+        "Structure_Name" : "blah6",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_firewall",
+          "lines" : [
+            33,
+            34,
+            35
           ]
         }
       },
@@ -2031,8 +2118,78 @@
         "Source_Lines" : {
           "filename" : "configs/juniper_interfaces",
           "lines" : [
-            16,
+            23,
+            24
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "nat pool",
+        "Structure_Name" : "POOL",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_nat",
+          "lines" : [
+            6,
             17
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "nat rule",
+        "Structure_Name" : "DST-RULE",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_nat",
+          "lines" : [
+            21,
+            22,
+            23,
+            24,
+            25
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "nat rule",
+        "Structure_Name" : "SRC-RULE",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_nat",
+          "lines" : [
+            11,
+            12,
+            13,
+            14,
+            15
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "nat rule set",
+        "Structure_Name" : "DST-NAT",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_nat",
+          "lines" : [
+            19,
+            21,
+            22,
+            23,
+            24,
+            25
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "nat rule set",
+        "Structure_Name" : "SRC-NAT",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_nat",
+          "lines" : [
+            8,
+            9,
+            11,
+            12,
+            13,
+            14,
+            15
           ]
         }
       },
@@ -2059,7 +2216,20 @@
             18,
             19,
             20,
-            21
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34
           ]
         }
       },
@@ -2094,12 +2264,40 @@
         }
       },
       {
+        "Structure_Type" : "policy-statement",
+        "Structure_Name" : "POLICY-NAME",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_routing_policy",
+          "lines" : [
+            7,
+            8,
+            9,
+            10
+          ]
+        }
+      },
+      {
         "Structure_Type" : "ike policy",
         "Structure_Name" : "1.2.3.4",
         "Source_Lines" : {
           "filename" : "configs/juniper_security",
           "lines" : [
-            9
+            12
+          ]
+        }
+      },
+      {
+        "Structure_Type" : "security-profile",
+        "Structure_Name" : "ls1",
+        "Source_Lines" : {
+          "filename" : "configs/juniper_system",
+          "lines" : [
+            16,
+            17,
+            18,
+            19,
+            20,
+            21
           ]
         }
       },
@@ -2570,10 +2768,10 @@
       }
     ],
     "summary" : {
-      "notes" : "Found 180 results",
+      "notes" : "Found 195 results",
       "numFailed" : 0,
       "numPassed" : 0,
-      "numResults" : 180
+      "numResults" : 195
     }
   }
 ]

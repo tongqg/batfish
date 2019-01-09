@@ -3,6 +3,8 @@ package org.batfish.grammar.flatjuniper;
 import static org.batfish.datamodel.AuthenticationMethod.GROUP_RADIUS;
 import static org.batfish.datamodel.AuthenticationMethod.GROUP_TACACS;
 import static org.batfish.datamodel.AuthenticationMethod.PASSWORD;
+import static org.batfish.datamodel.IpAccessListLine.accepting;
+import static org.batfish.datamodel.Names.zoneToZoneFilter;
 import static org.batfish.datamodel.matchers.AaaAuthenticationLoginListMatchers.hasMethods;
 import static org.batfish.datamodel.matchers.AbstractRouteMatchers.hasPrefix;
 import static org.batfish.datamodel.matchers.AbstractRouteMatchers.isNonForwarding;
@@ -31,6 +33,7 @@ import static org.batfish.datamodel.matchers.ConfigurationMatchers.hasIpsecPolic
 import static org.batfish.datamodel.matchers.ConfigurationMatchers.hasIpsecProposal;
 import static org.batfish.datamodel.matchers.ConfigurationMatchers.hasVrf;
 import static org.batfish.datamodel.matchers.ConfigurationMatchers.hasVrfs;
+import static org.batfish.datamodel.matchers.DataModelMatchers.hasBandwidth;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasDefinedStructureWithDefinitionLines;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasIsisProcess;
 import static org.batfish.datamodel.matchers.DataModelMatchers.hasNumReferrers;
@@ -77,7 +80,7 @@ import static org.batfish.datamodel.matchers.IsisInterfaceSettingsMatchers.hasLe
 import static org.batfish.datamodel.matchers.IsisInterfaceSettingsMatchers.hasLevel2;
 import static org.batfish.datamodel.matchers.IsisLevelSettingsMatchers.hasWideMetricsOnly;
 import static org.batfish.datamodel.matchers.IsisProcessMatchers.hasNetAddress;
-import static org.batfish.datamodel.matchers.IsisProcessMatchers.hasOverloadTimeout;
+import static org.batfish.datamodel.matchers.IsisProcessMatchers.hasOverload;
 import static org.batfish.datamodel.matchers.LineMatchers.hasAuthenticationLoginList;
 import static org.batfish.datamodel.matchers.LiteralIntMatcher.hasVal;
 import static org.batfish.datamodel.matchers.LiteralIntMatcher.isLiteralIntThat;
@@ -88,6 +91,7 @@ import static org.batfish.datamodel.matchers.OspfAreaMatchers.hasMetricOfDefault
 import static org.batfish.datamodel.matchers.OspfAreaMatchers.hasNssa;
 import static org.batfish.datamodel.matchers.OspfAreaMatchers.hasStub;
 import static org.batfish.datamodel.matchers.OspfAreaMatchers.hasStubType;
+import static org.batfish.datamodel.matchers.OspfAreaMatchers.hasSummary;
 import static org.batfish.datamodel.matchers.OspfAreaSummaryMatchers.hasMetric;
 import static org.batfish.datamodel.matchers.OspfAreaSummaryMatchers.isAdvertised;
 import static org.batfish.datamodel.matchers.OspfProcessMatchers.hasArea;
@@ -124,9 +128,11 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anything;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.hasValue;
@@ -134,6 +140,7 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -144,10 +151,15 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Set;
 import java.util.SortedMap;
 import java.util.SortedSet;
+import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.batfish.common.BatfishLogger;
+import org.batfish.common.Warnings;
+import org.batfish.common.WellKnownCommunity;
 import org.batfish.common.util.CommonUtil;
 import org.batfish.config.Settings;
 import org.batfish.datamodel.AclIpSpace;
@@ -157,19 +169,25 @@ import org.batfish.datamodel.BgpRoute;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.ConfigurationFormat;
 import org.batfish.datamodel.ConnectedRoute;
+import org.batfish.datamodel.DestinationNat;
 import org.batfish.datamodel.DiffieHellmanGroup;
 import org.batfish.datamodel.EncryptionAlgorithm;
+import org.batfish.datamodel.FilterResult;
 import org.batfish.datamodel.Flow;
 import org.batfish.datamodel.FlowState;
+import org.batfish.datamodel.GeneratedRoute;
 import org.batfish.datamodel.HeaderSpace;
 import org.batfish.datamodel.IkeAuthenticationMethod;
 import org.batfish.datamodel.IkeHashingAlgorithm;
+import org.batfish.datamodel.IntegerSpace;
+import org.batfish.datamodel.Interface;
 import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpAccessList;
 import org.batfish.datamodel.IpAccessListLine;
 import org.batfish.datamodel.IpProtocol;
 import org.batfish.datamodel.IpSpace;
+import org.batfish.datamodel.IpSpaceReference;
 import org.batfish.datamodel.IpWildcard;
 import org.batfish.datamodel.IpsecAuthenticationAlgorithm;
 import org.batfish.datamodel.IpsecEncapsulationMode;
@@ -183,12 +201,15 @@ import org.batfish.datamodel.OspfExternalType2Route;
 import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.RouteFilterLine;
 import org.batfish.datamodel.RouteFilterList;
+import org.batfish.datamodel.SourceNat;
 import org.batfish.datamodel.StaticRoute;
 import org.batfish.datamodel.SubRange;
 import org.batfish.datamodel.SwitchportMode;
+import org.batfish.datamodel.acl.AclLineMatchExprs;
 import org.batfish.datamodel.acl.MatchHeaderSpace;
 import org.batfish.datamodel.answers.ConvertConfigurationAnswerElement;
 import org.batfish.datamodel.answers.InitInfoAnswerElement;
+import org.batfish.datamodel.answers.ParseVendorConfigurationAnswerElement;
 import org.batfish.datamodel.isis.IsisHelloAuthenticationType;
 import org.batfish.datamodel.isis.IsisInterfaceMode;
 import org.batfish.datamodel.matchers.IkePhase1KeyMatchers;
@@ -211,6 +232,7 @@ import org.batfish.datamodel.ospf.OspfDefaultOriginateType;
 import org.batfish.datamodel.ospf.StubType;
 import org.batfish.datamodel.routing_policy.Environment;
 import org.batfish.datamodel.routing_policy.Environment.Direction;
+import org.batfish.datamodel.routing_policy.Result;
 import org.batfish.datamodel.routing_policy.RoutingPolicy;
 import org.batfish.datamodel.routing_policy.statement.If;
 import org.batfish.datamodel.routing_policy.statement.SetAdministrativeCost;
@@ -221,6 +243,25 @@ import org.batfish.grammar.flattener.FlattenerLineMap;
 import org.batfish.main.Batfish;
 import org.batfish.main.BatfishTestUtils;
 import org.batfish.main.TestrigText;
+import org.batfish.representation.juniper.InterfaceRange;
+import org.batfish.representation.juniper.InterfaceRangeMember;
+import org.batfish.representation.juniper.InterfaceRangeMemberRange;
+import org.batfish.representation.juniper.JuniperConfiguration;
+import org.batfish.representation.juniper.Nat;
+import org.batfish.representation.juniper.Nat.Type;
+import org.batfish.representation.juniper.NatPacketLocation;
+import org.batfish.representation.juniper.NatPool;
+import org.batfish.representation.juniper.NatRule;
+import org.batfish.representation.juniper.NatRuleMatchDstAddr;
+import org.batfish.representation.juniper.NatRuleMatchDstAddrName;
+import org.batfish.representation.juniper.NatRuleMatchDstPort;
+import org.batfish.representation.juniper.NatRuleMatchSrcAddr;
+import org.batfish.representation.juniper.NatRuleMatchSrcAddrName;
+import org.batfish.representation.juniper.NatRuleMatchSrcPort;
+import org.batfish.representation.juniper.NatRuleSet;
+import org.batfish.representation.juniper.NatRuleThenOff;
+import org.batfish.representation.juniper.NatRuleThenPool;
+import org.batfish.representation.juniper.Zone;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
 import org.junit.Rule;
@@ -229,7 +270,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.rules.TemporaryFolder;
 
 /** Tests for {@link FlatJuniperParser} and {@link FlatJuniperControlPlaneExtractor}. */
-public class FlatJuniperGrammarTest {
+public final class FlatJuniperGrammarTest {
 
   private static final String TESTCONFIGS_PREFIX = "org/batfish/grammar/juniper/testconfigs/";
 
@@ -246,8 +287,8 @@ public class FlatJuniperGrammarTest {
   private static Flow createFlow(String sourceAddress, String destinationAddress, FlowState state) {
     Flow.Builder fb = new Flow.Builder();
     fb.setIngressNode("node");
-    fb.setSrcIp(new Ip(sourceAddress));
-    fb.setDstIp(new Ip(destinationAddress));
+    fb.setSrcIp(Ip.parse(sourceAddress));
+    fb.setDstIp(Ip.parse(destinationAddress));
     fb.setState(state);
     fb.setTag("test");
     return fb.build();
@@ -271,6 +312,20 @@ public class FlatJuniperGrammarTest {
 
   private Configuration parseConfig(String hostname) throws IOException {
     return parseTextConfigs(hostname).get(hostname.toLowerCase());
+  }
+
+  private JuniperConfiguration parseJuniperConfig(String hostname) {
+    String src = CommonUtil.readResource(TESTCONFIGS_PREFIX + hostname);
+    Settings settings = new Settings();
+    FlatJuniperCombinedParser flatJuniperParser =
+        new FlatJuniperCombinedParser(src, settings, null);
+    FlatJuniperControlPlaneExtractor extractor =
+        new FlatJuniperControlPlaneExtractor(src, flatJuniperParser, new Warnings());
+    ParserRuleContext tree =
+        Batfish.parse(
+            flatJuniperParser, new BatfishLogger(BatfishLogger.LEVELSTR_FATAL, false), settings);
+    extractor.processParseTree(tree);
+    return (JuniperConfiguration) extractor.getVendorConfiguration();
   }
 
   private Map<String, Configuration> parseTextConfigs(String... configurationNames)
@@ -382,9 +437,9 @@ public class FlatJuniperGrammarTest {
     String hostname = "application-set-nested";
     Configuration c = parseConfig(hostname);
 
-    String aclNameNonNested = "~FROM_ZONE~z1~TO_ZONE~z2";
-    String aclNameNested = "~FROM_ZONE~z1~TO_ZONE~z3";
-    String aclNameMultiNested = "~FROM_ZONE~z1~TO_ZONE~z4";
+    String aclNameNonNested = zoneToZoneFilter("z1", "z2");
+    String aclNameNested = zoneToZoneFilter("z1", "z3");
+    String aclNameMultiNested = zoneToZoneFilter("z1", "z4");
     String z1Interface = "ge-0/0/0.0";
     IpAccessList aclNonNested = c.getIpAccessLists().get(aclNameNonNested);
     IpAccessList aclNested = c.getIpAccessLists().get(aclNameNested);
@@ -449,6 +504,22 @@ public class FlatJuniperGrammarTest {
                                 .setIpProtocols(ImmutableList.of(IpProtocol.UDP))
                                 .setSrcPorts(ImmutableList.of(new SubRange(4, 4)))
                                 .build()))))));
+  }
+
+  @Test
+  public void testApplyPathWarning() throws IOException {
+    String hostname = "apply-path-warning";
+    Batfish batfish = getBatfishForConfigurationNames(hostname);
+
+    ParseVendorConfigurationAnswerElement pvcae =
+        batfish.loadParseVendorConfigurationAnswerElement();
+
+    Warnings warnings = pvcae.getWarnings().values().iterator().next();
+
+    assertThat(warnings.getParseWarnings().get(0).getText(), equalTo("1::/64"));
+    assertThat(warnings.getParseWarnings().get(0).getLine(), equalTo(6));
+    assertThat(warnings.getParseWarnings().get(1).getText(), equalTo("2::1/128"));
+    assertThat(warnings.getParseWarnings().get(1).getLine(), equalTo(6));
   }
 
   @Test
@@ -562,8 +633,8 @@ public class FlatJuniperGrammarTest {
   public void testBgpClusterId() throws IOException {
     String testrigName = "rr";
     String configName = "rr";
-    Ip neighbor1Ip = new Ip("2.2.2.2");
-    Ip neighbor2Ip = new Ip("4.4.4.4");
+    Ip neighbor1Ip = Ip.parse("2.2.2.2");
+    Ip neighbor2Ip = Ip.parse("4.4.4.4");
 
     List<String> configurationNames = ImmutableList.of(configName);
     Batfish batfish =
@@ -577,12 +648,12 @@ public class FlatJuniperGrammarTest {
     Configuration rr = configurations.get(configName);
     BgpProcess proc = rr.getDefaultVrf().getBgpProcess();
     BgpPeerConfig neighbor1 =
-        proc.getActiveNeighbors().get(new Prefix(neighbor1Ip, Prefix.MAX_PREFIX_LENGTH));
+        proc.getActiveNeighbors().get(Prefix.create(neighbor1Ip, Prefix.MAX_PREFIX_LENGTH));
     BgpPeerConfig neighbor2 =
-        proc.getActiveNeighbors().get(new Prefix(neighbor2Ip, Prefix.MAX_PREFIX_LENGTH));
+        proc.getActiveNeighbors().get(Prefix.create(neighbor2Ip, Prefix.MAX_PREFIX_LENGTH));
 
-    assertThat(neighbor1, hasClusterId(new Ip("3.3.3.3").asLong()));
-    assertThat(neighbor2, hasClusterId(new Ip("1.1.1.1").asLong()));
+    assertThat(neighbor1, hasClusterId(Ip.parse("3.3.3.3").asLong()));
+    assertThat(neighbor2, hasClusterId(Ip.parse("1.1.1.1").asLong()));
   }
 
   @Test
@@ -649,6 +720,87 @@ public class FlatJuniperGrammarTest {
   }
 
   @Test
+  public void testSetCommunity() throws IOException {
+    Configuration c = parseConfig("community");
+
+    ConnectedRoute cr = new ConnectedRoute(Prefix.strict("1.0.0.0/24"), "blah");
+
+    // p1
+    RoutingPolicy p1 = c.getRoutingPolicies().get("p1");
+    BgpRoute.Builder b1 =
+        BgpRoute.builder().setNetwork(cr.getNetwork()).setCommunities(ImmutableSet.of(5L));
+    p1.process(cr, b1, Ip.ZERO, Configuration.DEFAULT_VRF_NAME, Direction.OUT);
+    BgpRoute br1 = b1.build();
+
+    assertThat(
+        br1.getCommunities(),
+        equalTo(
+            ImmutableSet.of(
+                WellKnownCommunity.NO_ADVERTISE,
+                WellKnownCommunity.NO_EXPORT,
+                WellKnownCommunity.NO_EXPORT_SUBCONFED)));
+
+    // p2
+    RoutingPolicy p2 = c.getRoutingPolicies().get("p2");
+    BgpRoute.Builder b2 =
+        BgpRoute.builder().setNetwork(cr.getNetwork()).setCommunities(ImmutableSet.of(5L));
+    p2.process(cr, b2, Ip.ZERO, Configuration.DEFAULT_VRF_NAME, Direction.OUT);
+    BgpRoute br2 = b2.build();
+
+    assertThat(br2.getCommunities(), equalTo(ImmutableSet.of(2L, 3L)));
+
+    // p3
+    RoutingPolicy p3 = c.getRoutingPolicies().get("p3");
+    BgpRoute.Builder b3 =
+        BgpRoute.builder().setNetwork(cr.getNetwork()).setCommunities(ImmutableSet.of(5L));
+    p3.process(cr, b3, Ip.ZERO, Configuration.DEFAULT_VRF_NAME, Direction.OUT);
+    BgpRoute br3 = b3.build();
+
+    assertThat(br3.getCommunities(), equalTo(ImmutableSet.of(5L)));
+  }
+
+  @Test
+  public void testAddCommunity() throws IOException {
+    Configuration c = parseConfig("community");
+
+    ConnectedRoute cr = new ConnectedRoute(Prefix.strict("1.0.0.0/24"), "blah");
+
+    // p4
+    RoutingPolicy p4 = c.getRoutingPolicies().get("p4");
+    BgpRoute.Builder b4 =
+        BgpRoute.builder().setNetwork(cr.getNetwork()).setCommunities(ImmutableSet.of(5L));
+    p4.process(cr, b4, Ip.ZERO, Configuration.DEFAULT_VRF_NAME, Direction.OUT);
+    BgpRoute br4 = b4.build();
+
+    assertThat(
+        br4.getCommunities(),
+        equalTo(
+            ImmutableSet.of(
+                WellKnownCommunity.NO_ADVERTISE,
+                WellKnownCommunity.NO_EXPORT,
+                WellKnownCommunity.NO_EXPORT_SUBCONFED,
+                5L)));
+
+    // p5
+    RoutingPolicy p5 = c.getRoutingPolicies().get("p5");
+    BgpRoute.Builder b5 =
+        BgpRoute.builder().setNetwork(cr.getNetwork()).setCommunities(ImmutableSet.of(5L));
+    p5.process(cr, b5, Ip.ZERO, Configuration.DEFAULT_VRF_NAME, Direction.OUT);
+    BgpRoute br5 = b5.build();
+
+    assertThat(br5.getCommunities(), equalTo(ImmutableSet.of(2L, 3L, 5L)));
+
+    // p6
+    RoutingPolicy p6 = c.getRoutingPolicies().get("p6");
+    BgpRoute.Builder b6 =
+        BgpRoute.builder().setNetwork(cr.getNetwork()).setCommunities(ImmutableSet.of(5L));
+    p6.process(cr, b6, Ip.ZERO, Configuration.DEFAULT_VRF_NAME, Direction.OUT);
+    BgpRoute br6 = b6.build();
+
+    assertThat(br6.getCommunities(), equalTo(ImmutableSet.of(5L)));
+  }
+
+  @Test
   public void testDefaultApplications() throws IOException {
     String hostname = "default-applications";
     Batfish batfish = getBatfishForConfigurationNames(hostname);
@@ -658,10 +810,10 @@ public class FlatJuniperGrammarTest {
         undefinedReferences = ccae.getUndefinedReferences();
     Configuration c = parseConfig(hostname);
 
-    String aclApplicationsName = "~FROM_ZONE~z1~TO_ZONE~z2";
-    String aclApplicationSetName = "~FROM_ZONE~z1~TO_ZONE~z3";
-    String aclApplicationSetAnyName = "~FROM_ZONE~z1~TO_ZONE~z4";
-    String aclApplicationAnyName = "~FROM_ZONE~z1~TO_ZONE~z5";
+    String aclApplicationsName = zoneToZoneFilter("z1", "z2");
+    String aclApplicationSetName = zoneToZoneFilter("z1", "z3");
+    String aclApplicationSetAnyName = zoneToZoneFilter("z1", "z4");
+    String aclApplicationAnyName = zoneToZoneFilter("z1", "z5");
     String z1Interface = "ge-0/0/0.0";
     IpAccessList aclApplication = c.getIpAccessLists().get(aclApplicationsName);
     IpAccessList aclApplicationSet = c.getIpAccessLists().get(aclApplicationSetName);
@@ -788,18 +940,20 @@ public class FlatJuniperGrammarTest {
     Flow flowDefaultPolicy = createFlow(addrDefaultPolicy, untrustIpAddr);
 
     IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclUntrustSecurity =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     /* Confirm flow from address explicitly allowed by zone policy is accepted */
     assertThat(
-        aclUntrustOut,
+        aclUntrustSecurity,
         accepts(flowPermitted, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
     /* Confirm flow from trust interface not matching any policy deny is accepted (accepted by default permit-all) */
     assertThat(
-        aclUntrustOut,
+        aclUntrustSecurity,
         accepts(flowDefaultPolicy, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
     /* Confirm flow matching zone policy deny is rejected */
     assertThat(
-        aclUntrustOut,
+        aclUntrustSecurity,
         rejects(flowDeniedByZonePolicy, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
     /* Confirm flow blocked by the outgoing filter is rejected */
     assertThat(
@@ -807,16 +961,16 @@ public class FlatJuniperGrammarTest {
         rejects(flowDeniedByFilter, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
     /* Confirm flow matching global policy deny is rejected */
     assertThat(
-        aclUntrustOut,
+        aclUntrustSecurity,
         rejects(
             flowDeniedByGlobalPolicy, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
 
     /* Confirm traffic originating from the device is not blocked by policies */
     assertThat(
-        aclUntrustOut,
+        aclUntrustSecurity,
         accepts(flowDeniedByZonePolicy, null, c.getIpAccessLists(), c.getIpSpaces()));
     assertThat(
-        aclUntrustOut,
+        aclUntrustSecurity,
         accepts(flowDeniedByGlobalPolicy, null, c.getIpAccessLists(), c.getIpSpaces()));
     /* Confirm traffic originating from the device is still blocked by an outgoing filter */
     assertThat(
@@ -844,8 +998,8 @@ public class FlatJuniperGrammarTest {
     Flow flowFromSpecificAddr = createFlow(specificAddr, untrustIpAddr);
     Flow flowFromWildcardAddr = createFlow(wildcardAddr, untrustIpAddr);
     Flow flowFromNotWildcardAddr = createFlow(notWildcardAddr, untrustIpAddr);
-    IpAccessList untrustCombinedAcl =
-        c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList untrustAcl =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     // Should have three global IpSpaces in the config
     assertThat(
@@ -861,29 +1015,29 @@ public class FlatJuniperGrammarTest {
     IpSpace indirectSpace = c.getIpSpaces().get(indirectSpaceName);
 
     // Specific space should contain the specific addr and not others
-    assertThat(specificSpace, containsIp(new Ip(specificAddr)));
-    assertThat(specificSpace, not(containsIp(new Ip(wildcardAddr))));
+    assertThat(specificSpace, containsIp(Ip.parse(specificAddr)));
+    assertThat(specificSpace, not(containsIp(Ip.parse(wildcardAddr))));
 
     // Wildcard space should contain the wildcard addr and not others
-    assertThat(wildcardSpace, containsIp(new Ip(wildcardAddr)));
-    assertThat(wildcardSpace, not(containsIp(new Ip(notWildcardAddr))));
+    assertThat(wildcardSpace, containsIp(Ip.parse(wildcardAddr)));
+    assertThat(wildcardSpace, not(containsIp(Ip.parse(notWildcardAddr))));
 
     // Indirect space should contain both specific and wildcard addr, but not others
-    assertThat(indirectSpace, containsIp(new Ip(specificAddr), c.getIpSpaces()));
-    assertThat(indirectSpace, containsIp(new Ip(wildcardAddr), c.getIpSpaces()));
-    assertThat(indirectSpace, not(containsIp(new Ip(notWildcardAddr), c.getIpSpaces())));
+    assertThat(indirectSpace, containsIp(Ip.parse(specificAddr), c.getIpSpaces()));
+    assertThat(indirectSpace, containsIp(Ip.parse(wildcardAddr), c.getIpSpaces()));
+    assertThat(indirectSpace, not(containsIp(Ip.parse(notWildcardAddr), c.getIpSpaces())));
 
     // Specifically allowed source addr should be accepted
     assertThat(
-        untrustCombinedAcl,
+        untrustAcl,
         accepts(flowFromSpecificAddr, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
     // Source addr covered by the wildcard entry should be accepted
     assertThat(
-        untrustCombinedAcl,
+        untrustAcl,
         accepts(flowFromWildcardAddr, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
     // Source addr covered by neither addr-set entry should be rejected
     assertThat(
-        untrustCombinedAcl,
+        untrustAcl,
         rejects(
             flowFromNotWildcardAddr, interfaceNameTrust, c.getIpAccessLists(), c.getIpSpaces()));
   }
@@ -899,16 +1053,16 @@ public class FlatJuniperGrammarTest {
     Flow trustToUntrustFlow = createFlow(trustedIpAddr, untrustedIpAddr);
     Flow untrustToTrustFlow = createFlow(untrustedIpAddr, trustedIpAddr);
 
-    IpAccessList aclTrustOut = c.getAllInterfaces().get(interfaceNameTrust).getOutgoingFilter();
-    IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclTrustOut =
+        c.getAllInterfaces().get(interfaceNameTrust).getPreSourceNatOutgoingFilter();
+    IpAccessList aclUntrustOut =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     /*
-     * Should have six ACLs:
+     * Should have four ACLs:
      *  Explicitly defined in the config file:
      *    One from the global security policy
      *  Generated by logic in toVendorIndependent
-     *    Two combined outgoing filters for the two interfaces (combines security policies with
-     *        egress ACLs)
      *    One permitting existing connections (default firewall behavior)
      *    Two defining security policies for each interface (combines explicit security policy with
      *        implicit security policies like allow existing connection)
@@ -917,8 +1071,6 @@ public class FlatJuniperGrammarTest {
         c.getIpAccessLists().keySet(),
         containsInAnyOrder(
             ACL_NAME_GLOBAL_POLICY,
-            aclTrustOut.getName(),
-            aclUntrustOut.getName(),
             ACL_NAME_EXISTING_CONNECTION,
             ACL_NAME_SECURITY_POLICY + interfaceNameTrust,
             ACL_NAME_SECURITY_POLICY + interfaceNameUntrust));
@@ -948,8 +1100,10 @@ public class FlatJuniperGrammarTest {
     Flow trustToUntrustFlow = createFlow(trustedIpAddr, untrustedIpAddr);
     Flow untrustToTrustFlow = createFlow(untrustedIpAddr, trustedIpAddr);
 
-    IpAccessList aclTrustOut = c.getAllInterfaces().get(interfaceNameTrust).getOutgoingFilter();
-    IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclTrustOut =
+        c.getAllInterfaces().get(interfaceNameTrust).getPreSourceNatOutgoingFilter();
+    IpAccessList aclUntrustOut =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     /* Make sure the global-address-book address is the only config ipSpace */
     assertThat(c.getIpSpaces().keySet(), containsInAnyOrder(trustedSpaceName));
@@ -957,10 +1111,10 @@ public class FlatJuniperGrammarTest {
     IpSpace ipSpace = Iterables.getOnlyElement(c.getIpSpaces().values());
 
     // It should contain the specific address
-    assertThat(ipSpace, containsIp(new Ip(trustedIpAddr)));
+    assertThat(ipSpace, containsIp(Ip.parse(trustedIpAddr)));
 
     // It should not contain the address that is not allowed
-    assertThat(ipSpace, not(containsIp(new Ip(untrustedIpAddr))));
+    assertThat(ipSpace, not(containsIp(Ip.parse(untrustedIpAddr))));
 
     /* Flow from ADDR1 to untrust should be permitted */
     assertThat(
@@ -983,13 +1137,13 @@ public class FlatJuniperGrammarTest {
     Flow trustToUntrustFlow = createFlow(trustedIpAddr, untrustedIpAddr);
     Flow untrustToTrustFlow = createFlow(untrustedIpAddr, trustedIpAddr);
 
-    IpAccessList aclTrustOut = c.getAllInterfaces().get(interfaceNameTrust).getOutgoingFilter();
-    IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclTrustOut =
+        c.getAllInterfaces().get(interfaceNameTrust).getPreSourceNatOutgoingFilter();
+    IpAccessList aclUntrustOut =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     /*
-     * Should have five ACLs generated by logic in toVendorIndependent:
-     *    Two combined outgoing filters for the two interfaces (combines security policies with
-     *        egress ACLs)
+     * Should have three ACLs generated by logic in toVendorIndependent:
      *    One permitting existing connections (default firewall behavior)
      *    Two defining security policies for each interface (combines explicit security policy with
      *        implicit security policies like allow existing connection)
@@ -997,8 +1151,6 @@ public class FlatJuniperGrammarTest {
     assertThat(
         c.getIpAccessLists().keySet(),
         containsInAnyOrder(
-            aclTrustOut.getName(),
-            aclUntrustOut.getName(),
             ACL_NAME_EXISTING_CONNECTION,
             ACL_NAME_SECURITY_POLICY + interfaceNameTrust,
             ACL_NAME_SECURITY_POLICY + interfaceNameUntrust));
@@ -1017,7 +1169,7 @@ public class FlatJuniperGrammarTest {
     Configuration c = parseConfig("firewall-policies");
     String interfaceNameTrust = "ge-0/0/0.0";
     String interfaceNameUntrust = "ge-0/0/1.0";
-    String securityPolicyName = "~FROM_ZONE~trust~TO_ZONE~untrust";
+    String securityPolicyName = zoneToZoneFilter("trust", "untrust");
     String trustedIpAddr = "1.2.3.5";
     String untrustedIpAddr = "1.2.4.5";
 
@@ -1028,16 +1180,16 @@ public class FlatJuniperGrammarTest {
     Flow untrustToTrustReturnFlow =
         createFlow(untrustedIpAddr, trustedIpAddr, FlowState.ESTABLISHED);
 
-    IpAccessList aclTrustOut = c.getAllInterfaces().get(interfaceNameTrust).getOutgoingFilter();
-    IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclTrustOut =
+        c.getAllInterfaces().get(interfaceNameTrust).getPreSourceNatOutgoingFilter();
+    IpAccessList aclUntrustOut =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     /*
-     * Should have six ACLs:
+     * Should have four ACLs:
      *  Explicitly defined in the config file:
      *    One from the security policy from trust to untrust
      *  Generated by logic in toVendorIndependent
-     *    Two combined outgoing filters for the two interfaces (combines security policies with
-     *        egress ACLs)
      *    One permitting existing connections (default firewall behavior)
      *    Two defining security policies for each interface (combines explicit security policy with
      *        implicit security policies like allow existing connection)
@@ -1048,9 +1200,7 @@ public class FlatJuniperGrammarTest {
             securityPolicyName,
             aclTrustOut.getName(),
             aclUntrustOut.getName(),
-            ACL_NAME_EXISTING_CONNECTION,
-            ACL_NAME_SECURITY_POLICY + interfaceNameTrust,
-            ACL_NAME_SECURITY_POLICY + interfaceNameUntrust));
+            ACL_NAME_EXISTING_CONNECTION));
 
     /* Simple flow from trust to untrust should be permitted */
     assertThat(
@@ -1088,7 +1238,8 @@ public class FlatJuniperGrammarTest {
     Flow flowFromSpecificAddr = createFlow(specificAddr, untrustIpAddr);
     Flow flowFromNotAllowedAddr = createFlow(notAllowedAddr, untrustIpAddr);
 
-    IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclUntrustOut =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     // Should have a an IpSpace in the config corresponding to the trust zone's ADDR1 address
     final String ipSpaceName = "trust~ADDR1";
@@ -1099,10 +1250,10 @@ public class FlatJuniperGrammarTest {
     IpSpace ipSpace = Iterables.getOnlyElement(c.getIpSpaces().values());
 
     // It should contain the specific address
-    assertThat(ipSpace, containsIp(new Ip(specificAddr)));
+    assertThat(ipSpace, containsIp(Ip.parse(specificAddr)));
 
     // It should not contain the address that is not allowed
-    assertThat(ipSpace, not(containsIp(new Ip(notAllowedAddr))));
+    assertThat(ipSpace, not(containsIp(Ip.parse(notAllowedAddr))));
 
     // There should me metadata for this ipspace
     assertThat(c.getIpSpaceMetadata(), hasKey(ipSpaceName));
@@ -1130,16 +1281,16 @@ public class FlatJuniperGrammarTest {
     Flow trustToUntrustFlow = createFlow(trustedIpAddr, untrustedIpAddr);
     Flow untrustToTrustFlow = createFlow(untrustedIpAddr, trustedIpAddr);
 
-    IpAccessList aclTrustOut = c.getAllInterfaces().get(interfaceNameTrust).getOutgoingFilter();
-    IpAccessList aclUntrustOut = c.getAllInterfaces().get(interfaceNameUntrust).getOutgoingFilter();
+    IpAccessList aclTrustOut =
+        c.getAllInterfaces().get(interfaceNameTrust).getPreSourceNatOutgoingFilter();
+    IpAccessList aclUntrustOut =
+        c.getAllInterfaces().get(interfaceNameUntrust).getPreSourceNatOutgoingFilter();
 
     // Should have two zones
     assertThat(c.getZones().keySet(), containsInAnyOrder(zoneTrust, zoneUntrust));
 
-    // Should have two interfaces
-    assertThat(
-        c.getAllInterfaces().keySet(),
-        containsInAnyOrder(interfaceNameTrust, interfaceNameUntrust));
+    // Should have two logical interfaces
+    assertThat(c.getAllInterfaces().keySet(), hasItems(interfaceNameTrust, interfaceNameUntrust));
 
     // Confirm the interfaces are associated with their zones
     assertThat(c.getAllInterfaces().get(interfaceNameTrust), hasZoneName(equalTo(zoneTrust)));
@@ -1152,6 +1303,309 @@ public class FlatJuniperGrammarTest {
     assertThat(
         aclTrustOut,
         rejects(untrustToTrustFlow, interfaceNameUntrust, c.getIpAccessLists(), c.getIpSpaces()));
+  }
+
+  @Test
+  public void testAggregateDefaults() throws IOException {
+    Configuration config = parseConfig("aggregate-defaults");
+
+    Set<GeneratedRoute> aggregateRoutes = config.getDefaultVrf().getGeneratedRoutes();
+    GeneratedRoute ar1 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("1.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar2 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("2.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar3 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("3.0.0.0/8")))
+            .findAny()
+            .get();
+
+    // passive default
+    // policies should be generated only for the active ones
+    assertThat(ar1.getGenerationPolicy(), nullValue());
+    assertThat(
+        ar2.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeAggregatedRouteGenerationPolicyName(
+                Prefix.parse("2.0.0.0/8"))));
+    assertThat(ar3.getGenerationPolicy(), nullValue());
+
+    Set<GeneratedRoute> aggregateRoutesRi1 = config.getVrfs().get("ri1").getGeneratedRoutes();
+    GeneratedRoute ar1Ri1 =
+        aggregateRoutesRi1
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("1.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar2Ri1 =
+        aggregateRoutesRi1
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("2.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar3Ri1 =
+        aggregateRoutesRi1
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("3.0.0.0/8")))
+            .findAny()
+            .get();
+
+    // active default
+    // policies should be generated only for the active ones
+    assertThat(
+        ar1Ri1.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeAggregatedRouteGenerationPolicyName(
+                Prefix.parse("1.0.0.0/8"))));
+    assertThat(
+        ar2Ri1.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeAggregatedRouteGenerationPolicyName(
+                Prefix.parse("2.0.0.0/8"))));
+    assertThat(ar3Ri1.getGenerationPolicy(), nullValue());
+  }
+
+  @Test
+  public void testAggregateRoutesGenerationPolicies() throws IOException {
+    Configuration config = parseConfig("aggregate-routes");
+
+    Set<GeneratedRoute> aggregateRoutes = config.getDefaultVrf().getGeneratedRoutes();
+    GeneratedRoute ar1 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("1.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar2 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("2.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar3 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("3.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar4 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("4.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar5 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("5.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute ar6 =
+        aggregateRoutes
+            .stream()
+            .filter(ar -> ar.getNetwork().equals(Prefix.parse("6.0.0.0/8")))
+            .findAny()
+            .get();
+
+    // policies should be generated only for the active ones
+    assertThat(
+        ar1.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeAggregatedRouteGenerationPolicyName(
+                Prefix.parse("1.0.0.0/8"))));
+    assertThat(
+        ar2.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeAggregatedRouteGenerationPolicyName(
+                Prefix.parse("2.0.0.0/8"))));
+    assertThat(ar3.getGenerationPolicy(), nullValue());
+
+    // the second one should only accept 2.0.0.0/32 as a contributor
+    RoutingPolicy rp2 = config.getRoutingPolicies().get(ar2.getGenerationPolicy());
+    ConnectedRoute cr31 = new ConnectedRoute(Prefix.parse("2.0.0.0/31"), "blah");
+    ConnectedRoute cr32 = new ConnectedRoute(Prefix.parse("2.0.0.0/32"), "blah");
+    assertThat(
+        rp2.process(cr31, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(false));
+    assertThat(
+        rp2.process(cr32, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(true));
+
+    // all should be discard routes
+    assertThat(ar1.getDiscard(), equalTo(true));
+    assertThat(ar2.getDiscard(), equalTo(true));
+    assertThat(ar3.getDiscard(), equalTo(true));
+
+    // policy semantics
+
+    // falls through without changing default, so accept
+    RoutingPolicy rp4 = config.getRoutingPolicies().get(ar4.getGenerationPolicy());
+    ConnectedRoute cr4 = new ConnectedRoute(Prefix.parse("4.0.0.0/32"), "blah");
+    assertThat(
+        rp4.process(cr4, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(true));
+
+    // rejects first, so reject
+    RoutingPolicy rp5 = config.getRoutingPolicies().get(ar5.getGenerationPolicy());
+    ConnectedRoute cr5 = new ConnectedRoute(Prefix.parse("5.0.0.0/32"), "blah");
+    assertThat(
+        rp5.process(cr5, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(false));
+
+    // accepts first, so accept
+    RoutingPolicy rp6 = config.getRoutingPolicies().get(ar6.getGenerationPolicy());
+    ConnectedRoute cr6 = new ConnectedRoute(Prefix.parse("6.0.0.0/32"), "blah");
+    assertThat(
+        rp6.process(cr6, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(true));
+  }
+
+  @Test
+  public void testGeneratedDefaults() throws IOException {
+    Configuration config = parseConfig("generated-defaults");
+
+    Set<GeneratedRoute> generatedRoutes = config.getDefaultVrf().getGeneratedRoutes();
+    GeneratedRoute gr1 =
+        generatedRoutes
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("1.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute gr2 =
+        generatedRoutes
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("2.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute gr3 =
+        generatedRoutes
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("3.0.0.0/8")))
+            .findAny()
+            .get();
+
+    // passive default
+    // policies should be generated only for the active ones
+    assertThat(gr1.getGenerationPolicy(), nullValue());
+    assertThat(
+        gr2.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeGeneratedRouteGenerationPolicyName(
+                Prefix.parse("2.0.0.0/8"))));
+    assertThat(gr3.getGenerationPolicy(), nullValue());
+
+    Set<GeneratedRoute> generatedRi1 = config.getVrfs().get("ri1").getGeneratedRoutes();
+    GeneratedRoute gr1Ri1 =
+        generatedRi1
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("1.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute gr2Ri1 =
+        generatedRi1
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("2.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute gr3Ri1 =
+        generatedRi1
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("3.0.0.0/8")))
+            .findAny()
+            .get();
+
+    // active default
+    // policies should be generated only for the active ones
+    assertThat(
+        gr1Ri1.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeGeneratedRouteGenerationPolicyName(
+                Prefix.parse("1.0.0.0/8"))));
+    assertThat(
+        gr2Ri1.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeGeneratedRouteGenerationPolicyName(
+                Prefix.parse("2.0.0.0/8"))));
+    assertThat(gr3Ri1.getGenerationPolicy(), nullValue());
+  }
+
+  @Test
+  public void testGeneratedRoutesGenerationPolicies() throws IOException {
+    Configuration config = parseConfig("generated-routes");
+
+    Set<GeneratedRoute> generatedRoutes = config.getDefaultVrf().getGeneratedRoutes();
+    GeneratedRoute gr1 =
+        generatedRoutes
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("1.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute gr2 =
+        generatedRoutes
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("2.0.0.0/8")))
+            .findAny()
+            .get();
+    GeneratedRoute gr3 =
+        generatedRoutes
+            .stream()
+            .filter(gr -> gr.getNetwork().equals(Prefix.parse("3.0.0.0/8")))
+            .findAny()
+            .get();
+
+    // policies should be generated only for the active ones
+    assertThat(
+        gr1.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeGeneratedRouteGenerationPolicyName(
+                Prefix.parse("1.0.0.0/8"))));
+    assertThat(
+        gr2.getGenerationPolicy(),
+        equalTo(
+            JuniperConfiguration.computeGeneratedRouteGenerationPolicyName(
+                Prefix.parse("2.0.0.0/8"))));
+    assertThat(gr3.getGenerationPolicy(), nullValue());
+
+    // the second one should only accept 2.0.0.0/32 as a contributor
+    RoutingPolicy rp2 = config.getRoutingPolicies().get(gr2.getGenerationPolicy());
+    ConnectedRoute cr31 = new ConnectedRoute(Prefix.parse("2.0.0.0/31"), "blah");
+    ConnectedRoute cr32 = new ConnectedRoute(Prefix.parse("2.0.0.0/32"), "blah");
+    assertThat(
+        rp2.process(cr31, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(false));
+    assertThat(
+        rp2.process(cr32, BgpRoute.builder(), null, Configuration.DEFAULT_VRF_NAME, Direction.OUT),
+        equalTo(true));
+
+    // none should be discard routes
+    assertThat(gr1.getDiscard(), equalTo(false));
+    assertThat(gr2.getDiscard(), equalTo(false));
+    assertThat(gr3.getDiscard(), equalTo(false));
+  }
+
+  @Test
+  public void testGeneratedRouteCommunities() throws IOException {
+    Configuration config =
+        BatfishTestUtils.parseTextConfigs(
+                _folder, "org/batfish/grammar/juniper/testconfigs/generated-route-communities")
+            .get("generated-route-communities");
+    assertThat(
+        config
+            .getDefaultVrf()
+            .getGeneratedRoutes()
+            .stream()
+            .map(GeneratedRoute::getCommunities)
+            .collect(ImmutableSet.toImmutableSet()),
+        equalTo(ImmutableSet.of(ImmutableSortedSet.of(65537L))));
   }
 
   @Test
@@ -1286,16 +1740,14 @@ public class FlatJuniperGrammarTest {
         StaticRoute.builder()
             .setNetwork(Prefix.parse("10.0.1.0/24"))
             .setNextHopInterface("nextint")
-            .setNextHopIp(new Ip("10.0.0.1"))
+            .setNextHopIp(Ip.parse("10.0.0.1"))
             .setAdministrativeCost(1)
             .build();
 
     Environment.Builder eb = Environment.builder(c).setDirection(Direction.IN);
     eb.setVrf("vrf1");
     policyPreference.call(
-        eb.setOriginalRoute(staticRoute)
-            .setOutputRoute(new OspfExternalType2Route.Builder())
-            .build());
+        eb.setOriginalRoute(staticRoute).setOutputRoute(OspfExternalType2Route.builder()).build());
 
     // Checking admin cost set on the output route
     assertThat(eb.build().getOutputRoute().getAdmin(), equalTo(123));
@@ -1431,7 +1883,29 @@ public class FlatJuniperGrammarTest {
     Configuration c = parseConfig("interface-arp");
 
     /* The additional ARP IP set for irb.0 should appear in the data model */
-    assertThat(c, hasInterface("irb.0", hasAdditionalArpIps(hasItem(new Ip("1.0.0.2")))));
+    assertThat(c, hasInterface("irb.0", hasAdditionalArpIps(hasItem(Ip.parse("1.0.0.2")))));
+  }
+
+  @Test
+  public void testInterfaceBandwidth() throws IOException {
+    Configuration c = parseConfig("interface-bandwidth");
+
+    // Configuration has ge-0/0/0 with four units configured bandwidths 5000000000, 5000000k, 5000m,
+    // 5g. Physical interface should have default bandwidth (1E9), unit interfaces should have 5E9.
+    double unitBandwidth = 5E9;
+    double physicalBandwidth =
+        org.batfish.representation.juniper.Interface.getDefaultBandwidthByName("ge-0/0/0");
+
+    assertThat(c, hasInterface("ge-0/0/0", hasBandwidth(physicalBandwidth)));
+    assertThat(c, hasInterface("ge-0/0/0.0", hasBandwidth(unitBandwidth)));
+    assertThat(c, hasInterface("ge-0/0/0.1", hasBandwidth(unitBandwidth)));
+    assertThat(c, hasInterface("ge-0/0/0.2", hasBandwidth(unitBandwidth)));
+    assertThat(c, hasInterface("ge-0/0/0.3", hasBandwidth(unitBandwidth)));
+
+    // Configuration has ge-1/0/0 with one unit with configured bandwidth 10c (1c = 384 bps).
+    // Physical interface should have default bandwidth (1E9), unit 3840.
+    assertThat(c, hasInterface("ge-1/0/0", hasBandwidth(physicalBandwidth)));
+    assertThat(c, hasInterface("ge-1/0/0.0", hasBandwidth(3840)));
   }
 
   @Test
@@ -1439,15 +1913,45 @@ public class FlatJuniperGrammarTest {
     Configuration c = parseConfig("interfaceMtu");
 
     /* Properly configured interfaces should be present in respective areas. */
-    assertThat(c.getAllInterfaces().keySet(), equalTo(Collections.singleton("xe-0/0/0:0.0")));
+    assertThat(c.getAllInterfaces().keySet(), hasItem("xe-0/0/0:0.0"));
     assertThat(c, hasInterface("xe-0/0/0:0.0", hasMtu(9000)));
   }
 
   @Test
-  public void testInteraceOspfPointToPoint() throws IOException {
+  public void testInterfaceOspfPointToPoint() throws IOException {
     String hostname = "ospf-interface-point-to-point";
     Configuration c = parseConfig(hostname);
     assertThat(c, hasInterface("ge-0/0/0.0", hasOspfPointToPoint(equalTo(true))));
+  }
+
+  @Test
+  public void testInterfaceRange() throws IOException {
+    String hostname = "interface-range";
+    JuniperConfiguration juniperConfig = parseJuniperConfig(hostname);
+
+    // range definitions are inserted properly into the vendor model
+    InterfaceRange ae1 =
+        juniperConfig.getMasterLogicalSystem().getInterfaceRanges().get("ae1-members");
+    assertThat(ae1.getMtu(), equalTo(8000));
+    assertThat(ae1.getDescription(), equalTo("dodo"));
+    assertThat(
+        ae1.getMembers(), equalTo(ImmutableList.of(new InterfaceRangeMember("xe-0/0/[0,1]"))));
+    assertThat(
+        ae1.getMemberRanges(),
+        equalTo(ImmutableList.of(new InterfaceRangeMemberRange("xe-0/0/0", "xe-0/0/1"))));
+
+    InterfaceRange ae2 =
+        juniperConfig.getMasterLogicalSystem().getInterfaceRanges().get("ae2-members");
+    assertThat(ae2.getDescription(), equalTo("dodo"));
+    assertThat(ae2.getMembers(), equalTo(ImmutableList.of(new InterfaceRangeMember("xe-8/1/2"))));
+    assertThat(ae2.get8023adInterface(), equalTo("ae1"));
+    assertThat(ae2.getRedundantParentInterface(), equalTo("reth0"));
+
+    // all interfaces should show up; no need to test their specific settings here
+    Configuration c = parseConfig("interface-range");
+    assertThat(
+        c.getAllInterfaces().keySet(),
+        equalTo(ImmutableSet.of("xe-0/0/0", "xe-0/0/1", "xe-8/1/2")));
   }
 
   @Test
@@ -1461,7 +1965,7 @@ public class FlatJuniperGrammarTest {
     // Expecting an Interface in TRUNK mode with VLANs 1-5
     assertThat(c, hasInterface("ge-0/3/0.0", hasSwitchPortMode(SwitchportMode.TRUNK)));
     assertThat(
-        c, hasInterface("ge-0/3/0.0", hasAllowedVlans(ImmutableList.of(new SubRange("1-5")))));
+        c, hasInterface("ge-0/3/0.0", hasAllowedVlans(IntegerSpace.of(new SubRange("1-5")))));
   }
 
   @Test
@@ -1527,7 +2031,8 @@ public class FlatJuniperGrammarTest {
                                         .setSrcIps(
                                             AclIpSpace.union(
                                                 new IpWildcard(
-                                                        new Ip("1.0.3.0"), new Ip("0.255.0.255"))
+                                                        Ip.parse("1.0.3.0"),
+                                                        Ip.parse("0.255.0.255"))
                                                     .toIpSpace(),
                                                 new IpWildcard("2.3.4.5/24").toIpSpace()))
                                         .build()))
@@ -1861,11 +2366,11 @@ public class FlatJuniperGrammarTest {
             "ike-vpn-chicago",
             isIpsecStaticPeerConfigThat(
                 allOf(
-                    hasDestinationAddress(new Ip("198.51.100.102")),
+                    hasDestinationAddress(Ip.parse("198.51.100.102")),
                     IpsecPeerConfigMatchers.hasIkePhase1Policy("ike-phase1-policy"),
                     IpsecPeerConfigMatchers.hasIpsecPolicy("ipsec-phase2-policy"),
                     IpsecPeerConfigMatchers.hasPhysicalInterface("ge-0/0/3.0"),
-                    IpsecPeerConfigMatchers.hasLocalAddress(new Ip("198.51.100.2")),
+                    IpsecPeerConfigMatchers.hasLocalAddress(Ip.parse("198.51.100.2")),
                     IpsecPeerConfigMatchers.hasTunnelInterface(equalTo("st0.0"))))));
   }
 
@@ -1896,7 +2401,8 @@ public class FlatJuniperGrammarTest {
                                         .setDstIps(
                                             AclIpSpace.union(
                                                 new IpWildcard(
-                                                        new Ip("1.0.3.0"), new Ip("0.255.0.255"))
+                                                        Ip.parse("1.0.3.0"),
+                                                        Ip.parse("0.255.0.255"))
                                                     .toIpSpace(),
                                                 new IpWildcard("2.3.4.5/24").toIpSpace()))
                                         .build()))
@@ -1913,13 +2419,13 @@ public class FlatJuniperGrammarTest {
     Flow whiteListedSrc = createFlow("1.8.3.9", "2.5.6.7");
     Flow blackListedSrc = createFlow("5.8.4.9", "2.5.6.7");
 
-    IpAccessList incomingFilter = c.getAllInterfaces().get("fw-s-add.0").getIncomingFilter();
+    IpAccessList incomingFilter = c.getAllInterfaces().get("xe-0/0/0.0").getIncomingFilter();
 
     // Whitelisted source address should be allowed
-    assertThat(incomingFilter, accepts(whiteListedSrc, "fw-s-add.0", c));
+    assertThat(incomingFilter, accepts(whiteListedSrc, "xe-0/0/0.0", c));
 
     // Blacklisted source address should be denied
-    assertThat(incomingFilter, rejects(blackListedSrc, "fw-s-add.0", c));
+    assertThat(incomingFilter, rejects(blackListedSrc, "xe-0/0/0.0", c));
   }
 
   @Test
@@ -1931,13 +2437,13 @@ public class FlatJuniperGrammarTest {
     Flow whiteListedDst = createFlow("2.5.6.7", "1.8.3.9");
     Flow blackListedDst = createFlow("2.5.6.7", "5.8.4.9");
 
-    IpAccessList incomingFilter = c.getAllInterfaces().get("fw-s-add.0").getIncomingFilter();
+    IpAccessList incomingFilter = c.getAllInterfaces().get("xe-0/0/0.0").getIncomingFilter();
 
     // Whitelisted source address should be allowed
-    assertThat(incomingFilter, accepts(whiteListedDst, "fw-s-add.0", c));
+    assertThat(incomingFilter, accepts(whiteListedDst, "xe-0/0/0.0", c));
 
     // Blacklisted source address should be denied
-    assertThat(incomingFilter, rejects(blackListedDst, "fw-s-add.0", c));
+    assertThat(incomingFilter, rejects(blackListedDst, "xe-0/0/0.0", c));
   }
 
   @Test
@@ -1981,11 +2487,15 @@ public class FlatJuniperGrammarTest {
 
     Configuration c = parseConfig(hostname);
 
+    double expectedReferenceBandwidth = 100E9;
     assertThat(c, hasDefaultVrf(hasIsisProcess(IsisProcessMatchers.hasLevel1(nullValue()))));
     assertThat(
         c, hasDefaultVrf(hasIsisProcess(IsisProcessMatchers.hasLevel2(hasWideMetricsOnly()))));
-    assertThat(c, hasDefaultVrf(hasIsisProcess(hasOverloadTimeout(360))));
-    assertThat(c, hasDefaultVrf(hasIsisProcess(IsisProcessMatchers.hasReferenceBandwidth(100E9D))));
+    assertThat(c, hasDefaultVrf(hasIsisProcess(hasOverload(false))));
+    assertThat(
+        c,
+        hasDefaultVrf(
+            hasIsisProcess(IsisProcessMatchers.hasReferenceBandwidth(expectedReferenceBandwidth))));
 
     assertThat(
         c,
@@ -1993,6 +2503,20 @@ public class FlatJuniperGrammarTest {
             loopback, hasIsis(hasIsoAddress(new IsoAddress("12.1234.1234.1234.1234.00")))));
     assertThat(c, hasInterface(loopback, hasIsis(hasLevel1(nullValue()))));
     assertThat(c, hasInterface(loopback, hasIsis(hasLevel2(hasMode(IsisInterfaceMode.PASSIVE)))));
+
+    // Loopback did not set an IS-IS metric, so its cost should be based on the reference bandwidth.
+    // First confirm the expected cost isn't coincidentally equal to the Juniper default cost of 10.
+    // No need to worry about getBandwidth() returning null for Juniper interfaces.
+    long expectedCost =
+        Math.max(
+            (long) (expectedReferenceBandwidth / c.getAllInterfaces().get(loopback).getBandwidth()),
+            1L);
+    assertThat(expectedCost, not(equalTo(10L)));
+    assertThat(
+        c,
+        hasInterface(
+            loopback,
+            hasIsis(hasLevel2(IsisInterfaceLevelSettingsMatchers.hasCost(expectedCost)))));
 
     assertThat(
         c,
@@ -2022,7 +2546,8 @@ public class FlatJuniperGrammarTest {
     assertThat(
         c,
         hasInterface(
-            "ge-1/0/0.0", hasAllAddresses(contains(new InterfaceAddress(new Ip("10.1.1.1"), 24)))));
+            "ge-1/0/0.0",
+            hasAllAddresses(contains(new InterfaceAddress(Ip.parse("10.1.1.1"), 24)))));
   }
 
   @Test
@@ -2040,6 +2565,30 @@ public class FlatJuniperGrammarTest {
         c,
         hasDefaultVrf(
             hasIsisProcess(hasNetAddress(equalTo(new IsoAddress("12.1234.1234.1234.1234.01"))))));
+  }
+
+  @Test
+  public void testJuniperIsisNoReferenceBandwidth() throws IOException {
+    Configuration c = parseConfig("juniper-isis-no-reference-bandwidth");
+
+    // With no set metric or reference bandwidth, Juniper IS-IS cost should default to 10
+    assertThat(
+        c, hasDefaultVrf(hasIsisProcess(IsisProcessMatchers.hasReferenceBandwidth((Double) null))));
+    assertThat(
+        c,
+        hasInterface("lo0.0", hasIsis(hasLevel2(IsisInterfaceLevelSettingsMatchers.hasCost(10L)))));
+  }
+
+  @Test
+  public void testJuniperIsisOverload() throws IOException {
+    Configuration c = parseConfig("juniper-isis-overload");
+    assertThat(c, hasDefaultVrf(hasIsisProcess(IsisProcessMatchers.hasOverload(true))));
+  }
+
+  @Test
+  public void testJuniperIsisOverloadWithTimeout() throws IOException {
+    Configuration c = parseConfig("juniper-isis-overload-with-timeout");
+    assertThat(c, hasDefaultVrf(hasIsisProcess(IsisProcessMatchers.hasOverload(false))));
   }
 
   @Test
@@ -2140,11 +2689,137 @@ public class FlatJuniperGrammarTest {
     assertThat(
         ccae,
         hasUndefinedReferenceWithReferenceLines(
-            filename,
-            INTERFACE,
-            "iface_undefined",
-            OSPF_AREA_INTERFACE,
-            containsInAnyOrder(6, 14)));
+            filename, INTERFACE, "et-0/0/0.0", OSPF_AREA_INTERFACE, containsInAnyOrder(6, 14)));
+  }
+
+  @Test
+  public void testLogicalSystems() throws IOException {
+    String snapshotName = "logical-systems";
+    String configName = "master1";
+
+    List<String> configurationNames = ImmutableList.of(configName);
+    Batfish batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + snapshotName, configurationNames)
+                .build(),
+            _folder);
+    Map<String, Configuration> configurations = batfish.loadConfigurations();
+
+    // There should be 3 configs: the master, and one for each logical system
+    // ls1's name should be derived from master hostname and logical-system name
+    // ls2's name was manually configured
+    assertThat(
+        configurations.keySet(),
+        containsInAnyOrder(
+            configName,
+            JuniperConfiguration.computeLogicalSystemDefaultHostname(configName, "ls1"),
+            "ls2.example.com"));
+  }
+
+  @Test
+  public void testLogicalSystemsInterfaces() throws IOException {
+    String snapshotName = "logical-systems";
+    String configName = "master1";
+    String lsConfigName =
+        JuniperConfiguration.computeLogicalSystemDefaultHostname(configName, "ls1");
+
+    List<String> configurationNames = ImmutableList.of(configName);
+    Batfish batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + snapshotName, configurationNames)
+                .build(),
+            _folder);
+    Map<String, Configuration> configurations = batfish.loadConfigurations();
+    Configuration masterConfig = configurations.get(configName);
+    Configuration lsConfig = configurations.get(lsConfigName);
+
+    // ensure interfaces have been divided appropriately
+    assertThat(
+        masterConfig.getAllInterfaces().keySet(),
+        containsInAnyOrder("xe-0/0/0", "xe-0/0/0.0", "xe-0/0/1", "xe-0/0/1.1"));
+    assertThat(
+        lsConfig.getAllInterfaces().keySet(),
+        containsInAnyOrder("xe-0/0/1", "xe-0/0/1.0", "xe-0/0/2", "xe-0/0/2.0"));
+
+    // shared physical interface should have same settings on both configs
+    assertThat(masterConfig.getAllInterfaces().get("xe-0/0/1.1"), hasMtu(2345));
+    assertThat(lsConfig.getAllInterfaces().get("xe-0/0/1.0"), hasMtu(2345));
+  }
+
+  @Test
+  public void testLogicalSystemsFirewallFilters() throws IOException {
+    String snapshotName = "logical-systems";
+    String configName = "master1";
+    String lsConfigName =
+        JuniperConfiguration.computeLogicalSystemDefaultHostname(configName, "ls1");
+
+    List<String> configurationNames = ImmutableList.of(configName);
+    Batfish batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + snapshotName, configurationNames)
+                .build(),
+            _folder);
+    Map<String, Configuration> configurations = batfish.loadConfigurations();
+    Configuration masterConfig = configurations.get(configName);
+    Configuration lsConfig = configurations.get(lsConfigName);
+
+    // ff1 is defined only on master, but should be accessible to both
+    assertThat(masterConfig.getIpAccessLists(), hasKey("ff1"));
+    assertThat(lsConfig.getIpAccessLists(), hasKey("ff1"));
+    assertThat(
+        masterConfig.getIpAccessLists().get("ff1"),
+        equalTo(lsConfig.getIpAccessLists().get("ff1")));
+
+    // ff2 is defined only on both, but should have different definitions on each
+    assertThat(masterConfig.getIpAccessLists(), hasKey("ff2"));
+    assertThat(lsConfig.getIpAccessLists(), hasKey("ff2"));
+    assertThat(
+        masterConfig.getIpAccessLists().get("ff2"),
+        not(equalTo(lsConfig.getIpAccessLists().get("ff2"))));
+
+    // ff3 is defined only on logical system, so should be out of scope for master
+    assertThat(masterConfig.getIpAccessLists(), not(hasKey("ff3")));
+    assertThat(lsConfig.getIpAccessLists(), hasKey("ff3"));
+  }
+
+  @Test
+  public void testLogicalSystemsPolicyStatements() throws IOException {
+    String snapshotName = "logical-systems";
+    String configName = "master1";
+    String lsConfigName =
+        JuniperConfiguration.computeLogicalSystemDefaultHostname(configName, "ls1");
+
+    List<String> configurationNames = ImmutableList.of(configName);
+    Batfish batfish =
+        BatfishTestUtils.getBatfishFromTestrigText(
+            TestrigText.builder()
+                .setConfigurationText(TESTRIGS_PREFIX + snapshotName, configurationNames)
+                .build(),
+            _folder);
+    Map<String, Configuration> configurations = batfish.loadConfigurations();
+    Configuration masterConfig = configurations.get(configName);
+    Configuration lsConfig = configurations.get(lsConfigName);
+
+    // ps1 is defined only on master, but should be accessible to both
+    assertThat(masterConfig.getRoutingPolicies(), hasKey("ps1"));
+    assertThat(lsConfig.getRoutingPolicies(), hasKey("ps1"));
+    assertThat(
+        masterConfig.getRoutingPolicies().get("ps1"),
+        equalTo(lsConfig.getRoutingPolicies().get("ps1")));
+
+    // ps2 is defined only on both, but should have dipserent definitions on each
+    assertThat(masterConfig.getRoutingPolicies(), hasKey("ps2"));
+    assertThat(lsConfig.getRoutingPolicies(), hasKey("ps2"));
+    assertThat(
+        masterConfig.getRoutingPolicies().get("ps2"),
+        not(equalTo(lsConfig.getRoutingPolicies().get("ps2"))));
+
+    // ps3 is defined only on logical system, so should be out of scope for master
+    assertThat(masterConfig.getRoutingPolicies(), not(hasKey("ps3")));
+    assertThat(lsConfig.getRoutingPolicies(), hasKey("ps3"));
   }
 
   @Test
@@ -2250,7 +2925,7 @@ public class FlatJuniperGrammarTest {
         vrf1RejectAllLocal
             .call(
                 eb.setOriginalRoute(localRoutePtp)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(false));
@@ -2258,7 +2933,7 @@ public class FlatJuniperGrammarTest {
         vrf1RejectAllLocal
             .call(
                 eb.setOriginalRoute(localRouteLan)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(false));
@@ -2268,7 +2943,7 @@ public class FlatJuniperGrammarTest {
         vrf2RejectPtpLocal
             .call(
                 eb.setOriginalRoute(localRoutePtp)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(false));
@@ -2276,7 +2951,7 @@ public class FlatJuniperGrammarTest {
         vrf2RejectPtpLocal
             .call(
                 eb.setOriginalRoute(localRouteLan)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(true));
@@ -2286,7 +2961,7 @@ public class FlatJuniperGrammarTest {
         vrf3RejectLanLocal
             .call(
                 eb.setOriginalRoute(localRoutePtp)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(true));
@@ -2294,7 +2969,7 @@ public class FlatJuniperGrammarTest {
         vrf3RejectLanLocal
             .call(
                 eb.setOriginalRoute(localRouteLan)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(false));
@@ -2304,7 +2979,7 @@ public class FlatJuniperGrammarTest {
         vrf4AllowAllLocal
             .call(
                 eb.setOriginalRoute(localRoutePtp)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(true));
@@ -2312,10 +2987,398 @@ public class FlatJuniperGrammarTest {
         vrf4AllowAllLocal
             .call(
                 eb.setOriginalRoute(localRouteLan)
-                    .setOutputRoute(new OspfExternalType2Route.Builder())
+                    .setOutputRoute(OspfExternalType2Route.builder())
                     .build())
             .getBooleanValue(),
         equalTo(true));
+  }
+
+  @Test
+  public void testNatDest() throws IOException {
+    Configuration config = parseConfig("nat-dest");
+
+    NavigableMap<String, Interface> interfaces = config.getAllInterfaces();
+    assertThat(interfaces.keySet(), containsInAnyOrder("ge-0/0/0", "ge-0/0/0.0"));
+
+    assertThat(interfaces.get("ge-0/0/0").getDestinationNats(), empty());
+
+    Interface iface = interfaces.get("ge-0/0/0.0");
+    List<DestinationNat> dnats = iface.getDestinationNats();
+    assertThat(dnats, hasSize(5));
+
+    assertTrue(
+        config
+            .getIpAccessLists()
+            .keySet()
+            .containsAll(
+                dnats
+                    .stream()
+                    .map(DestinationNat::getAcl)
+                    .map(IpAccessList::getName)
+                    .collect(ImmutableList.toImmutableList())));
+
+    assertThat(
+        dnats,
+        contains(
+            DestinationNat.builder()
+                .setAcl(
+                    IpAccessList.builder()
+                        .setName("~DESTINATIONNAT~ge-0/0/0.0~RULE-SET-IFACE~RULE3~")
+                        .setLines(
+                            ImmutableList.of(
+                                accepting(
+                                    AclLineMatchExprs.match(
+                                        HeaderSpace.builder()
+                                            .setSrcPorts(ImmutableList.of(new SubRange(6, 6)))
+                                            .build()))))
+                        .build())
+                .build(),
+            DestinationNat.builder()
+                .setAcl(
+                    IpAccessList.builder()
+                        .setName("~DESTINATIONNAT~ge-0/0/0.0~RULE-SET-ZONE~RULE1~")
+                        .setLines(
+                            ImmutableList.of(
+                                accepting(
+                                    AclLineMatchExprs.match(
+                                        HeaderSpace.builder()
+                                            .setDstIps(new IpSpaceReference("global~NAME"))
+                                            .setDstPorts(ImmutableList.of(new SubRange(100, 200)))
+                                            .setSrcPorts(ImmutableList.of(new SubRange(80, 80)))
+                                            .setSrcIps(new IpSpaceReference("global~SA-NAME"))
+                                            .build()))))
+                        .build())
+                .build(),
+            DestinationNat.builder()
+                .setAcl(
+                    IpAccessList.builder()
+                        .setName("~DESTINATIONNAT~ge-0/0/0.0~RULE-SET-ZONE~RULE2~")
+                        .setLines(
+                            ImmutableList.of(
+                                accepting(
+                                    AclLineMatchExprs.match(
+                                        HeaderSpace.builder()
+                                            .setDstIps(new IpSpaceReference("global~DA-NAME"))
+                                            .setSrcIps(Prefix.parse("2.2.2.2/24").toIpSpace())
+                                            .build()))))
+                        .build())
+                .setPoolIpFirst(Ip.parse("10.10.10.10"))
+                .setPoolIpLast(Ip.parse("10.10.10.20"))
+                .build(),
+            DestinationNat.builder()
+                .setAcl(
+                    IpAccessList.builder()
+                        .setName("~DESTINATIONNAT~get-0/0/0.0~RULE-SET-ZONE~RULE3")
+                        .setLines(
+                            ImmutableList.of(
+                                accepting(
+                                    AclLineMatchExprs.match(
+                                        HeaderSpace.builder()
+                                            .setSrcIps(Prefix.parse("3.3.3.3/24").toIpSpace())
+                                            .setDstIps(Prefix.parse("1.1.1.1/32").toIpSpace())
+                                            .build()))))
+                        .build())
+                .setPoolIpFirst(Ip.parse("10.10.10.1"))
+                .setPoolIpLast(Ip.parse("10.10.10.254"))
+                .build(),
+            DestinationNat.builder()
+                .setAcl(
+                    IpAccessList.builder()
+                        .setName("~DESTINATIONNAT~get-0/0/0.0~RULE-SET-RI~RULE3")
+                        .setLines(
+                            ImmutableList.of(
+                                accepting(
+                                    AclLineMatchExprs.match(
+                                        HeaderSpace.builder()
+                                            .setSrcPorts(ImmutableList.of(new SubRange(5, 5)))
+                                            .build()))))
+                        .build())
+                .build()));
+  }
+
+  @Test
+  public void testNatDestJuniperConfig() {
+    JuniperConfiguration config = parseJuniperConfig("nat-dest");
+
+    Nat nat = config.getMasterLogicalSystem().getNatDestination();
+    assertThat(nat.getType(), equalTo(Type.DESTINATION));
+
+    // test pools
+    Map<String, NatPool> pools = nat.getPools();
+    assertThat(pools.keySet(), equalTo(ImmutableSet.of("POOL1", "POOL2")));
+
+    NatPool pool1 = pools.get("POOL1");
+    assertThat(pool1.getFromAddress(), equalTo(Ip.parse("10.10.10.1")));
+    assertThat(pool1.getToAddress(), equalTo(Ip.parse("10.10.10.254")));
+
+    NatPool pool2 = pools.get("POOL2");
+    assertThat(pool2.getFromAddress(), equalTo(Ip.parse("10.10.10.10")));
+    assertThat(pool2.getToAddress(), equalTo(Ip.parse("10.10.10.20")));
+
+    // test rule sets
+    Map<String, NatRuleSet> ruleSets = nat.getRuleSets();
+    assertThat(
+        ruleSets.keySet(), containsInAnyOrder("RULE-SET-RI", "RULE-SET-ZONE", "RULE-SET-IFACE"));
+
+    // test fromLocations
+    NatPacketLocation fromLocation = ruleSets.get("RULE-SET-IFACE").getFromLocation();
+    assertThat(fromLocation.getInterface(), equalTo("ge-0/0/0.0"));
+    assertThat(fromLocation.getRoutingInstance(), nullValue());
+    assertThat(fromLocation.getZone(), nullValue());
+
+    fromLocation = ruleSets.get("RULE-SET-RI").getFromLocation();
+    assertThat(fromLocation.getInterface(), nullValue());
+    assertThat(fromLocation.getRoutingInstance(), equalTo("RI"));
+    assertThat(fromLocation.getZone(), nullValue());
+
+    fromLocation = ruleSets.get("RULE-SET-ZONE").getFromLocation();
+    assertThat(fromLocation.getInterface(), nullValue());
+    assertThat(fromLocation.getRoutingInstance(), nullValue());
+    assertThat(fromLocation.getZone(), equalTo("ZONE"));
+
+    // test RULE-SET-ZONE rules
+    List<NatRule> rules = ruleSets.get("RULE-SET-ZONE").getRules();
+    assertThat(rules, hasSize(3));
+
+    // test rule1
+    NatRule rule1 = rules.get(0);
+    assertThat(rule1.getName(), equalTo("RULE1"));
+    assertThat(
+        rule1.getMatches(),
+        contains(
+            new NatRuleMatchSrcPort(80, 80),
+            new NatRuleMatchDstPort(100, 200),
+            new NatRuleMatchDstAddrName("NAME"),
+            new NatRuleMatchSrcAddrName("SA-NAME")));
+    assertThat(rule1.getThen(), equalTo(NatRuleThenOff.INSTANCE));
+
+    // test rule2
+    NatRule rule2 = rules.get(1);
+    assertThat(rule2.getName(), equalTo("RULE2"));
+    assertThat(
+        rule2.getMatches(),
+        contains(
+            new NatRuleMatchSrcAddr(Prefix.parse("2.2.2.2/24")),
+            new NatRuleMatchDstAddrName("DA-NAME")));
+    assertThat(rule2.getThen(), equalTo(new NatRuleThenPool("POOL2")));
+
+    // test rule3
+    NatRule rule3 = rules.get(2);
+    assertThat(rule3.getName(), equalTo("RULE3"));
+    assertThat(
+        rule3.getMatches(),
+        contains(
+            new NatRuleMatchSrcAddr(Prefix.parse("3.3.3.3/24")),
+            new NatRuleMatchDstAddr(Prefix.parse("1.1.1.1/32"))));
+    assertThat(rule3.getThen(), equalTo(new NatRuleThenPool("POOL1")));
+  }
+
+  @Test
+  public void testNatSource() throws IOException {
+    Configuration config = parseConfig("nat-source2");
+    Map<String, Interface> interfaceMap = config.getAllInterfaces();
+
+    assertThat(
+        interfaceMap.keySet(),
+        containsInAnyOrder("ge-0/0/0.0", "ge-0/0/1.0", "ge-0/0/0", "ge-0/0/1"));
+
+    Interface iface0 = interfaceMap.get("ge-0/0/0.0");
+    Interface iface1 = interfaceMap.get("ge-0/0/1.0");
+
+    assertThat(iface0.getSourceNats(), empty());
+    assertThat(iface1.getSourceNats(), hasSize(2));
+
+    List<SourceNat> sourceNatList = iface1.getSourceNats();
+    assertThat(sourceNatList, hasSize(2));
+
+    SourceNat nat1 = sourceNatList.get(0);
+    assertThat(
+        nat1.getAcl(),
+        equalTo(
+            IpAccessList.builder()
+                .setName("~SOURCENAT~ge-0/0/1.0~RULE-SET2~RULE1~")
+                .setLines(
+                    ImmutableList.of(
+                        accepting(
+                            AclLineMatchExprs.and(
+                                AclLineMatchExprs.matchSrcInterface("ge-0/0/0.0"),
+                                AclLineMatchExprs.match(
+                                    HeaderSpace.builder()
+                                        .setDstIps(Prefix.parse("2.2.2.2/24").toIpSpace())
+                                        .build())))))
+                .build()));
+    assertThat(nat1.getPoolIpFirst(), equalTo(Ip.parse("10.10.10.1")));
+    assertThat(nat1.getPoolIpLast(), equalTo(Ip.parse("10.10.10.254")));
+
+    SourceNat nat2 = sourceNatList.get(1);
+    assertThat(
+        nat2.getAcl(),
+        equalTo(
+            IpAccessList.builder()
+                .setName("~SOURCENAT~ge-0/0/1.0~RULE-SET1~RULE1~")
+                .setLines(
+                    ImmutableList.of(
+                        accepting(
+                            AclLineMatchExprs.and(
+                                AclLineMatchExprs.matchSrcInterface("ge-0/0/0.0"),
+                                AclLineMatchExprs.match(
+                                    HeaderSpace.builder()
+                                        .setDstIps(Prefix.parse("1.1.1.1/24").toIpSpace())
+                                        .build())))))
+                .build()));
+    assertThat(nat2.getPoolIpFirst(), equalTo(Ip.parse("10.10.10.1")));
+    assertThat(nat2.getPoolIpLast(), equalTo(Ip.parse("10.10.10.254")));
+
+    Flow flow1 = createFlow("3.3.3.3", "2.2.2.1");
+    Flow flow2 = createFlow("3.3.3.3", "1.1.1.1");
+    FilterResult fr =
+        nat1.getAcl().filter(flow1, "ge-0/0/0.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr.getAction(), equalTo(LineAction.PERMIT));
+
+    FilterResult fr2 =
+        nat1.getAcl().filter(flow1, "ge-0/0/1.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr2.getAction(), equalTo(LineAction.DENY));
+
+    FilterResult fr3 =
+        nat1.getAcl().filter(flow2, "ge-0/0/0.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr3.getAction(), equalTo(LineAction.DENY));
+
+    FilterResult fr4 =
+        nat1.getAcl().filter(flow2, "ge-0/0/1.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr4.getAction(), equalTo(LineAction.DENY));
+
+    // test rules in nat2
+    fr = nat2.getAcl().filter(flow1, "ge-0/0/0.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr.getAction(), equalTo(LineAction.DENY));
+
+    fr2 =
+        nat2.getAcl().filter(flow1, "ge-0/0/1.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr2.getAction(), equalTo(LineAction.DENY));
+
+    fr3 =
+        nat2.getAcl().filter(flow2, "ge-0/0/0.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr3.getAction(), equalTo(LineAction.PERMIT));
+
+    fr4 =
+        nat2.getAcl().filter(flow2, "ge-0/0/1.0", config.getIpAccessLists(), config.getIpSpaces());
+    assertThat(fr4.getAction(), equalTo(LineAction.DENY));
+  }
+
+  @Test
+  public void testNatSourceJuniperConfig() {
+    JuniperConfiguration config = parseJuniperConfig("nat-source");
+
+    Nat nat = config.getMasterLogicalSystem().getNatSource();
+    assertThat(nat.getType(), equalTo(Type.SOURCE));
+
+    // test pools
+    Map<String, NatPool> pools = nat.getPools();
+    assertThat(pools.keySet(), containsInAnyOrder("POOL1", "POOL2"));
+
+    NatPool pool1 = pools.get("POOL1");
+    Ip ip1 = Ip.parse("10.10.10.1");
+    Ip ip2 = Ip.parse("10.10.10.254");
+    assertThat(pool1.getFromAddress(), equalTo(ip1));
+    assertThat(pool1.getToAddress(), equalTo(ip2));
+
+    NatPool pool2 = pools.get("POOL2");
+    assertThat(pool2.getFromAddress(), equalTo(Ip.parse("10.10.10.10")));
+    assertThat(pool2.getToAddress(), equalTo(Ip.parse("10.10.10.20")));
+
+    // test rule sets
+    Map<String, NatRuleSet> ruleSets = nat.getRuleSets();
+    assertThat(ruleSets.keySet(), contains("RULE-SET"));
+
+    NatRuleSet ruleSet = ruleSets.get("RULE-SET");
+
+    /*
+     * test from location lines -- it doesn't make sense to have more than one of these, but the
+     * extraction supports it.
+     */
+    assertThat(ruleSet.getFromLocation().getInterface(), nullValue());
+    assertThat(ruleSet.getFromLocation().getRoutingInstance(), nullValue());
+    assertThat(ruleSet.getFromLocation().getZone(), equalTo("FROM-ZONE"));
+
+    // test to location lines
+    assertThat(ruleSet.getToLocation().getInterface(), nullValue());
+    assertThat(ruleSet.getToLocation().getRoutingInstance(), nullValue());
+    assertThat(ruleSet.getToLocation().getZone(), equalTo("TO-ZONE"));
+
+    // test rules
+    List<NatRule> rules = ruleSet.getRules();
+    assertThat(rules, hasSize(2));
+
+    // test rule1
+    NatRule rule1 = rules.get(0);
+    assertThat(rule1.getName(), equalTo("RULE1"));
+    assertThat(
+        rule1.getMatches(),
+        equalTo(
+            ImmutableList.of(
+                new NatRuleMatchDstAddr(Prefix.parse("1.1.1.1/24")),
+                new NatRuleMatchDstAddrName("NAME"))));
+    assertThat(rule1.getThen(), equalTo(NatRuleThenOff.INSTANCE));
+
+    // test rule2
+    NatRule rule2 = rules.get(1);
+    assertThat(rule2.getName(), equalTo("RULE2"));
+    assertThat(
+        rule2.getMatches(),
+        equalTo(
+            ImmutableList.of(
+                new NatRuleMatchSrcAddr(Prefix.parse("2.2.2.2/24")),
+                new NatRuleMatchSrcAddrName("SA-NAME"))));
+    assertThat(rule2.getThen(), equalTo(new NatRuleThenPool("POOL")));
+  }
+
+  @Test
+  public void testNatSourceJuniperConfig2() {
+    JuniperConfiguration config = parseJuniperConfig("nat-source2");
+
+    Nat nat = config.getMasterLogicalSystem().getNatSource();
+    assertThat(nat.getType(), equalTo(Type.SOURCE));
+
+    Map<String, NatPool> pools = nat.getPools();
+    assertThat(pools.keySet(), contains("POOL1"));
+
+    NatPool pool1 = pools.get("POOL1");
+    Ip ip1 = Ip.parse("10.10.10.1");
+    Ip ip2 = Ip.parse("10.10.10.254");
+    assertThat(pool1.getFromAddress(), equalTo(ip1));
+    assertThat(pool1.getToAddress(), equalTo(ip2));
+
+    // test rule sets
+    Map<String, NatRuleSet> ruleSets = nat.getRuleSets();
+    assertThat(ruleSets.keySet(), contains("RULE-SET1", "RULE-SET2"));
+
+    NatRuleSet ruleSet = ruleSets.get("RULE-SET1");
+    assertThat(ruleSet.getFromLocation().getRoutingInstance(), equalTo("RI"));
+    assertThat(ruleSet.getToLocation().getInterface(), equalTo("ge-0/0/1.0"));
+
+    NatRuleSet ruleSet2 = ruleSets.get("RULE-SET2");
+    assertThat(ruleSet2.getFromLocation().getInterface(), equalTo("ge-0/0/0.0"));
+    assertThat(ruleSet2.getToLocation().getInterface(), equalTo("ge-0/0/1.0"));
+
+    // test rules
+    List<NatRule> rules = ruleSet.getRules();
+    assertThat(rules, hasSize(1));
+
+    NatRule rule1 = rules.get(0);
+    assertThat(rule1.getName(), equalTo("RULE1"));
+    assertThat(
+        rule1.getMatches(),
+        equalTo(ImmutableList.of(new NatRuleMatchDstAddr(Prefix.parse("1.1.1.1/24")))));
+    assertThat(rule1.getThen(), equalTo(new NatRuleThenPool("POOL1")));
+
+    rules = ruleSet2.getRules();
+    assertThat(rules, hasSize(1));
+
+    NatRule rule2 = rules.get(0);
+    assertThat(rule2.getName(), equalTo("RULE1"));
+    assertThat(
+        rule2.getMatches(),
+        equalTo(ImmutableList.of(new NatRuleMatchDstAddr(Prefix.parse("2.2.2.2/24")))));
+    assertThat(rule2.getThen(), equalTo(new NatRuleThenPool("POOL1")));
   }
 
   @Test
@@ -2361,7 +3424,7 @@ public class FlatJuniperGrammarTest {
   public void testOspfRouterId() throws IOException {
     Configuration c = parseConfig("ospf-router-id");
 
-    assertThat(c, hasVrf("default", hasOspfProcess(hasRouterId(equalTo(new Ip("1.0.0.0"))))));
+    assertThat(c, hasVrf("default", hasOspfProcess(hasRouterId(equalTo(Ip.parse("1.0.0.0"))))));
   }
 
   @Test
@@ -2373,6 +3436,30 @@ public class FlatJuniperGrammarTest {
         hasDefaultVrf(
             hasGeneratedRoutes(
                 hasItem(allOf(hasPrefix(Prefix.parse("10.0.1.0/24")), isDiscard())))));
+    assertThat(
+        c,
+        hasDefaultVrf(
+            hasOspfProcess(
+                hasArea(
+                    1L,
+                    allOf(
+                        hasStubType(equalTo(StubType.STUB)),
+                        hasSummary(Prefix.parse("10.0.1.0/24"), isAdvertised()))))));
+    String summaryFilterName =
+        c.getDefaultVrf().getOspfProcess().getAreas().get(1L).getSummaryFilter();
+    assertThat(summaryFilterName, not(nullValue()));
+    assertThat(c.getRouteFilterLists().get(summaryFilterName), not(nullValue()));
+    Prefix blockPrefix = Prefix.parse("10.0.1.0/24");
+    assertThat(
+        c.getRouteFilterLists().get(summaryFilterName).getLines(),
+        equalTo(
+            ImmutableList.of(
+                new RouteFilterLine(
+                    LineAction.DENY,
+                    blockPrefix,
+                    new SubRange(blockPrefix.getPrefixLength() + 1, Prefix.MAX_PREFIX_LENGTH)),
+                new RouteFilterLine(
+                    LineAction.PERMIT, Prefix.ZERO, new SubRange(0, Prefix.MAX_PREFIX_LENGTH)))));
   }
 
   @Test
@@ -2386,8 +3473,8 @@ public class FlatJuniperGrammarTest {
     ParseTreeWalker walker = new ParseTreeWalker();
     walker.walk(extractor, ctx);
 
-    assertThat(extractor.getNumSets(), equalTo(8));
-    assertThat(extractor.getNumErrorNodes(), equalTo(8));
+    assertThat(extractor.getNumSets(), equalTo(9));
+    assertThat(extractor.getNumErrorNodes(), equalTo(7));
   }
 
   @Test
@@ -2623,12 +3710,12 @@ public class FlatJuniperGrammarTest {
                     ImmutableSet.of(
                         StaticRoute.builder()
                             .setNetwork(Prefix.parse("1.2.3.4/24"))
-                            .setNextHopIp(new Ip("10.0.0.1"))
+                            .setNextHopIp(Ip.parse("10.0.0.1"))
                             .setAdministrativeCost(250)
                             .build(),
                         StaticRoute.builder()
                             .setNetwork(Prefix.parse("2.3.4.5/24"))
-                            .setNextHopIp(new Ip("10.0.0.2"))
+                            .setNextHopIp(Ip.parse("10.0.0.2"))
                             .setAdministrativeCost(5)
                             .build())))));
   }
@@ -2650,5 +3737,135 @@ public class FlatJuniperGrammarTest {
   public void testStormControl() throws IOException {
     /* allow storm-control configuration in an interface */
     parseConfig("storm-control");
+  }
+
+  @Test
+  public void testSecurityAddressBookGlobalAddress() throws IOException {
+    Configuration config = parseConfig("security-address-book-global-address");
+    Map<String, IpSpace> ipSpaces = config.getIpSpaces();
+    assertThat(ipSpaces.keySet(), contains("global~NAME"));
+  }
+
+  @Test
+  public void testSecurityPolicy() {
+    JuniperConfiguration juniperConfiguration = parseJuniperConfig("security-policy");
+    Map<String, Zone> zones = juniperConfiguration.getMasterLogicalSystem().getZones();
+
+    assertThat(zones.keySet(), containsInAnyOrder("trust", "untrust"));
+
+    Zone trust = zones.get("trust");
+    assertThat(trust.getFromZonePolicies().keySet(), hasSize(0));
+    assertThat(trust.getToZonePolicies().keySet(), hasSize(1));
+
+    Zone untrust = zones.get("untrust");
+    assertThat(untrust.getFromZonePolicies().keySet(), hasSize(1));
+    assertThat(untrust.getToZonePolicies().keySet(), hasSize(0));
+  }
+
+  @Test
+  public void testPreSourceNatOutgoingFilter() throws IOException {
+    Configuration config = parseConfig("security-policy");
+    String ifaceIn = "ge-0/0/0.0";
+    String ifaceOut = "ge-0/0/1.0";
+
+    IpAccessList securityPolicy1 =
+        config.getAllInterfaces().get(ifaceOut).getPreSourceNatOutgoingFilter();
+
+    // Any arbitrary flow from trust to untrust should be permitted
+    Flow flow1 = createFlow(IpProtocol.UDP, 90);
+    Flow flow2 = createFlow(IpProtocol.TCP, 9000);
+
+    assertThat(
+        securityPolicy1, accepts(flow1, ifaceIn, config.getIpAccessLists(), config.getIpSpaces()));
+
+    assertThat(
+        securityPolicy1, accepts(flow2, ifaceIn, config.getIpAccessLists(), config.getIpSpaces()));
+
+    // Packet to ifaceIn should be denied by default
+    IpAccessList securityPolicy2 =
+        config.getAllInterfaces().get(ifaceIn).getPreSourceNatOutgoingFilter();
+
+    assertThat(
+        securityPolicy2, rejects(flow1, ifaceOut, config.getIpAccessLists(), config.getIpSpaces()));
+
+    assertThat(
+        securityPolicy2, rejects(flow2, ifaceOut, config.getIpAccessLists(), config.getIpSpaces()));
+  }
+
+  @Test
+  public void testPsFromInterface() throws IOException {
+    Configuration config = parseConfig("juniper-routing-policy");
+
+    // Matches iface prefix, connected route
+    for (Prefix p : ImmutableList.of(Prefix.parse("1.1.1.1/24"), Prefix.parse("2.2.2.2/24"))) {
+      Result result =
+          config
+              .getRoutingPolicies()
+              .get("POLICY-NAME")
+              .call(
+                  Environment.builder(config)
+                      .setVrf(Configuration.DEFAULT_VRF_NAME)
+                      .setOriginalRoute(new ConnectedRoute(p, "iface"))
+                      .build());
+      assertThat(result.getBooleanValue(), equalTo(true));
+    }
+
+    // Does not match wrong prefix
+    Result result =
+        config
+            .getRoutingPolicies()
+            .get("POLICY-NAME")
+            .call(
+                Environment.builder(config)
+                    .setVrf(Configuration.DEFAULT_VRF_NAME)
+                    .setOriginalRoute(new ConnectedRoute(Prefix.parse("3.3.3.3/24"), "iface"))
+                    .build());
+    assertThat(result.getBooleanValue(), equalTo(false));
+
+    // Does not match static route, even with correct prefix
+    result =
+        config
+            .getRoutingPolicies()
+            .get("POLICY-NAME")
+            .call(
+                Environment.builder(config)
+                    .setVrf(Configuration.DEFAULT_VRF_NAME)
+                    .setOriginalRoute(
+                        StaticRoute.builder()
+                            .setNextHopInterface("iface")
+                            .setNetwork(Prefix.parse("1.1.1.1/24"))
+                            .setAdministrativeCost(1)
+                            .build())
+                    .build());
+    assertThat(result.getBooleanValue(), equalTo(false));
+  }
+
+  @Test
+  public void testSourceNatPool() {
+    JuniperConfiguration juniperConfiguration = parseJuniperConfig("juniper-sourcenat-pool");
+    Map<String, NatPool> pools =
+        juniperConfiguration.getMasterLogicalSystem().getNatSource().getPools();
+
+    Ip ip0 = Ip.parse("1.0.0.0");
+    Ip ip1 = Ip.parse("1.0.0.1");
+    Ip ip2 = Ip.parse("1.0.0.2");
+    Ip ip3 = Ip.parse("1.0.0.3");
+
+    assertThat(pools.keySet(), hasSize(5));
+
+    assertThat(pools.get("POOL1").getFromAddress(), equalTo(ip1));
+    assertThat(pools.get("POOL1").getToAddress(), equalTo(ip3));
+
+    assertThat(pools.get("POOL2").getFromAddress(), equalTo(ip1));
+    assertThat(pools.get("POOL2").getToAddress(), equalTo(ip3));
+
+    assertThat(pools.get("POOL3").getFromAddress(), equalTo(ip0));
+    assertThat(pools.get("POOL3").getToAddress(), equalTo(ip0));
+
+    assertThat(pools.get("POOL4").getFromAddress(), equalTo(ip0));
+    assertThat(pools.get("POOL4").getToAddress(), equalTo(ip1));
+
+    assertThat(pools.get("POOL5").getFromAddress(), equalTo(ip1));
+    assertThat(pools.get("POOL5").getToAddress(), equalTo(ip2));
   }
 }

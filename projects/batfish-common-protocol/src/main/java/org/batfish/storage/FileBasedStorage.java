@@ -10,6 +10,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.io.Closer;
+import com.google.errorprone.annotations.MustBeClosed;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -44,11 +45,13 @@ import org.apache.commons.io.FilenameUtils;
 import org.batfish.common.BatfishException;
 import org.batfish.common.BatfishLogger;
 import org.batfish.common.BfConsts;
+import org.batfish.common.CompletionMetadata;
 import org.batfish.common.Version;
 import org.batfish.common.plugin.PluginConsumer.Format;
 import org.batfish.common.topology.Layer1Topology;
 import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.common.util.CommonUtil;
+import org.batfish.common.util.ZipUtility;
 import org.batfish.datamodel.AnalysisMetadata;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.Edge;
@@ -72,6 +75,9 @@ import org.batfish.role.NodeRolesData;
 /** A utility class that abstracts the underlying file system storage used by Batfish. */
 @ParametersAreNonnullByDefault
 public final class FileBasedStorage implements StorageProvider {
+
+  private static final String RELPATH_COMPLETION_METADATA_FILE = "completion_metadata.json";
+
   private final BatfishLogger _logger;
   private final BiFunction<String, Integer, AtomicInteger> _newBatch;
   private FileBasedStorageDirectoryProvider _d;
@@ -297,6 +303,18 @@ public final class FileBasedStorage implements StorageProvider {
   }
 
   @Override
+  @Nonnull
+  public String loadWorkLog(NetworkId network, SnapshotId snapshot, String workId)
+      throws IOException {
+    Path filePath = getWorkLoadPath(network, snapshot, workId);
+    if (!Files.exists(filePath)) {
+      throw new FileNotFoundException(
+          String.format("Could not find log file for work ID: %s", workId));
+    }
+    return FileUtils.readFileToString(filePath.toFile(), UTF_8);
+  }
+
+  @Override
   public @Nullable MajorIssueConfig loadMajorIssueConfig(
       NetworkId network, IssueSettingsId majorIssueType) {
     Path path = _d.getMajorIssueConfigDir(network, majorIssueType);
@@ -344,12 +362,7 @@ public final class FileBasedStorage implements StorageProvider {
   @Override
   public void storeCompressedConfigurations(
       Map<String, Configuration> configurations, NetworkId network, SnapshotId snapshot) {
-    Path snapshotDir = _d.getSnapshotDir(network, snapshot);
-
-    if (!snapshotDir.toFile().exists() && !snapshotDir.toFile().mkdirs()) {
-      throw new BatfishException(
-          String.format("Unable to create snapshot directory '%s'", snapshotDir));
-    }
+    mkdirs(_d.getSnapshotDir(network, snapshot));
 
     Path outputDir = _d.getCompressedConfigDir(network, snapshot);
 
@@ -370,17 +383,11 @@ public final class FileBasedStorage implements StorageProvider {
       ConvertConfigurationAnswerElement convertAnswerElement,
       NetworkId network,
       SnapshotId snapshot) {
-    Path snapshotDir = _d.getSnapshotDir(network, snapshot);
-    if (!snapshotDir.toFile().exists() && !snapshotDir.toFile().mkdirs()) {
-      throw new BatfishException(
-          String.format("Unable to create snapshot directory '%s'", snapshotDir));
-    }
+    mkdirs(_d.getSnapshotDir(network, snapshot));
 
     // Save the convert configuration answer element.
     Path ccaePath = getConvertAnswerPath(network, snapshot);
-    if (!ccaePath.toFile().exists() && !ccaePath.toFile().mkdirs()) {
-      throw new BatfishException(String.format("Unable to create directory '%s'", ccaePath));
-    }
+    mkdirs(ccaePath);
     CommonUtil.deleteIfExists(ccaePath);
     serializeObject(convertAnswerElement, ccaePath);
 
@@ -406,10 +413,7 @@ public final class FileBasedStorage implements StorageProvider {
 
     // Delete any existing output, then recreate.
     CommonUtil.deleteDirectory(outputDir);
-    if (!outputDir.toFile().exists() && !outputDir.toFile().mkdirs()) {
-      throw new BatfishException(
-          String.format("Unable to create output directory '%s'", outputDir));
-    }
+    mkdirs(outputDir);
 
     configurations
         .entrySet()
@@ -425,11 +429,7 @@ public final class FileBasedStorage implements StorageProvider {
   @Override
   public void storeAnswer(String answerStr, AnswerId answerId) {
     Path answerPath = getAnswerPath(answerId);
-    Path answerDir = answerPath.getParent();
-    if (!answerDir.toFile().exists() && !answerDir.toFile().mkdirs()) {
-      throw new BatfishException(
-          String.format("Unable to create answer directory '%s'", answerDir));
-    }
+    mkdirs(answerPath.getParent());
     CommonUtil.writeFile(answerPath, answerStr);
   }
 
@@ -442,11 +442,7 @@ public final class FileBasedStorage implements StorageProvider {
       throw new BatfishException("Could not write answer metrics", e);
     }
     Path answerMetadataPath = getAnswerMetadataPath(answerId);
-    Path answerDir = answerMetadataPath.getParent();
-    if (!answerDir.toFile().exists() && !answerDir.toFile().mkdirs()) {
-      throw new BatfishException(
-          String.format("Unable to create answer metadata directory '%s'", answerDir));
-    }
+    mkdirs(answerMetadataPath.getParent());
     CommonUtil.writeFile(answerMetadataPath, metricsStr);
   }
 
@@ -594,11 +590,7 @@ public final class FileBasedStorage implements StorageProvider {
   public void storeQuestion(
       String questionStr, NetworkId network, QuestionId question, @Nullable AnalysisId analysis) {
     Path questionPath = getQuestionPath(network, question, analysis);
-    Path questionDir = questionPath.getParent();
-    if (!questionDir.toFile().exists() && !questionDir.toFile().mkdirs()) {
-      throw new BatfishException(
-          String.format("Unable to create question directory '%s'", questionDir));
-    }
+    mkdirs(questionPath.getParent());
     CommonUtil.writeFile(questionPath, questionStr);
   }
 
@@ -815,6 +807,7 @@ public final class FileBasedStorage implements StorageProvider {
     Files.delete(objectPath);
   }
 
+  @MustBeClosed
   @Override
   public @Nonnull InputStream loadSnapshotInputObject(
       NetworkId networkId, SnapshotId snapshotId, String key)
@@ -823,10 +816,13 @@ public final class FileBasedStorage implements StorageProvider {
     if (!Files.exists(objectPath)) {
       throw new FileNotFoundException(String.format("Could not load: %s", objectPath));
     }
-    return Files.newInputStream(objectPath);
+    return Files.isDirectory(objectPath)
+        ? ZipUtility.zipFilesToInputStream(objectPath)
+        : Files.newInputStream(objectPath);
   }
 
-  private Path getSnapshotInputObjectPath(NetworkId networkId, SnapshotId snapshotId, String key)
+  @VisibleForTesting
+  Path getSnapshotInputObjectPath(NetworkId networkId, SnapshotId snapshotId, String key)
       throws IOException {
     Path relativePath = objectKeyToRelativePath(key);
     return _d.getSnapshotInputObjectsDir(networkId, snapshotId).resolve(relativePath);
@@ -843,6 +839,11 @@ public final class FileBasedStorage implements StorageProvider {
     return _d.getSnapshotDir(networkId, snapshotId)
         .resolve(BfConsts.RELPATH_OUTPUT)
         .resolve(BfConsts.RELPATH_TESTRIG_POJO_TOPOLOGY_PATH);
+  }
+
+  @Nonnull
+  private Path getWorkLoadPath(NetworkId network, SnapshotId snapshot, String workId) {
+    return _d.getSnapshotOutputDir(network, snapshot).resolve(workId + BfConsts.SUFFIX_LOG_FILE);
   }
 
   @Override
@@ -875,5 +876,55 @@ public final class FileBasedStorage implements StorageProvider {
     path.getParent().toFile().mkdirs();
     FileUtils.writeStringToFile(
         path.toFile(), BatfishObjectMapper.writePrettyString(topology), UTF_8);
+  }
+
+  @Override
+  public void storeWorkLog(String logOutput, NetworkId network, SnapshotId snapshot, String workId)
+      throws IOException {
+    FileUtils.writeStringToFile(
+        getWorkLoadPath(network, snapshot, workId).toFile(), logOutput, UTF_8);
+  }
+
+  @Override
+  public CompletionMetadata loadCompletionMetadata(NetworkId networkId, SnapshotId snapshotId)
+      throws IOException {
+    Path completionMetadataPath = getSnapshotCompletionMetadataPath(networkId, snapshotId);
+    if (!Files.exists(completionMetadataPath)) {
+      return CompletionMetadata.EMPTY;
+    }
+    String completionMetadataStr =
+        FileUtils.readFileToString(completionMetadataPath.toFile(), UTF_8);
+    return BatfishObjectMapper.mapper()
+        .readValue(completionMetadataStr, new TypeReference<CompletionMetadata>() {});
+  }
+
+  @Override
+  public void storeCompletionMetadata(
+      CompletionMetadata completionMetadata, NetworkId networkId, SnapshotId snapshotId)
+      throws IOException {
+    Path completionMetadataPath = getSnapshotCompletionMetadataPath(networkId, snapshotId);
+    mkdirs(completionMetadataPath.getParent());
+    FileUtils.write(
+        completionMetadataPath.toFile(),
+        BatfishObjectMapper.writeString(completionMetadata),
+        UTF_8);
+  }
+
+  private @Nonnull Path getSnapshotCompletionMetadataPath(
+      NetworkId networkId, SnapshotId snapshotId) {
+    return _d.getSnapshotOutputDir(networkId, snapshotId).resolve(RELPATH_COMPLETION_METADATA_FILE);
+  }
+
+  /**
+   * Make specified directory along with any parent directories if they do not already exist.
+   *
+   * @param dir directory to create
+   * @throws BatfishException if there is an error creating the directories
+   */
+  @VisibleForTesting
+  static void mkdirs(Path dir) {
+    if (!dir.toFile().mkdirs() && !dir.toFile().exists()) {
+      throw new BatfishException(String.format("Unable to create directory '%s'", dir));
+    }
   }
 }

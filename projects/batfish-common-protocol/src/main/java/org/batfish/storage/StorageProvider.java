@@ -1,5 +1,6 @@
 package org.batfish.storage;
 
+import com.google.errorprone.annotations.MustBeClosed;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
@@ -9,6 +10,7 @@ import java.util.SortedSet;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.ParametersAreNonnullByDefault;
+import org.batfish.common.CompletionMetadata;
 import org.batfish.common.topology.Layer1Topology;
 import org.batfish.datamodel.AnalysisMetadata;
 import org.batfish.datamodel.Configuration;
@@ -110,6 +112,15 @@ public interface StorageProvider {
    */
   @Nullable
   MajorIssueConfig loadMajorIssueConfig(NetworkId network, IssueSettingsId majorIssueType);
+
+  /**
+   * Load the log file for a given work item ID.
+   *
+   * @throws FileNotFoundException if the log file is not found.
+   * @throws IOException if there is an error reading the log file.
+   */
+  @Nonnull
+  String loadWorkLog(NetworkId network, SnapshotId snapshot, String workId) throws IOException;
 
   /**
    * Stores the {@link MajorIssueConfig} into the given network. Will replace any previously-stored
@@ -343,6 +354,7 @@ public interface StorageProvider {
    * @throws IOException if there is an error reading the object
    */
   @Nonnull
+  @MustBeClosed
   InputStream loadNetworkObject(NetworkId networkId, String key)
       throws FileNotFoundException, IOException;
 
@@ -370,6 +382,7 @@ public interface StorageProvider {
    * @throws IOException if there is an error reading the object
    */
   @Nonnull
+  @MustBeClosed
   InputStream loadSnapshotObject(NetworkId networkId, SnapshotId snapshotId, String key)
       throws FileNotFoundException, IOException;
 
@@ -432,5 +445,33 @@ public interface StorageProvider {
    */
   void storePojoTopology(
       org.batfish.datamodel.pojo.Topology topology, NetworkId networkId, SnapshotId snapshotId)
+      throws IOException;
+
+  /** Store a given string as a log file for a given work item ID. */
+  void storeWorkLog(String logOutput, NetworkId network, SnapshotId snapshot, String workId)
+      throws IOException;
+
+  /**
+   * Loads the JSON-serialized {@link CompletionMetadata} for the provided network and snapshot
+   *
+   * @param networkId The ID of the network
+   * @param snapshotId The ID of the snapshot
+   * @return The {@link CompletionMetadata} found for the provided network and snapshot. If none is
+   *     found a {@link CompletionMetadata} will be returned with all fields empty
+   * @throws IOException if there is an error reading the {@link CompletionMetadata}
+   */
+  CompletionMetadata loadCompletionMetadata(NetworkId networkId, SnapshotId snapshotId)
+      throws IOException;
+
+  /**
+   * Writes the {@link CompletionMetadata} produced for the given network and snapshot
+   *
+   * @param completionMetadata The {@link CompletionMetadata} to write
+   * @param networkId The ID of the network
+   * @param snapshotId The ID of the snapshot
+   * @throws IOException if there is an error writing the {@link CompletionMetadata}
+   */
+  void storeCompletionMetadata(
+      CompletionMetadata completionMetadata, NetworkId networkId, SnapshotId snapshotId)
       throws IOException;
 }

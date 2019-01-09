@@ -64,6 +64,10 @@ public final class TracerouteAnswerer extends Answerer {
   public static final String COL_FLOW = "Flow";
   public static final String COL_TRACES = "Traces";
   public static final String COL_TRACE_COUNT = "TraceCount";
+  public static final String COL_BASE_TRACES = TableDiff.baseColumnName(COL_TRACES);
+  public static final String COL_DELTA_TRACES = TableDiff.deltaColumnName(COL_TRACES);
+  public static final String COL_BASE_TRACE_COUNT = TableDiff.baseColumnName(COL_TRACE_COUNT);
+  public static final String COL_DELTA_TRACE_COUNT = TableDiff.deltaColumnName(COL_TRACE_COUNT);
   private static final int TRACEROUTE_PORT = 33434;
 
   private final Map<String, Configuration> _configurations;
@@ -103,13 +107,13 @@ public final class TracerouteAnswerer extends Answerer {
     Multiset<Row> rows;
     TableAnswerElement table;
     if (_batfish.debugFlagEnabled("oldtraceroute")) {
-      _batfish.processFlows(flows, question.getIgnoreAcls());
+      _batfish.processFlows(flows, question.getIgnoreFilters());
       FlowHistory flowHistory = _batfish.getHistory();
       rows = flowHistoryToRows(flowHistory, false);
       table = new TableAnswerElement(createMetadata(false));
     } else {
       SortedMap<Flow, List<Trace>> flowTraces =
-          _batfish.buildFlows(flows, question.getIgnoreAcls());
+          _batfish.buildFlows(flows, question.getIgnoreFilters());
       rows = flowTracesToRows(flowTraces, question.getMaxTraces());
       table = new TableAnswerElement(metadata(false));
     }
@@ -120,17 +124,17 @@ public final class TracerouteAnswerer extends Answerer {
   @Override
   public AnswerElement answerDiff() {
     TracerouteQuestion question = ((TracerouteQuestion) _question);
-    boolean ignoreAcls = question.getIgnoreAcls();
+    boolean ignoreFilters = question.getIgnoreFilters();
     Set<Flow> flows = getFlows(_batfish.getDifferentialFlowTag());
     Multiset<Row> rows;
     TableAnswerElement table;
     if (_batfish.debugFlagEnabled("oldtraceroute")) {
       _batfish.pushBaseSnapshot();
-      _batfish.processFlows(flows, ignoreAcls);
+      _batfish.processFlows(flows, ignoreFilters);
       _batfish.popSnapshot();
 
       _batfish.pushDeltaSnapshot();
-      _batfish.processFlows(flows, ignoreAcls);
+      _batfish.processFlows(flows, ignoreFilters);
       _batfish.popSnapshot();
 
       FlowHistory flowHistory = _batfish.getHistory();
@@ -138,11 +142,11 @@ public final class TracerouteAnswerer extends Answerer {
       table = new TableAnswerElement(createMetadata(true));
     } else {
       _batfish.pushBaseSnapshot();
-      Map<Flow, List<Trace>> baseFlowTraces = _batfish.buildFlows(flows, ignoreAcls);
+      Map<Flow, List<Trace>> baseFlowTraces = _batfish.buildFlows(flows, ignoreFilters);
       _batfish.popSnapshot();
 
       _batfish.pushDeltaSnapshot();
-      Map<Flow, List<Trace>> deltaFlowTraces = _batfish.buildFlows(flows, ignoreAcls);
+      Map<Flow, List<Trace>> deltaFlowTraces = _batfish.buildFlows(flows, ignoreFilters);
       _batfish.popSnapshot();
 
       rows = diffFlowTracesToRows(baseFlowTraces, deltaFlowTraces, question.getMaxTraces());
@@ -296,8 +300,7 @@ public final class TracerouteAnswerer extends Answerer {
     return rows;
   }
 
-  @VisibleForTesting
-  static Multiset<Row> diffFlowTracesToRows(
+  public static Multiset<Row> diffFlowTracesToRows(
       Map<Flow, List<Trace>> baseFlowTraces,
       Map<Flow, List<Trace>> deltaFlowTraces,
       int maxTraces) {

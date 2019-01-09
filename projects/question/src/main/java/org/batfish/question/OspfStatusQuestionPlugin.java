@@ -167,11 +167,11 @@ public class OspfStatusQuestionPlugin extends QuestionPlugin {
                       for (InterfaceAddress address : iface.getAllAddresses()) {
                         ConnectedRoute route =
                             new ConnectedRoute(
-                                new Prefix(address.getIp(), address.getNetworkBits()),
+                                Prefix.create(address.getIp(), address.getNetworkBits()),
                                 interfaceName);
                         if (exportPolicy.process(
                             route,
-                            new OspfExternalRoute.Builder(),
+                            OspfExternalRoute.builder(),
                             null,
                             vrf.getName(),
                             Direction.OUT)) {

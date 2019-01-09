@@ -17,10 +17,13 @@ import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import javax.ws.rs.core.Response;
 import org.apache.commons.io.FileUtils;
 import org.batfish.common.AnswerRowsOptions;
@@ -33,6 +36,7 @@ import org.batfish.common.Version;
 import org.batfish.common.WorkItem;
 import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.common.util.CommonUtil;
+import org.batfish.coordinator.authorizer.Authorizer;
 import org.batfish.coordinator.config.Settings;
 import org.batfish.coordinator.id.FileBasedIdManager;
 import org.batfish.coordinator.id.IdManager;
@@ -44,13 +48,14 @@ import org.batfish.datamodel.answers.GetAnalysisAnswerMetricsAnswer;
 import org.batfish.datamodel.answers.Schema;
 import org.batfish.datamodel.answers.StringAnswerElement;
 import org.batfish.datamodel.questions.DisplayHints;
+import org.batfish.datamodel.questions.InstanceData;
 import org.batfish.datamodel.questions.Question;
-import org.batfish.datamodel.questions.Question.InstanceData;
 import org.batfish.datamodel.questions.TestQuestion;
 import org.batfish.datamodel.table.ColumnMetadata;
 import org.batfish.datamodel.table.Row;
 import org.batfish.datamodel.table.TableAnswerElement;
 import org.batfish.datamodel.table.TableMetadata;
+import org.batfish.datamodel.table.TableView;
 import org.batfish.identifiers.AnalysisId;
 import org.batfish.identifiers.AnswerId;
 import org.batfish.identifiers.NetworkId;
@@ -65,6 +70,9 @@ import org.junit.rules.TemporaryFolder;
 
 /** Tests for {@link WorkMgrService}. */
 public class WorkMgrServiceTest {
+
+  private static TableMetadata MOCK_TABLE_METADATA =
+      new TableMetadata(ImmutableList.of(new ColumnMetadata("col", Schema.STRING, "desc")));
 
   @Rule public TemporaryFolder _networksFolder = new TemporaryFolder();
   @Rule public TemporaryFolder _questionsTemplatesFolder = new TemporaryFolder();
@@ -233,7 +241,7 @@ public class WorkMgrServiceTest {
                 analysisId);
     Answer testAnswer = new Answer();
     testAnswer.setStatus(AnswerStatus.SUCCESS);
-    TableAnswerElement table = new TableAnswerElement(new TableMetadata(ImmutableList.of()));
+    TableAnswerElement table = new TableAnswerElement(MOCK_TABLE_METADATA);
     table.postProcessAnswer(questionObj, table.getRows().getData());
     testAnswer.addAnswerElement(table);
     testAnswer.setQuestion(questionObj);
@@ -579,7 +587,7 @@ public class WorkMgrServiceTest {
                 analysisId);
     Answer testAnswer = new Answer();
     testAnswer.setStatus(AnswerStatus.SUCCESS);
-    testAnswer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    testAnswer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     String testAnswerStr = BatfishObjectMapper.writeString(testAnswer);
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(testAnswer, Main.getLogger());
@@ -740,7 +748,7 @@ public class WorkMgrServiceTest {
                 analysisId);
     Answer testAnswer = new Answer();
     testAnswer.setStatus(AnswerStatus.SUCCESS);
-    testAnswer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    testAnswer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     String testAnswerStr = BatfishObjectMapper.writeString(testAnswer);
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(testAnswer, Main.getLogger());
@@ -791,7 +799,7 @@ public class WorkMgrServiceTest {
                 null);
     Answer testAnswer = new Answer();
     testAnswer.setStatus(AnswerStatus.SUCCESS);
-    testAnswer.addAnswerElement(new TableAnswerElement(new TableMetadata(ImmutableList.of())));
+    testAnswer.addAnswerElement(new TableAnswerElement(MOCK_TABLE_METADATA));
     String testAnswerStr = BatfishObjectMapper.writeString(testAnswer);
     AnswerMetadata answerMetadata =
         AnswerMetadataUtil.computeAnswerMetadata(testAnswer, Main.getLogger());
@@ -982,5 +990,201 @@ public class WorkMgrServiceTest {
         (TableAnswerElement) processedAnswer.getAnswerElements().get(0);
 
     assertThat(processedTable.getRowsList(), equalTo(ImmutableList.of(Row.of(columnName, value))));
+  }
+
+  @Test
+  public void testGetAnswerRows2Analysis() throws Exception {
+    initNetwork();
+    initSnapshot();
+    String analysis = "analysis1";
+    String question = "question1";
+    Question questionObj = new TestQuestion();
+    String questionContent = BatfishObjectMapper.writeString(questionObj);
+    String columnName = "col";
+    AnswerRowsOptions answersRowsOptions =
+        new AnswerRowsOptions(
+            ImmutableSet.of(columnName),
+            ImmutableList.of(new ColumnFilter(columnName, "")),
+            Integer.MAX_VALUE,
+            0,
+            ImmutableList.of(new ColumnSortOption(columnName, false)),
+            false);
+    String answerRowsOptionsStr = BatfishObjectMapper.writePrettyString(answersRowsOptions);
+    int value = 5;
+    Answer testAnswer = new Answer();
+    testAnswer.addAnswerElement(
+        new TableAnswerElement(
+                new TableMetadata(
+                    ImmutableList.of(new ColumnMetadata(columnName, Schema.INTEGER, "foobar")),
+                    new DisplayHints().getTextDesc()))
+            .addRow(Row.of(columnName, value)));
+    testAnswer.setStatus(AnswerStatus.SUCCESS);
+    String answer = BatfishObjectMapper.writePrettyString(testAnswer);
+
+    String analysisJsonString = String.format("{\"%s\":%s}", question, questionContent);
+    File analysisFile = _networksFolder.newFile(analysis);
+    FileUtils.writeStringToFile(analysisFile, analysisJsonString, StandardCharsets.UTF_8);
+
+    _service.configureAnalysis(
+        CoordConsts.DEFAULT_API_KEY,
+        Version.getVersion(),
+        null,
+        _networkName,
+        "new",
+        analysis,
+        new FileInputStream(analysisFile),
+        "",
+        null);
+    AnalysisId analysisId = idm().getAnalysisId(analysis, _networkId);
+    QuestionId questionId = idm().getQuestionId(question, _networkId, analysisId);
+    AnswerId answerId =
+        idm()
+            .getBaseAnswerId(
+                _networkId,
+                _snapshotId,
+                questionId,
+                DEFAULT_QUESTION_SETTINGS_ID,
+                DEFAULT_NETWORK_NODE_ROLES_ID,
+                null,
+                analysisId);
+
+    Main.getWorkMgr().getStorage().storeAnswer(answer, answerId);
+    Main.getWorkMgr()
+        .getStorage()
+        .storeAnswerMetadata(
+            AnswerMetadataUtil.computeAnswerMetadata(testAnswer, Main.getLogger()), answerId);
+
+    JSONArray answerOutput =
+        _service.getAnswerRows2(
+            CoordConsts.DEFAULT_API_KEY,
+            Version.getVersion(),
+            _networkName,
+            _snapshotName,
+            null,
+            question,
+            analysis,
+            answerRowsOptionsStr,
+            null);
+
+    assertThat(answerOutput.get(0), equalTo(CoordConsts.SVC_KEY_SUCCESS));
+
+    JSONObject answerJsonObject = (JSONObject) answerOutput.get(1);
+    String answersJsonString = answerJsonObject.getString(CoordConsts.SVC_KEY_ANSWER);
+    Answer processedAnswer =
+        BatfishObjectMapper.mapper().readValue(answersJsonString, new TypeReference<Answer>() {});
+
+    TableView processedTable = (TableView) processedAnswer.getAnswerElements().get(0);
+
+    assertThat(processedTable.getInnerRows(), equalTo(ImmutableList.of(Row.of(columnName, value))));
+  }
+
+  @Test
+  public void testGetAnswerRows2AdHoc() throws Exception {
+    initNetwork();
+    initSnapshot();
+    String question = "question1";
+    QuestionId questionId = new QuestionId(question + "_id");
+    Question questionObj = new TestQuestion();
+    String questionContent = BatfishObjectMapper.writeString(questionObj);
+    String columnName = "col";
+    AnswerRowsOptions answersRowsOptions =
+        new AnswerRowsOptions(
+            ImmutableSet.of(columnName),
+            ImmutableList.of(new ColumnFilter(columnName, "")),
+            Integer.MAX_VALUE,
+            0,
+            ImmutableList.of(new ColumnSortOption(columnName, false)),
+            false);
+    String answerRowsOptionsStr = BatfishObjectMapper.writePrettyString(answersRowsOptions);
+
+    int value = 5;
+    Answer testAnswer = new Answer();
+    testAnswer.addAnswerElement(
+        new TableAnswerElement(
+                new TableMetadata(
+                    ImmutableList.of(new ColumnMetadata(columnName, Schema.INTEGER, "foobar")),
+                    new DisplayHints().getTextDesc()))
+            .addRow(Row.of(columnName, value)));
+    testAnswer.setStatus(AnswerStatus.SUCCESS);
+    String answer = BatfishObjectMapper.writePrettyString(testAnswer);
+
+    Main.getWorkMgr().getStorage().storeQuestion(questionContent, _networkId, questionId, null);
+    idm().assignQuestion(question, _networkId, questionId, null);
+    AnswerId answerId =
+        idm()
+            .getBaseAnswerId(
+                _networkId,
+                _snapshotId,
+                questionId,
+                DEFAULT_QUESTION_SETTINGS_ID,
+                DEFAULT_NETWORK_NODE_ROLES_ID,
+                null,
+                null);
+    Main.getWorkMgr().getStorage().storeAnswer(answer, answerId);
+    Main.getWorkMgr()
+        .getStorage()
+        .storeAnswerMetadata(
+            AnswerMetadataUtil.computeAnswerMetadata(testAnswer, Main.getLogger()), answerId);
+
+    JSONArray answerOutput =
+        _service.getAnswerRows2(
+            CoordConsts.DEFAULT_API_KEY,
+            Version.getVersion(),
+            _networkName,
+            _snapshotName,
+            null,
+            question,
+            null,
+            answerRowsOptionsStr,
+            null);
+
+    assertThat(answerOutput.get(0), equalTo(CoordConsts.SVC_KEY_SUCCESS));
+
+    JSONObject answerJsonObject = (JSONObject) answerOutput.get(1);
+    String answersJsonString = answerJsonObject.getString(CoordConsts.SVC_KEY_ANSWER);
+    Answer processedAnswer =
+        BatfishObjectMapper.mapper().readValue(answersJsonString, new TypeReference<Answer>() {});
+
+    TableView processedTable = (TableView) processedAnswer.getAnswerElements().get(0);
+
+    assertThat(processedTable.getInnerRows(), equalTo(ImmutableList.of(Row.of(columnName, value))));
+  }
+
+  @Test
+  @Deprecated
+  public void testGetWorkStatus() throws InterruptedException, ExecutionException, IOException {
+    initNetwork();
+    WorkMgrTestUtils.uploadTestSnapshot(_networkName, _snapshotName, _networksFolder);
+    final CompletableFuture<String> networkArg = new CompletableFuture<>();
+
+    WorkItem workItem = new WorkItem(_networkName, _snapshotName);
+    Main.getWorkMgr().queueWork(workItem);
+
+    Main.setAuthorizer(
+        new Authorizer() {
+
+          @Override
+          public void authorizeContainer(String apiKey, String containerName) {
+            assert Boolean.TRUE;
+          }
+
+          @Override
+          public boolean isAccessibleContainer(
+              String apiKey, String containerName, boolean logError) {
+            networkArg.complete(containerName);
+            return true;
+          }
+
+          @Override
+          public boolean isValidWorkApiKey(String apiKey) {
+            return true;
+          }
+        });
+    _service.getWorkStatus(
+        CoordConsts.DEFAULT_API_KEY, Version.getVersion(), workItem.getId().toString());
+
+    // networkArg should be name, not ID
+    assertTrue(networkArg.isDone());
+    assertThat(networkArg.get(), equalTo(_networkName));
   }
 }

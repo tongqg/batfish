@@ -37,7 +37,7 @@ public class WildcardApplicator extends FlatJuniperParserBaseListener {
 
   @Override
   public void enterInterface_id(Interface_idContext ctx) {
-    if (_enablePathRecording && (ctx.unit != null || ctx.suffix != null || ctx.node != null)) {
+    if (_enablePathRecording && (ctx.unit != null || ctx.chnl != null || ctx.node != null)) {
       _enablePathRecording = false;
       _reenablePathRecording = true;
       String text = ctx.getText();
@@ -68,7 +68,9 @@ public class WildcardApplicator extends FlatJuniperParserBaseListener {
   public void exitSet_line(Set_lineContext ctx) {
     if (_currentPath.containsWildcard()) {
       List<ParseTree> lines =
-          _hierarchy.getMasterTree().applyWildcardPath(_currentPath, _configurationContext);
+          _hierarchy
+              .getMasterTree()
+              .applyWildcardPath(_currentPath, _configurationContext, _hierarchy.getTokenInputs());
       int insertionIndex = _newConfigurationLines.indexOf(ctx);
       _newConfigurationLines.addAll(insertionIndex, lines);
     }

@@ -2,6 +2,7 @@ package org.batfish.coordinator;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -234,6 +235,24 @@ public class WorkQueueMgr {
     }
   }
 
+  /**
+   * Get all completed work for the specified network and snapshot.
+   *
+   * @param network {@link NetworkId} to get completed work for.
+   * @param snapshot {@link SnapshotId} to get completed work for.
+   * @return {@link List} of completed {@link QueuedWork}.
+   */
+  public synchronized List<QueuedWork> getCompletedWork(NetworkId network, SnapshotId snapshot) {
+    ImmutableList.Builder<QueuedWork> b = ImmutableList.builder();
+    for (QueuedWork work : _queueCompletedWork) {
+      if (work.getWorkItem().getContainerName().equals(network.getId())
+          && work.getWorkItem().getTestrigName().equals(snapshot.getId())) {
+        b.add(work);
+      }
+    }
+    return b.build();
+  }
+
   private synchronized QueuedWork getIncompleteWork(
       String container, String testrig, WorkType wType) {
     for (QueuedWork work : _queueIncompleteWork) {
@@ -464,7 +483,9 @@ public class WorkQueueMgr {
                 // people may be checking its status and this work may be blocking others
                 _queueIncompleteWork.enque(requeueWork);
                 Task fakeTask =
-                    new Task(TaskStatus.RequeueFailure, "Couldn't requeue after unblocking");
+                    new Task(
+                        TaskStatus.RequeueFailure,
+                        String.format("Couldn't requeue after unblocking.\n%s", e.getMessage()));
                 processTaskCheckResult(requeueWork, fakeTask);
               }
             }

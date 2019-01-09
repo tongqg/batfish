@@ -11,6 +11,7 @@ import org.batfish.datamodel.AbstractRoute;
 import org.batfish.datamodel.BgpRoute;
 import org.batfish.datamodel.BgpTieBreaker;
 import org.batfish.datamodel.Ip;
+import org.batfish.datamodel.MultipathEquivalentAsPathMatchMode;
 import org.batfish.datamodel.OriginType;
 import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.RoutingProtocol;
@@ -42,7 +43,7 @@ public class RibDeltaTest {
   public void testBuilderAddRoute() {
     StaticRoute route1 =
         StaticRoute.builder()
-            .setNetwork(new Prefix(new Ip("1.1.1.0"), 24))
+            .setNetwork(Prefix.create(Ip.parse("1.1.1.0"), 24))
             .setNextHopIp(Ip.ZERO)
             .setNextHopInterface(null)
             .setAdministrativeCost(1)
@@ -52,7 +53,7 @@ public class RibDeltaTest {
     // Route 2 & 3 should be equal
     StaticRoute route2 =
         StaticRoute.builder()
-            .setNetwork(new Prefix(new Ip("2.1.1.0"), 24))
+            .setNetwork(Prefix.create(Ip.parse("2.1.1.0"), 24))
             .setNextHopIp(Ip.ZERO)
             .setNextHopInterface(null)
             .setAdministrativeCost(1)
@@ -61,7 +62,7 @@ public class RibDeltaTest {
             .build();
     StaticRoute route3 =
         StaticRoute.builder()
-            .setNetwork(new Prefix(new Ip("2.1.1.0"), 24))
+            .setNetwork(Prefix.create(Ip.parse("2.1.1.0"), 24))
             .setNextHopIp(Ip.ZERO)
             .setNextHopInterface(null)
             .setAdministrativeCost(1)
@@ -88,7 +89,7 @@ public class RibDeltaTest {
   public void testBuilderRemoveRoute() {
     StaticRoute route1 =
         StaticRoute.builder()
-            .setNetwork(new Prefix(new Ip("1.1.1.0"), 24))
+            .setNetwork(Prefix.create(Ip.parse("1.1.1.0"), 24))
             .setNextHopIp(Ip.ZERO)
             .setNextHopInterface(null)
             .setAdministrativeCost(1)
@@ -98,7 +99,7 @@ public class RibDeltaTest {
     // Route 2 & 3 should be equal
     StaticRoute route2 =
         StaticRoute.builder()
-            .setNetwork(new Prefix(new Ip("2.1.1.0"), 24))
+            .setNetwork(Prefix.create(Ip.parse("2.1.1.0"), 24))
             .setNextHopIp(Ip.ZERO)
             .setNextHopInterface(null)
             .setAdministrativeCost(1)
@@ -107,7 +108,7 @@ public class RibDeltaTest {
             .build();
     StaticRoute route3 =
         StaticRoute.builder()
-            .setNetwork(new Prefix(new Ip("2.1.1.0"), 24))
+            .setNetwork(Prefix.create(Ip.parse("2.1.1.0"), 24))
             .setNextHopIp(Ip.ZERO)
             .setNextHopInterface(null)
             .setAdministrativeCost(1)
@@ -132,14 +133,20 @@ public class RibDeltaTest {
   /** Test that deltas are chained correctly using the {@link RibDelta.Builder#from} function */
   @Test
   public void testChainDeltas() {
-    BgpBestPathRib rib = new BgpBestPathRib(BgpTieBreaker.CLUSTER_LIST_LENGTH, null, null);
+    BgpRib rib =
+        new BgpRib(
+            null,
+            null,
+            BgpTieBreaker.CLUSTER_LIST_LENGTH,
+            null,
+            MultipathEquivalentAsPathMatchMode.EXACT_PATH);
     BgpRoute.Builder routeBuilder = new BgpRoute.Builder();
     routeBuilder
-        .setNetwork(new Prefix(new Ip("1.1.1.1"), 32))
+        .setNetwork(Prefix.create(Ip.parse("1.1.1.1"), 32))
         .setProtocol(RoutingProtocol.IBGP)
         .setOriginType(OriginType.IGP)
-        .setOriginatorIp(new Ip("7.7.7.7"))
-        .setReceivedFromIp(new Ip("7.7.7.7"))
+        .setOriginatorIp(Ip.parse("7.7.7.7"))
+        .setReceivedFromIp(Ip.parse("7.7.7.7"))
         .build();
     BgpRoute oldGoodRoute = routeBuilder.build();
     // Better preference, kicks out oldGoodRoute
@@ -159,5 +166,41 @@ public class RibDeltaTest {
         equalTo(new RouteAdvertisement<>(oldGoodRoute, true, Reason.REPLACE)));
     // Route added
     assertThat(delta.getActions().get(1), equalTo(new RouteAdvertisement<>(newGoodRoute)));
+  }
+
+  /** Test that the routes are exact route matches are removed from the RIB by default */
+  @Test
+  public void testImportRibExactRemoval() {
+    BgpRib rib =
+        new BgpRib(
+            null,
+            null,
+            BgpTieBreaker.ROUTER_ID,
+            null,
+            MultipathEquivalentAsPathMatchMode.EXACT_PATH);
+    BgpRoute r1 =
+        new BgpRoute.Builder()
+            .setNetwork(Prefix.create(Ip.parse("1.1.1.1"), 32))
+            .setProtocol(RoutingProtocol.IBGP)
+            .setOriginType(OriginType.IGP)
+            .setOriginatorIp(Ip.parse("7.7.7.7"))
+            .setReceivedFromIp(Ip.parse("7.7.7.7"))
+            .build();
+    BgpRoute r2 =
+        new BgpRoute.Builder()
+            .setNetwork(Prefix.create(Ip.parse("1.1.1.1"), 32))
+            .setProtocol(RoutingProtocol.BGP)
+            .setOriginType(OriginType.IGP)
+            .setOriginatorIp(Ip.parse("7.7.7.7"))
+            .setReceivedFromIp(Ip.parse("7.7.7.7"))
+            .build();
+
+    // Setup
+    rib.mergeRoute(r1);
+    RibDelta<BgpRoute> delta = new Builder<>(rib).add(r2).remove(r1, Reason.WITHDRAW).build();
+    // Test
+    RibDelta.importRibDelta(rib, delta);
+    // r1 remains due to different protocol
+    assertThat(rib.getRoutes(), contains(r2));
   }
 }
