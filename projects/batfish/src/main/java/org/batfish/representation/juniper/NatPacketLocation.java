@@ -101,20 +101,6 @@ public final class NatPacketLocation implements Serializable, Comparable<NatPack
     return Objects.hash(_name, _type);
   }
 
-  AclLineMatchExpr toAclLineMatchExpr(
-      Multimap<String, String> zoneInterfaces, Multimap<String, String> routingInstanceInterfaces) {
-    switch (_type) {
-      case InterfaceType:
-        return matchSrcInterface(_name);
-      case ZoneType:
-        return matchSrcInterface(zoneInterfaces.get(_name).toArray(new String[0]));
-      case RoutingInstanceType:
-        return matchSrcInterface(routingInstanceInterfaces.get(_name).toArray(new String[0]));
-      default:
-        throw new IllegalArgumentException("Unexpected NatPacketLocation: " + _type);
-    }
-  }
-
   @Override
   public int compareTo(NatPacketLocation o) {
     return COMPARATOR.compare(this, o);

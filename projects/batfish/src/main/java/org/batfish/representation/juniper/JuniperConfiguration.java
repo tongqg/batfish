@@ -10,6 +10,10 @@ import static org.batfish.datamodel.transformation.IpField.SOURCE;
 import static org.batfish.representation.juniper.NatPacketLocation.interfaceLocation;
 import static org.batfish.representation.juniper.NatPacketLocation.routingInstanceLocation;
 import static org.batfish.representation.juniper.NatPacketLocation.zoneLocation;
+import static org.batfish.datamodel.acl.AclLineMatchExprs.matchSrcInterface;
+import static org.batfish.representation.juniper.NatPacketLocation.interfaceLocation;
+import static org.batfish.representation.juniper.NatPacketLocation.routingInstanceLocation;
+import static org.batfish.representation.juniper.NatPacketLocation.zoneLocation;
 import static org.batfish.representation.juniper.NatRuleMatchToHeaderSpace.toHeaderSpace;
 
 import com.google.common.annotations.VisibleForTesting;
@@ -1448,6 +1452,37 @@ public final class JuniperConfiguration extends VendorConfiguration {
                             .stream()
                             .map(Interface::getName)
                             .toArray(String[]::new))));
+    return builder.build();
+  }
+
+  @VisibleForTesting
+  Map<NatPacketLocation, AclLineMatchExpr> fromNatPacketLocationMatchExprs() {
+    ImmutableMap.Builder<NatPacketLocation, AclLineMatchExpr> builder = ImmutableMap.builder();
+    _masterLogicalSystem
+        .getInterfaces()
+        .keySet()
+        .forEach(iface -> builder.put(interfaceLocation(iface), matchSrcInterface(iface)));
+    _masterLogicalSystem
+        .getZones()
+        .values()
+        .forEach(
+            zone ->
+                builder.put(
+                    zoneLocation(zone.getName()),
+                    matchSrcInterface(
+                        zone.getInterfaces()
+                            .stream()
+                            .map(Interface::getName)
+                            .toArray(String[]::new))));
+    _masterLogicalSystem
+        .getRoutingInstances()
+        .values()
+        .forEach(
+            routingInstance ->
+                builder.put(
+                    routingInstanceLocation(routingInstance.getName()),
+                    matchSrcInterface(
+                        routingInstance.getInterfaces().keySet().toArray(new String[0]))));
     return builder.build();
   }
 
