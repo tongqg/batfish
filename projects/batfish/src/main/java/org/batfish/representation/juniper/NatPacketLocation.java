@@ -1,13 +1,9 @@
 package org.batfish.representation.juniper;
 
-import static org.batfish.datamodel.acl.AclLineMatchExprs.matchSrcInterface;
-
-import com.google.common.collect.Multimap;
 import java.io.Serializable;
 import java.util.Comparator;
 import java.util.Objects;
 import javax.annotation.Nullable;
-import org.batfish.datamodel.acl.AclLineMatchExpr;
 
 /** Represents how packets enter and exit a Nat */
 public final class NatPacketLocation implements Serializable, Comparable<NatPacketLocation> {
