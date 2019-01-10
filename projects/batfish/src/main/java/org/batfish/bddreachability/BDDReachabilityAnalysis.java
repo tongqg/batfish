@@ -167,11 +167,11 @@ public class BDDReachabilityAnalysis {
           if (!nextSymbolicPacket.isZero()) {
             symbolicRun(nextSymbolicPacket, history, visitedNodes, nextNode, pathDB);
           } else {
-            //pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+            pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
           }
         }
       } else {
-        //pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
+        pathDB.put(ImmutableList.copyOf(history), symbolicPacket);
       }
       history.remove(history.size()-1);
       visitedNodes.remove(currentNode);
