@@ -3917,46 +3917,6 @@ public class Batfish extends PluginConsumer implements IBatfish {
         .collect(ImmutableSet.toImmutableSet());
   }
 
-  public Set<Flow> bddLoopDetection0() {
-    BDDPacket pkt = new BDDPacket();
-    // TODO add ignoreAcls parameter
-    boolean ignoreAcls = false;
-
-    BDDReachabilityAnalysisFactory bddReachabilityAnalysisFactory =
-        getBddReachabilityAnalysisFactory(pkt, ignoreAcls);
-    BDDReachabilityAnalysis analysis =
-        bddReachabilityAnalysisFactory.bddReachabilityAnalysis(
-            getAllSourcesInferFromLocationIpSpaceAssignment());
-    Map<IngressLocation, BDD> loopBDDs = analysis.detectLoops();
-
-    String flowTag = getFlowTag();
-    return loopBDDs
-        .entrySet()
-        .stream()
-        .map(
-            entry ->
-                pkt.getFlow(entry.getValue())
-                    .map(
-                        fb -> {
-                          IngressLocation loc = entry.getKey();
-                          fb.setTag(flowTag);
-                          fb.setIngressNode(loc.getNode());
-                          switch (loc.getType()) {
-                            case INTERFACE_LINK:
-                              fb.setIngressInterface(loc.getInterface());
-                              break;
-                            case VRF:
-                              fb.setIngressVrf(loc.getVrf());
-                              break;
-                            default:
-                              throw new BatfishException("Unknown Location Type: " + loc.getType());
-                          }
-                          return fb.build();
-                        }))
-        .flatMap(optional -> optional.map(Stream::of).orElse(Stream.empty()))
-        .collect(ImmutableSet.toImmutableSet());
-  }
-
   @Override
   public Set<Flow> bddMultipathConsistency(MultipathConsistencyParameters parameters) {
     BDDPacket pkt = new BDDPacket();
