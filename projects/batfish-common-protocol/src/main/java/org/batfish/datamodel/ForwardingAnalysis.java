@@ -25,6 +25,8 @@ public interface ForwardingAnalysis {
   /** Mapping: hostname -&gt; outInterface -&gt; dstIpsForWhichNoSufficientInfoToDetermine */
   Map<String, Map<String, Map<String, IpSpace>>> getInsufficientInfo();
 
+  Map<String, Map<String, Map<Prefix, IpSpace>>> getMatchingIps();
+
   /**
    * Mapping: hostname -&gt; vrfName -&gt; nullRoutedIps <br>
    * A nullable IP is a destination IP for which there is a longest-prefix-match route that discards

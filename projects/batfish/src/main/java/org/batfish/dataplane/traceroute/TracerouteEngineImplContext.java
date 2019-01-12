@@ -346,6 +346,7 @@ public class TracerouteEngineImplContext {
             applyFilter(
                 inputFlow,
                 inputIfaceName,
+                inputIfaceName,
                 inputFilter,
                 FilterType.INGRESS_FILTER,
                 aclDefinitions,
@@ -550,6 +551,7 @@ public class TracerouteEngineImplContext {
                         applyFilter(
                             currentFlow,
                             inputIfaceName,
+                            outgoingInterface.getName(),
                             filter,
                             FilterType.PRE_SOURCE_NAT_FILTER,
                             aclDefinitions,
@@ -606,6 +608,7 @@ public class TracerouteEngineImplContext {
                         applyFilter(
                             clonedTransmissionContext._transformedFlow,
                             inputIfaceName,
+                            outgoingInterface.getName(),
                             outFilter,
                             FilterType.EGRESS_FILTER,
                             clonedTransmissionContext._aclDefinitions,

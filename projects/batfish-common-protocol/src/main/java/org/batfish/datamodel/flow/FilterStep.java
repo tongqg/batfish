@@ -27,28 +27,39 @@ public class FilterStep extends Step<FilterStepDetail> {
   public static final class FilterStepDetail {
     private static final String PROP_FILTER = "filter";
     private static final String PROP_TYPE = "type";
+    private static final String PROP_INTERFACE = "interface";
 
     private @Nonnull String _filter;
     private @Nonnull FilterType _type;
+    private @Nullable String _interface;
 
-    public FilterStepDetail(@Nonnull String filter, @Nonnull FilterType type) {
+    public FilterStepDetail(
+        @Nonnull String filter, @Nonnull FilterType type, @Nullable String iface) {
       _filter = filter;
       _type = type;
+      _interface = iface;
     }
 
     @JsonCreator
     private static FilterStepDetail jsonCreator(
         @JsonProperty(PROP_FILTER) @Nullable String filter,
-        @JsonProperty(PROP_TYPE) @Nullable FilterType type) {
+        @JsonProperty(PROP_TYPE) @Nullable FilterType type,
+        @JsonProperty(PROP_INTERFACE) @Nullable String iface) {
       checkArgument(filter != null, "Missing %s", PROP_FILTER);
       checkArgument(type != null, "Missing %s", PROP_TYPE);
-      return new FilterStepDetail(filter, type);
+      return new FilterStepDetail(filter, type, iface);
     }
 
     @JsonProperty(PROP_FILTER)
     @Nonnull
     public String getFilter() {
       return _filter;
+    }
+
+    @JsonProperty(PROP_INTERFACE)
+    @Nullable
+    public String getInterface() {
+      return _interface;
     }
 
     @JsonProperty(PROP_TYPE)

@@ -120,6 +120,7 @@ final class TracerouteUtils {
   static FilterStep applyFilter(
       Flow currentFlow,
       String inInterfaceName,
+      String filterInterfaceName,
       IpAccessList filter,
       FilterType filterType,
       Map<String, IpAccessList> aclDefinitions,
@@ -137,7 +138,8 @@ final class TracerouteUtils {
       }
     }
 
-    return new FilterStep(new FilterStepDetail(filter.getName(), filterType), action);
+    return new FilterStep(
+        new FilterStepDetail(filter.getName(), filterType, filterInterfaceName), action);
   }
 
   /**

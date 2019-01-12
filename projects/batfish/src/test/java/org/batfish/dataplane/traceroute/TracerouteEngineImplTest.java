@@ -59,6 +59,7 @@ import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.RoutingProtocol;
 import org.batfish.datamodel.StaticRoute;
 import org.batfish.datamodel.Vrf;
+import org.batfish.datamodel.acl.AclLineMatchExpr;
 import org.batfish.datamodel.acl.AclLineMatchExprs;
 import org.batfish.datamodel.acl.MatchSrcInterface;
 import org.batfish.datamodel.acl.OriginatingFromDevice;
@@ -70,6 +71,7 @@ import org.batfish.datamodel.flow.FilterStep.FilterStepDetail;
 import org.batfish.datamodel.flow.FilterStep.FilterType;
 import org.batfish.datamodel.flow.Hop;
 import org.batfish.datamodel.flow.OriginateStep;
+import org.batfish.datamodel.flow.PathToACL;
 import org.batfish.datamodel.flow.RouteInfo;
 import org.batfish.datamodel.flow.RoutingStep;
 import org.batfish.datamodel.flow.Step;
@@ -228,6 +230,11 @@ public class TracerouteEngineImplTest {
 
     /* Flow should be blocked by ACL before ARP, which would otherwise result in unreachable neighbor */
     assertThat(trace.getDisposition(), equalTo(FlowDisposition.DENIED_OUT));
+
+    AclLineMatchExpr expr =
+        new PathToACL(configurations, b.loadDataPlane().getForwardingAnalysis())
+            .traceMatchExpr(trace);
+    return;
   }
 
   @Test
@@ -451,6 +458,7 @@ public class TracerouteEngineImplTest {
         TracerouteUtils.applyFilter(
             flow,
             iface1,
+            iface1,
             filter,
             FilterType.INGRESS_FILTER,
             ImmutableMap.of(filterName, filter),
@@ -465,6 +473,7 @@ public class TracerouteEngineImplTest {
     step =
         TracerouteUtils.applyFilter(
             flow,
+            iface2,
             iface2,
             filter,
             FilterType.INGRESS_FILTER,

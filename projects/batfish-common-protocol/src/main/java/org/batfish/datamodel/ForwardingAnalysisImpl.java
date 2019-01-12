@@ -115,6 +115,8 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
 
   private final Map<String, Map<String, BDD>> _interfaceHostSubnetIpBDDs;
 
+  private final Map<String, Map<String, Map<Prefix, IpSpace>>> _matchingIps;
+
   // ips belonging to any interface in the network
   private final IpSpace _ownedIps;
 
@@ -150,27 +152,27 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
       _externalIps = _internalIps.complement();
       _interfaceHostSubnetIpBDDs = computeInterfaceHostSubnetIpBDDs();
       _interfacesWithMissingDevices = computeInterfacesWithMissingDevices(configurations);
-      Map<String, Map<String, Map<Prefix, IpSpace>>> matchingIps = computeMatchingIps(ribs);
-      _nullRoutedIps = computeNullRoutedIps(matchingIps, fibs);
+      _matchingIps = computeMatchingIps(ribs);
+      _nullRoutedIps = computeNullRoutedIps(_matchingIps, fibs);
       _routableIps = computeRoutableIps(ribs);
       _routesWithNextHop = computeRoutesWithNextHop(configurations, fibs);
-      _ipsRoutedOutInterfaces = computeIpsRoutedOutInterfaces(matchingIps);
+      _ipsRoutedOutInterfaces = computeIpsRoutedOutInterfaces(_matchingIps);
       _arpReplies = computeArpReplies(configurations, ribs);
       _someoneReplies = computeSomeoneReplies(topology);
       _routesWithNextHopIpArpFalse = computeRoutesWithNextHopIpArpFalse(fibs);
       _routesWithUnownedNextHopIpArpFalse = computeRoutesWithUnownedNextHopIpArpFalse();
       _routesWithOwnedNextHopIpArpFalse = computeRoutesWithOwnedNextHopIpArpFalse();
-      _arpFalseNextHopIp = computeArpFalseNextHopIp(matchingIps);
+      _arpFalseNextHopIp = computeArpFalseNextHopIp(_matchingIps);
       _routesWithNextHopIpArpTrue = computeRoutesWithNextHopIpArpTrue(fibs, topology);
-      _arpTrueEdgeNextHopIp = computeArpTrueEdgeNextHopIp(configurations, matchingIps);
+      _arpTrueEdgeNextHopIp = computeArpTrueEdgeNextHopIp(configurations, _matchingIps);
       _routesWhereDstIpCanBeArpIp = computeRoutesWhereDstIpCanBeArpIp(fibs);
-      _arpFalseDestIp = computeArpFalseDestIp(matchingIps);
+      _arpFalseDestIp = computeArpFalseDestIp(_matchingIps);
       _arpFalse = computeArpFalse();
       _routesWithDestIpEdge = computeRoutesWithDestIpEdge(topology);
-      _arpTrueEdgeDestIp = computeArpTrueEdgeDestIp(configurations, matchingIps);
+      _arpTrueEdgeDestIp = computeArpTrueEdgeDestIp(configurations, _matchingIps);
       _arpTrueEdge = computeArpTrueEdge();
-      _dstIpsWithUnownedNextHopIpArpFalse = computeDstIpsWithUnownedNextHopIpArpFalse(matchingIps);
-      _dstIpsWithOwnedNextHopIpArpFalse = computeDstIpsWithOwnedNextHopIpArpFalse(matchingIps);
+      _dstIpsWithUnownedNextHopIpArpFalse = computeDstIpsWithUnownedNextHopIpArpFalse(_matchingIps);
+      _dstIpsWithOwnedNextHopIpArpFalse = computeDstIpsWithOwnedNextHopIpArpFalse(_matchingIps);
       _deliveredToSubnet = computeDeliveredToSubnet();
       _exitsNetwork = computeExitsNetwork(configurations);
       _insufficientInfo = computeInsufficientInfo(configurations);
@@ -226,6 +228,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
     _routesWithOwnedNextHopIpArpFalse = routesWithOwnedNextHopIpArpFalse;
     _interfaceHostSubnetIps = interfaceHostSubnetIps;
     _interfacesWithMissingDevices = interfacesWithMissingDevices;
+    _matchingIps = null;
     _neighborUnreachable = null;
     _deliveredToSubnet = null;
     _insufficientInfo = null;
@@ -1015,6 +1018,11 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
      * fails.
      */
     return _arpFalse;
+  }
+
+  @Override
+  public Map<String, Map<String, Map<Prefix, IpSpace>>> getMatchingIps() {
+    return _matchingIps;
   }
 
   @Override

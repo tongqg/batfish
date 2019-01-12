@@ -2,6 +2,7 @@ package org.batfish.datamodel.acl;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedSet;
 import com.google.common.collect.Ordering;
 import java.util.IdentityHashMap;
@@ -13,10 +14,11 @@ import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.visitors.IpSpaceRenamer;
 
 /**
- * Renames references to named {@link org.batfish.datamodel.IpAccessList ACLs} and {@link IpSpace
- * IpSpaces} in an {@link org.batfish.datamodel.IpAccessList}.
+ * Renames references to named {@link IpAccessList ACLs} and {@link IpSpace IpSpaces} in an {@link
+ * IpAccessList}.
  */
 public class IpAccessListRenamer implements Function<IpAccessList, IpAccessList> {
+
   @VisibleForTesting
   class Visitor implements GenericAclLineMatchExprVisitor<AclLineMatchExpr> {
 
@@ -63,7 +65,19 @@ public class IpAccessListRenamer implements Function<IpAccessList, IpAccessList>
 
     @Override
     public AclLineMatchExpr visitMatchSrcInterface(MatchSrcInterface matchSrcInterface) {
-      return matchSrcInterface;
+      if (_srcInterfaceRenamer == null) {
+        return matchSrcInterface;
+      } else {
+        MatchSrcInterface newMatchSrcInterface =
+            new MatchSrcInterface(
+                matchSrcInterface
+                    .getSrcInterfaces()
+                    .stream()
+                    .map(_srcInterfaceRenamer)
+                    .collect(ImmutableSet.toImmutableSet()));
+        _literalsMap.put(matchSrcInterface, newMatchSrcInterface);
+        return newMatchSrcInterface;
+      }
     }
 
     @Override
@@ -112,12 +126,24 @@ public class IpAccessListRenamer implements Function<IpAccessList, IpAccessList>
   // if a new one was created
   private IdentityHashMap<AclLineMatchExpr, AclLineMatchExpr> _literalsMap;
 
+  private final @Nullable Function<String, String> _srcInterfaceRenamer;
+
   private final Visitor _visitor;
 
-  public IpAccessListRenamer(Function<String, String> aclRenamer, IpSpaceRenamer ipSpaceRenamer) {
+  public IpAccessListRenamer(
+      Function<String, String> aclRenamer,
+      IpSpaceRenamer ipSpaceRenamer) {
+    this(aclRenamer, ipSpaceRenamer, null);
+  }
+
+  public IpAccessListRenamer(
+      Function<String, String> aclRenamer,
+      IpSpaceRenamer ipSpaceRenamer,
+      @Nullable Function<String, String> srcInterfaceRenamer) {
     _aclRenamer = aclRenamer;
     _ipSpaceRenamer = ipSpaceRenamer;
     _literalsMap = new IdentityHashMap<>();
+    _srcInterfaceRenamer = srcInterfaceRenamer;
     _visitor = new Visitor();
   }
 

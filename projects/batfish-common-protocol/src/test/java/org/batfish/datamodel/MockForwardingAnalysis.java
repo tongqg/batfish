@@ -138,6 +138,11 @@ public class MockForwardingAnalysis implements ForwardingAnalysis {
   }
 
   @Override
+  public Map<String, Map<String, Map<Prefix, IpSpace>>> getMatchingIps() {
+    return ImmutableMap.of();
+  }
+
+  @Override
   public Map<String, Map<String, IpSpace>> getNullRoutedIps() {
     return _nullRoutedIps;
   }

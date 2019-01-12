@@ -2,6 +2,7 @@ package org.batfish.question.traceroute;
 
 import static com.google.common.base.Preconditions.checkArgument;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
@@ -15,6 +16,7 @@ import java.util.SortedMap;
 import javax.annotation.Nonnull;
 import org.batfish.common.Answerer;
 import org.batfish.common.plugin.IBatfish;
+import org.batfish.common.util.BatfishObjectMapper;
 import org.batfish.common.util.TracePruner;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.EmptyIpSpace;
@@ -29,8 +31,10 @@ import org.batfish.datamodel.IpSpace;
 import org.batfish.datamodel.NamedPort;
 import org.batfish.datamodel.PacketHeaderConstraints;
 import org.batfish.datamodel.PacketHeaderConstraintsUtil;
+import org.batfish.datamodel.acl.AclLineMatchExpr;
 import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.datamodel.answers.Schema;
+import org.batfish.datamodel.flow.PathToACL;
 import org.batfish.datamodel.flow.Trace;
 import org.batfish.datamodel.questions.Question;
 import org.batfish.datamodel.table.ColumnMetadata;
@@ -114,11 +118,29 @@ public final class TracerouteAnswerer extends Answerer {
     } else {
       SortedMap<Flow, List<Trace>> flowTraces =
           _batfish.buildFlows(flows, question.getIgnoreFilters());
+      flowTraces
+          .values()
+          .stream()
+          .flatMap(List::stream)
+          .findFirst()
+          .ifPresent(this::computeTraceHeaderspace);
       rows = flowTracesToRows(flowTraces, question.getMaxTraces());
       table = new TableAnswerElement(metadata(false));
     }
     table.postProcessAnswer(_question, rows);
     return table;
+  }
+
+  private void computeTraceHeaderspace(Trace trace) {
+    AclLineMatchExpr expr =
+        new PathToACL(_configurations, _batfish.loadDataPlane().getForwardingAnalysis())
+            .traceMatchExpr(trace);
+    try {
+      String json = BatfishObjectMapper.writePrettyString(expr);
+      return;
+    } catch (JsonProcessingException e) {
+      e.printStackTrace();
+    }
   }
 
   @Override
