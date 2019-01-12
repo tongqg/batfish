@@ -63,7 +63,7 @@ import org.batfish.datamodel.visitors.IpSpaceRenamer;
  * Convert a path through the network to an {@link IpAccessList} that permits the headerspace that
  * can flow along that path.
  */
-public class PathToACL {
+public class TraceMatchExpr {
   /** All the acls in the network, with globally-unique names */
   private final Map<String, IpAccessList> _acls;
 
@@ -77,7 +77,7 @@ public class PathToACL {
 
   private final Set<String> _sourceInterfaces;
 
-  public PathToACL(Map<String, Configuration> configs, ForwardingAnalysis forwardingAnalysis) {
+  public TraceMatchExpr(Map<String, Configuration> configs, ForwardingAnalysis forwardingAnalysis) {
     _acls = computeAcls(configs);
     _configs = configs;
     _forwardingAnalysis = forwardingAnalysis;

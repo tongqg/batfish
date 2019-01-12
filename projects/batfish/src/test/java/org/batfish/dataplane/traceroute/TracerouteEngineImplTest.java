@@ -71,12 +71,12 @@ import org.batfish.datamodel.flow.FilterStep.FilterStepDetail;
 import org.batfish.datamodel.flow.FilterStep.FilterType;
 import org.batfish.datamodel.flow.Hop;
 import org.batfish.datamodel.flow.OriginateStep;
-import org.batfish.datamodel.flow.PathToACL;
 import org.batfish.datamodel.flow.RouteInfo;
 import org.batfish.datamodel.flow.RoutingStep;
 import org.batfish.datamodel.flow.Step;
 import org.batfish.datamodel.flow.StepAction;
 import org.batfish.datamodel.flow.Trace;
+import org.batfish.datamodel.flow.TraceMatchExpr;
 import org.batfish.datamodel.flow.TransformationStep;
 import org.batfish.datamodel.flow.TransformationStep.TransformationStepDetail;
 import org.batfish.datamodel.matchers.TraceMatchers;
@@ -232,7 +232,7 @@ public class TracerouteEngineImplTest {
     assertThat(trace.getDisposition(), equalTo(FlowDisposition.DENIED_OUT));
 
     AclLineMatchExpr expr =
-        new PathToACL(configurations, b.loadDataPlane().getForwardingAnalysis())
+        new TraceMatchExpr(configurations, b.loadDataPlane().getForwardingAnalysis())
             .traceMatchExpr(trace);
     return;
   }

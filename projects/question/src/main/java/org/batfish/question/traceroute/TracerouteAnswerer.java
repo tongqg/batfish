@@ -34,8 +34,8 @@ import org.batfish.datamodel.PacketHeaderConstraintsUtil;
 import org.batfish.datamodel.acl.AclLineMatchExpr;
 import org.batfish.datamodel.answers.AnswerElement;
 import org.batfish.datamodel.answers.Schema;
-import org.batfish.datamodel.flow.PathToACL;
 import org.batfish.datamodel.flow.Trace;
+import org.batfish.datamodel.flow.TraceMatchExpr;
 import org.batfish.datamodel.questions.Question;
 import org.batfish.datamodel.table.ColumnMetadata;
 import org.batfish.datamodel.table.Row;
@@ -133,7 +133,7 @@ public final class TracerouteAnswerer extends Answerer {
 
   private void computeTraceHeaderspace(Trace trace) {
     AclLineMatchExpr expr =
-        new PathToACL(_configurations, _batfish.loadDataPlane().getForwardingAnalysis())
+        new TraceMatchExpr(_configurations, _batfish.loadDataPlane().getForwardingAnalysis())
             .traceMatchExpr(trace);
     try {
       String json = BatfishObjectMapper.writePrettyString(expr);
