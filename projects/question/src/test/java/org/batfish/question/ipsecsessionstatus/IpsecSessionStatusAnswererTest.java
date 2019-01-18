@@ -1,11 +1,11 @@
 package org.batfish.question.ipsecsessionstatus;
 
 import static org.batfish.datamodel.matchers.RowMatchers.hasColumn;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IKE_PHASE1_FAILED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.IPSEC_SESSION_ESTABLISHED;
-import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfo.IpsecSessionStatus.MISSING_END_POINT;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IKE_PHASE1_KEY_MISMATCH;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_PHASE2_FAILED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.IPSEC_SESSION_ESTABLISHED;
+import static org.batfish.datamodel.questions.IpsecSessionStatus.MISSING_END_POINT;
 import static org.batfish.question.ipsecsessionstatus.IpsecSessionInfoMatchers.hasIpsecSessionStatus;
 import static org.batfish.question.ipsecsessionstatus.IpsecSessionStatusAnswerer.COL_INITIATOR;
 import static org.batfish.question.ipsecsessionstatus.IpsecSessionStatusAnswerer.COL_INIT_INTERFACE;
@@ -66,7 +66,7 @@ public class IpsecSessionStatusAnswererTest {
     Configuration initiatorNode;
     Configuration responderNode;
     _ipsecStaticPeerConfigBuilder
-        .setPhysicalInterface("Test_interface")
+        .setSourceInterface("Test_interface")
         .setLocalAddress(Ip.parse("1.2.3.4"))
         .setTunnelInterface("Tunnel_interface");
     _graph = ValueGraphBuilder.directed().allowsSelfLoops(false).build();

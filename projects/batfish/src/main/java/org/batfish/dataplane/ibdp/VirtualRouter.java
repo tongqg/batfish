@@ -5,6 +5,7 @@ import static java.util.Objects.requireNonNull;
 import static org.batfish.common.util.CommonUtil.toImmutableSortedMap;
 import static org.batfish.datamodel.MultipathEquivalentAsPathMatchMode.EXACT_PATH;
 import static org.batfish.dataplane.protocols.IsisProtocolHelper.convertRouteLevel1ToLevel2;
+import static org.batfish.dataplane.protocols.IsisProtocolHelper.setOverloadOnAllRoutes;
 import static org.batfish.dataplane.protocols.StaticRouteHelper.isInterfaceRoute;
 import static org.batfish.dataplane.protocols.StaticRouteHelper.shouldActivateNextHopIpRoute;
 import static org.batfish.dataplane.rib.AbstractRib.importRib;
@@ -300,9 +301,7 @@ public class VirtualRouter implements Serializable {
   /** Initialize EIGRP processes */
   private void initEigrp() {
     _virtualEigrpProcesses =
-        _vrf.getEigrpProcesses()
-            .values()
-            .stream()
+        _vrf.getEigrpProcesses().values().stream()
             .map(eigrpProcess -> new VirtualEigrpProcess(eigrpProcess, _name, _c))
             .collect(ImmutableMap.toImmutableMap(VirtualEigrpProcess::getAsn, Function.identity()));
   }
@@ -356,8 +355,7 @@ public class VirtualRouter implements Serializable {
         _ospfExternalIncomingRoutes = ImmutableSortedMap.of();
       } else {
         _ospfExternalIncomingRoutes =
-            _ospfNeighbors
-                .stream()
+            _ospfNeighbors.stream()
                 .map(OspfEdge::reverse)
                 .collect(
                     ImmutableSortedMap
@@ -381,18 +379,12 @@ public class VirtualRouter implements Serializable {
     } else {
       _bgpIncomingRoutes =
           Stream.concat(
-                  _vrf.getBgpProcess()
-                      .getActiveNeighbors()
-                      .entrySet()
-                      .stream()
+                  _vrf.getBgpProcess().getActiveNeighbors().entrySet().stream()
                       .map(
                           e ->
                               new BgpPeerConfigId(
                                   getHostname(), _vrf.getName(), e.getKey(), false)),
-                  _vrf.getBgpProcess()
-                      .getPassiveNeighbors()
-                      .entrySet()
-                      .stream()
+                  _vrf.getBgpProcess().getPassiveNeighbors().entrySet().stream()
                       .map(
                           e ->
                               new BgpPeerConfigId(getHostname(), _vrf.getName(), e.getKey(), true)))
@@ -420,8 +412,7 @@ public class VirtualRouter implements Serializable {
       _isisIncomingRoutes = ImmutableSortedMap.of();
     } else {
       _isisIncomingRoutes =
-          _vrf.getInterfaceNames()
-              .stream()
+          _vrf.getInterfaceNames().stream()
               .map(ifaceName -> new IsisNode(_c.getHostname(), ifaceName))
               .filter(isisTopology.nodes()::contains)
               .flatMap(n -> isisTopology.inEdges(n).stream())
@@ -483,8 +474,7 @@ public class VirtualRouter implements Serializable {
      * Updates from these BGP deltas into mainRib will be handled in finalizeBgp routes
      */
     if (d != null) {
-      d.getActions()
-          .stream()
+      d.getActions().stream()
           .filter(RouteAdvertisement::isWithdrawn)
           .forEach(
               r -> {
@@ -812,9 +802,7 @@ public class VirtualRouter implements Serializable {
     // Propagate received routes through all the RIBs and send out appropriate messages
     // to neighbors
     Map<BgpRib, RibDelta<BgpRoute>> deltas =
-        ribDeltas
-            .entrySet()
-            .stream()
+        ribDeltas.entrySet().stream()
             .filter(e -> e.getValue().build() != null)
             .collect(Collectors.toMap(Entry::getKey, e -> e.getValue().build()));
     finalizeBgpRoutesAndQueueOutgoingMessages(deltas, allNodes, bgpTopology, networkConfigurations);
@@ -838,9 +826,7 @@ public class VirtualRouter implements Serializable {
                 Interface iface = _c.getAllInterfaces().get(ifaceName);
                 if (iface.getActive()) {
                   Set<Prefix> allNetworkPrefixes =
-                      iface
-                          .getAllAddresses()
-                          .stream()
+                      iface.getAllAddresses().stream()
                           .map(InterfaceAddress::getPrefix)
                           .collect(Collectors.toSet());
                   int interfaceOspfCost = iface.getOspfCost();
@@ -885,9 +871,7 @@ public class VirtualRouter implements Serializable {
       Interface iface = _vrf.getInterfaces().get(ifaceName);
       if (iface.getActive()) {
         Set<Prefix> allNetworkPrefixes =
-            iface
-                .getAllAddresses()
-                .stream()
+            iface.getAllAddresses().stream()
                 .map(InterfaceAddress::getPrefix)
                 .collect(Collectors.toSet());
         long cost = RipProcess.DEFAULT_RIP_COST;
@@ -1037,27 +1021,28 @@ public class VirtualRouter implements Serializable {
     int l2Admin = RoutingProtocol.ISIS_L2.getDefaultAdministrativeCost(_c.getConfigurationFormat());
     IsisLevelSettings l1Settings = proc.getLevel1();
     IsisLevelSettings l2Settings = proc.getLevel2();
-    IsisRoute.Builder builder =
+    IsisRoute.Builder ifaceRouteBuilder =
         new IsisRoute.Builder()
             .setArea(proc.getNetAddress().getAreaIdString())
             .setSystemId(proc.getNetAddress().getSystemIdString());
-    _vrf.getInterfaces()
-        .values()
-        .forEach(
-            iface ->
-                generateAllIsisInterfaceRoutes(
-                    d1, d2, l1Admin, l2Admin, l1Settings, l2Settings, builder, iface));
+    for (Interface iface : _vrf.getInterfaces().values()) {
+      generateAllIsisInterfaceRoutes(
+          d1, d2, l1Admin, l2Admin, l1Settings, l2Settings, ifaceRouteBuilder, iface);
+    }
 
-    // export default route for L1 neighbors on L1L2 routers
-    if (l1Settings != null && l2Settings != null) {
+    // export default route for L1 neighbors on L1L2 routers that are not overloaded
+    if (l1Settings != null && l2Settings != null && !proc.getOverload()) {
       IsisRoute defaultRoute =
-          builder
+          new IsisRoute.Builder()
               .setAdmin(l1Admin)
+              .setArea(proc.getNetAddress().getAreaIdString())
               .setAttach(true)
               .setLevel(IsisLevel.LEVEL_1)
               .setMetric(0L)
               .setNetwork(Prefix.ZERO)
+              .setNextHopIp(Route.UNSET_ROUTE_NEXT_HOP_IP)
               .setProtocol(RoutingProtocol.ISIS_L1)
+              .setSystemId(proc.getNetAddress().getSystemIdString())
               .build();
       d1.from(_isisL1Rib.mergeRouteGetDelta(defaultRoute));
     }
@@ -1108,9 +1093,7 @@ public class VirtualRouter implements Serializable {
             ? 0L
             : firstNonNull(ifaceLevelSettings.getCost(), IsisRoute.DEFAULT_METRIC);
     routeBuilder.setAdmin(adminCost).setLevel(level).setMetric(metric).setProtocol(isisProtocol);
-    return iface
-        .getAllAddresses()
-        .stream()
+    return iface.getAllAddresses().stream()
         .map(
             address ->
                 routeBuilder.setNetwork(address.getPrefix()).setNextHopIp(address.getIp()).build())
@@ -1394,14 +1377,12 @@ public class VirtualRouter implements Serializable {
     }
     RibDelta.Builder<IsisRoute> l1DeltaBuilder = new RibDelta.Builder<>(_isisL1StagingRib);
     RibDelta.Builder<IsisRoute> l2DeltaBuilder = new RibDelta.Builder<>(_isisL2StagingRib);
-    IsisRoute.Builder routeBuilder = new IsisRoute.Builder();
     int l1Admin = RoutingProtocol.ISIS_L1.getDefaultAdministrativeCost(_c.getConfigurationFormat());
     int l2Admin = RoutingProtocol.ISIS_L2.getDefaultAdministrativeCost(_c.getConfigurationFormat());
     _isisIncomingRoutes.forEach(
         (edge, queue) -> {
           Ip nextHopIp = edge.getNode1().getInterface(nc).getAddress().getIp();
           Interface iface = edge.getNode2().getInterface(nc);
-          routeBuilder.setNextHopIp(nextHopIp);
           while (queue.peek() != null) {
             RouteAdvertisement<IsisRoute> routeAdvert = queue.remove();
             IsisRoute neighborRoute = routeAdvert.getRoute();
@@ -1415,12 +1396,6 @@ public class VirtualRouter implements Serializable {
             if (isisLevelSettings.getMode() != IsisInterfaceMode.ACTIVE) {
               break;
             }
-
-            routeBuilder
-                .setNetwork(neighborRoute.getNetwork())
-                .setArea(neighborRoute.getArea())
-                .setAttach(neighborRoute.getAttach())
-                .setSystemId(neighborRoute.getSystemId());
             boolean withdraw = routeAdvert.isWithdrawn();
             int adminCost = routeLevel == IsisLevel.LEVEL_1 ? l1Admin : l2Admin;
             RoutingProtocol levelProtocol =
@@ -1431,10 +1406,12 @@ public class VirtualRouter implements Serializable {
             long incrementalMetric =
                 firstNonNull(isisLevelSettings.getCost(), IsisRoute.DEFAULT_METRIC);
             IsisRoute newRoute =
-                routeBuilder
+                neighborRoute
+                    .toBuilder()
                     .setAdmin(adminCost)
                     .setLevel(routeLevel)
                     .setMetric(incrementalMetric + neighborRoute.getMetric())
+                    .setNextHopIp(nextHopIp)
                     .setProtocol(levelProtocol)
                     .build();
             if (withdraw) {
@@ -1814,9 +1791,7 @@ public class VirtualRouter implements Serializable {
    * @return true if external routes changed
    */
   boolean propagateEigrpExternalRoutes(Map<String, Node> allNodes, NetworkConfigurations nc) {
-    return _virtualEigrpProcesses
-        .values()
-        .stream()
+    return _virtualEigrpProcesses.values().stream()
         .map(
             proc ->
                 proc.unstageExternalRoutes(
@@ -1840,9 +1815,7 @@ public class VirtualRouter implements Serializable {
       Network<EigrpInterface, EigrpEdge> topology,
       NetworkConfigurations nc) {
 
-    return _virtualEigrpProcesses
-        .values()
-        .stream()
+    return _virtualEigrpProcesses.values().stream()
         .map(proc -> proc.propagateInternalRoutes(nodes, topology, nc))
         .reduce(false, (a, b) -> a || b);
   }
@@ -2030,9 +2003,7 @@ public class VirtualRouter implements Serializable {
 
       // Compute a set of advertisements that can be queued on remote VR
       Set<RouteAdvertisement<BgpRoute>> exportedAdvertisements =
-          routesToExport
-              .getActions()
-              .stream()
+          routesToExport.getActions().stream()
               .map(
                   adv -> {
                     BgpRoute transformedRoute =
@@ -2085,69 +2056,71 @@ public class VirtualRouter implements Serializable {
     if (_vrf.getIsisProcess() == null || _isisIncomingRoutes == null) {
       return;
     }
+    // All outgoing routes should have overload bit set
+    RibDelta<IsisRoute> correctedL1Delta =
+        _vrf.getIsisProcess().getOverload() ? setOverloadOnAllRoutes(l1delta) : l1delta;
+    RibDelta<IsisRoute> correctedL2Delta =
+        _vrf.getIsisProcess().getOverload() ? setOverloadOnAllRoutes(l2delta) : l2delta;
     // Loop over neighbors, enqueue messages
-    _isisIncomingRoutes
-        .keySet()
-        .forEach(
-            edge -> {
-              // Do not queue routes on non-active ISIS interface levels
-              Interface iface = edge.getNode2().getInterface(nc);
-              IsisInterfaceLevelSettings level1Settings = iface.getIsis().getLevel1();
-              IsisInterfaceLevelSettings level2Settings = iface.getIsis().getLevel2();
-              IsisLevel activeLevels = null;
-              if (level1Settings != null && level1Settings.getMode() == IsisInterfaceMode.ACTIVE) {
-                activeLevels = IsisLevel.LEVEL_1;
-              }
-              if (level2Settings != null && level2Settings.getMode() == IsisInterfaceMode.ACTIVE) {
-                activeLevels = IsisLevel.union(activeLevels, IsisLevel.LEVEL_2);
-              }
-              if (activeLevels == null) {
-                return;
-              }
+    for (IsisEdge edge : _isisIncomingRoutes.keySet()) {
+      // Do not queue routes on non-active ISIS interface levels
+      Interface iface = edge.getNode2().getInterface(nc);
+      IsisInterfaceLevelSettings level1Settings = iface.getIsis().getLevel1();
+      IsisInterfaceLevelSettings level2Settings = iface.getIsis().getLevel2();
+      IsisLevel activeLevels = null;
+      if (level1Settings != null && level1Settings.getMode() == IsisInterfaceMode.ACTIVE) {
+        activeLevels = IsisLevel.LEVEL_1;
+      }
+      if (level2Settings != null && level2Settings.getMode() == IsisInterfaceMode.ACTIVE) {
+        activeLevels = IsisLevel.union(activeLevels, IsisLevel.LEVEL_2);
+      }
+      if (activeLevels == null) {
+        return;
+      }
 
-              VirtualRouter remoteVr =
-                  allNodes
-                      .get(edge.getNode1().getNode())
-                      .getVirtualRouters()
-                      .get(edge.getNode1().getInterface(nc).getVrfName());
-              Queue<RouteAdvertisement<IsisRoute>> queue =
-                  remoteVr._isisIncomingRoutes.get(edge.reverse());
-              IsisLevel circuitType = edge.getCircuitType();
-              if (circuitType.includes(IsisLevel.LEVEL_1)
-                  && activeLevels.includes(IsisLevel.LEVEL_1)) {
-                queueDelta(queue, l1delta);
-              }
-              if (circuitType.includes(IsisLevel.LEVEL_2)
-                  && activeLevels.includes(IsisLevel.LEVEL_2)) {
-                queueDelta(queue, l2delta);
-                if (_vrf.getIsisProcess().getLevel1() != null
-                    && _vrf.getIsisProcess().getLevel2() != null
-                    && l1delta != null) {
+      VirtualRouter remoteVr =
+          allNodes
+              .get(edge.getNode1().getNode())
+              .getVirtualRouters()
+              .get(edge.getNode1().getInterface(nc).getVrfName());
+      Queue<RouteAdvertisement<IsisRoute>> queue = remoteVr._isisIncomingRoutes.get(edge.reverse());
+      IsisLevel circuitType = edge.getCircuitType();
+      if (circuitType.includes(IsisLevel.LEVEL_1) && activeLevels.includes(IsisLevel.LEVEL_1)) {
+        queueDelta(queue, correctedL1Delta);
+      }
+      if (circuitType.includes(IsisLevel.LEVEL_2) && activeLevels.includes(IsisLevel.LEVEL_2)) {
+        queueDelta(queue, correctedL2Delta);
+        if (_vrf.getIsisProcess().getLevel1() != null
+            && _vrf.getIsisProcess().getLevel2() != null
+            // An L1-L2 router in overload mode stops leaking route information between L1 and L2
+            // levels and clears its attached bit.
+            && !_vrf.getIsisProcess().getOverload()
+            && correctedL1Delta != null) {
 
-                  // We are a L1_L2 router, we must "upgrade" L1 routes to L2 routes
-                  // TODO: a little cumbersome, simplify later
-                  RibDelta.Builder<IsisRoute> upgradedRoutes = new RibDelta.Builder<>(null);
-                  l1delta
-                      .getActions()
-                      .forEach(
-                          ra -> {
-                            Optional<IsisRoute> newRoute =
-                                convertRouteLevel1ToLevel2(
-                                    ra.getRoute(),
-                                    RoutingProtocol.ISIS_L2.getDefaultAdministrativeCost(
-                                        _c.getConfigurationFormat()));
-                            if (newRoute.isPresent()) {
-                              if (ra.isWithdrawn()) {
-                                upgradedRoutes.remove(newRoute.get(), ra.getReason());
-                              } else {
-                                upgradedRoutes.add(newRoute.get());
-                              }
-                            }
-                          });
-                  queueDelta(queue, upgradedRoutes.build());
-                }
-              }
-            });
+          // We are a L1_L2 router, we must "upgrade" L1 routes to L2 routes
+          // TODO: a little cumbersome, simplify later
+          RibDelta.Builder<IsisRoute> upgradedRoutes = new RibDelta.Builder<>(null);
+          correctedL1Delta
+              .getActions()
+              .forEach(
+                  ra -> {
+                    Optional<IsisRoute> newRoute =
+                        convertRouteLevel1ToLevel2(
+                            ra.getRoute(),
+                            RoutingProtocol.ISIS_L2.getDefaultAdministrativeCost(
+                                _c.getConfigurationFormat()));
+                    if (newRoute.isPresent()) {
+                      if (ra.isWithdrawn()) {
+                        upgradedRoutes.remove(newRoute.get(), ra.getReason());
+                      } else {
+                        upgradedRoutes.add(newRoute.get());
+                      }
+                    }
+                  });
+          queueDelta(queue, upgradedRoutes.build());
+        }
+      }
+    }
   }
 
   /**
@@ -2372,9 +2345,7 @@ public class VirtualRouter implements Serializable {
     // Check the BGP message queues
     if (_vrf.getBgpProcess() != null) {
       processedAll =
-          _bgpIncomingRoutes
-              .values()
-              .stream()
+          _bgpIncomingRoutes.values().stream()
               .map(Queue::isEmpty)
               .noneMatch(Predicate.isEqual(false));
     }
@@ -2450,9 +2421,7 @@ public class VirtualRouter implements Serializable {
      * Export route advertisements by looking at main RIB
      */
     Set<RouteAdvertisement<BgpRoute>> exportedRoutes =
-        _mainRib
-            .getRoutes()
-            .stream()
+        _mainRib.getRoutes().stream()
             // This performs transformations and filtering using the export policy
             .map(
                 r ->
@@ -2475,9 +2444,7 @@ public class VirtualRouter implements Serializable {
      * Export neighbor-specific generated routes, these routes skip global export policy
      */
     Set<RouteAdvertisement<BgpRoute>> exportedNeighborSpecificRoutes =
-        localConfig
-            .getGeneratedRoutes()
-            .stream()
+        localConfig.getGeneratedRoutes().stream()
             .map(this::processNeighborSpecificGeneratedRoute)
             .filter(Objects::nonNull)
             .map(RouteAdvertisement::new)
@@ -2628,27 +2595,19 @@ public class VirtualRouter implements Serializable {
     return _mainRib.getRoutes().hashCode()
         + _ospfExternalType1Rib.getRoutes().hashCode()
         + _ospfExternalType2Rib.getRoutes().hashCode()
-        + _bgpIncomingRoutes
-            .values()
-            .stream()
+        + _bgpIncomingRoutes.values().stream()
             .flatMap(Queue::stream)
             .mapToInt(RouteAdvertisement::hashCode)
             .sum()
-        + _ospfExternalIncomingRoutes
-            .values()
-            .stream()
+        + _ospfExternalIncomingRoutes.values().stream()
             .flatMap(Queue::stream)
             .mapToInt(RouteAdvertisement::hashCode)
             .sum()
-        + _isisIncomingRoutes
-            .values()
-            .stream()
+        + _isisIncomingRoutes.values().stream()
             .flatMap(Queue::stream)
             .mapToInt(RouteAdvertisement::hashCode)
             .sum()
-        + _virtualEigrpProcesses
-            .values()
-            .stream()
+        + _virtualEigrpProcesses.values().stream()
             .mapToInt(VirtualEigrpProcess::computeIterationHashCode)
             .sum();
   }

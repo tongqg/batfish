@@ -23,6 +23,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.batfish.common.topology.TopologyUtil;
 import org.batfish.common.util.CommonUtil;
 import org.batfish.datamodel.Configuration;
 import org.batfish.datamodel.Edge;
@@ -86,7 +87,7 @@ public class ElasticsearchDomainTest {
   @Test
   public void testEsSubnetEdge() throws IOException {
     Map<String, Configuration> configurations = loadAwsConfigurations();
-    Topology topology = CommonUtil.synthesizeTopology(configurations);
+    Topology topology = TopologyUtil.synthesizeL3Topology(configurations);
 
     // check that ES instance is a neighbor of both  subnets in which its interfaces are
     assertThat(
@@ -109,9 +110,7 @@ public class ElasticsearchDomainTest {
 
     // check that  IPs are unique for all the interfaces
     List<Ip> ipsAsList =
-        configurations
-            .values()
-            .stream()
+        configurations.values().stream()
             .map(Configuration::getAllInterfaces)
             .map(Map::values)
             .flatMap(Collection::stream)

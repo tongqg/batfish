@@ -29,9 +29,7 @@ public class IpAccessListRenamer implements Function<IpAccessList, IpAccessList>
     @Override
     public AclLineMatchExpr visitAndMatchExpr(AndMatchExpr andMatchExpr) {
       return new AndMatchExpr(
-          andMatchExpr
-              .getConjuncts()
-              .stream()
+          andMatchExpr.getConjuncts().stream()
               .map(this::visit)
               .collect(ImmutableSortedSet.toImmutableSortedSet(Ordering.natural())));
     }
@@ -94,9 +92,7 @@ public class IpAccessListRenamer implements Function<IpAccessList, IpAccessList>
     @Override
     public AclLineMatchExpr visitOrMatchExpr(OrMatchExpr orMatchExpr) {
       return new OrMatchExpr(
-          orMatchExpr
-              .getDisjuncts()
-              .stream()
+          orMatchExpr.getDisjuncts().stream()
               .map(this::visit)
               .collect(ImmutableSortedSet.toImmutableSortedSet(Ordering.natural())));
     }
@@ -152,9 +148,7 @@ public class IpAccessListRenamer implements Function<IpAccessList, IpAccessList>
     return IpAccessList.builder()
         .setName(ipAccessList.getName())
         .setLines(
-            ipAccessList
-                .getLines()
-                .stream()
+            ipAccessList.getLines().stream()
                 .map(
                     ln ->
                         ln.toBuilder()

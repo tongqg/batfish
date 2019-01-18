@@ -26,6 +26,7 @@ final class InterfaceMatchersImpl {
     }
 
     @Override
+    @Nullable
     protected Integer featureValueOf(Interface actual) {
       return actual.getAccessVlan();
     }
@@ -148,6 +149,18 @@ final class InterfaceMatchersImpl {
     }
   }
 
+  static final class HasMlagId extends FeatureMatcher<Interface, Integer> {
+    HasMlagId(@Nonnull Matcher<? super Integer> subMatcher) {
+      super(subMatcher, "an Interface with MLAG ID:", "mlagId");
+    }
+
+    @Override
+    @Nullable
+    protected Integer featureValueOf(Interface actual) {
+      return actual.getMlagId();
+    }
+  }
+
   static final class HasMtu extends FeatureMatcher<Interface, Integer> {
     HasMtu(@Nonnull Matcher<? super Integer> subMatcher) {
       super(subMatcher, "an Interface with MTU:", "MTU");
@@ -167,6 +180,18 @@ final class InterfaceMatchersImpl {
     @Override
     protected String featureValueOf(Interface actual) {
       return actual.getName();
+    }
+  }
+
+  static final class HasNativeVlan extends FeatureMatcher<Interface, Integer> {
+    HasNativeVlan(@Nonnull Matcher<? super Integer> subMatcher) {
+      super(subMatcher, "an Interface with nativeVlan:", "nativeVlan");
+    }
+
+    @Override
+    @Nullable
+    protected Integer featureValueOf(Interface actual) {
+      return actual.getNativeVlan();
     }
   }
 
@@ -321,6 +346,17 @@ final class InterfaceMatchersImpl {
     @Override
     protected Boolean featureValueOf(Interface actual) {
       return actual.getProxyArp();
+    }
+  }
+
+  static final class IsSwitchport extends FeatureMatcher<Interface, Boolean> {
+    IsSwitchport(@Nonnull Matcher<? super Boolean> subMatcher) {
+      super(subMatcher, "an Interface with switchport:", "switchport");
+    }
+
+    @Override
+    protected Boolean featureValueOf(Interface actual) {
+      return actual.getSwitchport();
     }
   }
 

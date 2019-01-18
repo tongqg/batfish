@@ -12,16 +12,20 @@ import com.google.common.graph.Graph;
 import com.google.common.graph.Graphs;
 import io.opentracing.ActiveSpan;
 import io.opentracing.util.GlobalTracer;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.commons.configuration2.builder.fluent.Configurations;
@@ -35,6 +39,7 @@ import org.batfish.datamodel.InterfaceAddress;
 import org.batfish.datamodel.InterfaceType;
 import org.batfish.datamodel.Ip;
 import org.batfish.datamodel.IpSpace;
+import org.batfish.datamodel.Prefix;
 import org.batfish.datamodel.SwitchportMode;
 import org.batfish.datamodel.Topology;
 import org.batfish.datamodel.Vrf;
@@ -45,6 +50,7 @@ public final class TopologyUtil {
   /** Returns true iff the given trunk interface allows its own native vlan. */
   private static boolean trunkWithNativeVlanAllowed(Interface i) {
     return i.getSwitchportMode() == SwitchportMode.TRUNK
+        && i.getNativeVlan() != null
         && i.getAllowedVlans().contains(i.getNativeVlan());
   }
 
@@ -58,11 +64,10 @@ public final class TopologyUtil {
     if (i1.getSwitchportMode() == SwitchportMode.TRUNK
         && i2.getSwitchportMode() == SwitchportMode.TRUNK) {
       // Both sides are trunks, so add edges from n1,v to n2,v for all shared VLANs.
-      i1.getAllowedVlans()
-          .stream()
+      i1.getAllowedVlans().stream()
           .forEach(
               vlan -> {
-                if (i1.getNativeVlan() == vlan && trunkWithNativeVlanAllowed(i2)) {
+                if (Objects.equals(i1.getNativeVlan(), vlan) && trunkWithNativeVlanAllowed(i2)) {
                   // This frame will not be tagged by i1, and i2 accepts untagged frames.
                   edges.add(new Layer2Edge(node1, vlan, node2, vlan, null /* untagged */));
                 } else if (i2.getAllowedVlans().contains(vlan)) {
@@ -88,15 +93,12 @@ public final class TopologyUtil {
   private static void computeAugmentedLayer2SelfEdges(
       @Nonnull String hostname, @Nonnull Vrf vrf, @Nonnull ImmutableSet.Builder<Layer2Edge> edges) {
     Map<Integer, ImmutableList.Builder<String>> switchportsByVlan = new HashMap<>();
-    vrf.getInterfaces()
-        .values()
-        .stream()
+    vrf.getInterfaces().values().stream()
         .filter(Interface::getActive)
         .forEach(
             i -> {
               if (i.getSwitchportMode() == SwitchportMode.TRUNK) {
-                i.getAllowedVlans()
-                    .stream()
+                i.getAllowedVlans().stream()
                     .forEach(
                         vlan ->
                             switchportsByVlan
@@ -156,8 +158,7 @@ public final class TopologyUtil {
      */
     Set<EndpointPair<Layer2Node>> newEndpoints =
         Sets.difference(closure.edges(), initialGraph.edges());
-    newEndpoints
-        .stream()
+    newEndpoints.stream()
         .filter(ne -> !ne.source().equals(ne.target()))
         .forEach(
             newEndpoint ->
@@ -171,10 +172,7 @@ public final class TopologyUtil {
       @Nonnull Map<String, Configuration> configurations) {
     /* Filter out inactive interfaces */
     return new Layer1Topology(
-        rawLayer1Topology
-            .getGraph()
-            .edges()
-            .stream()
+        rawLayer1Topology.getGraph().edges().stream()
             .filter(
                 edge -> {
                   Interface i1 = getInterface(edge.getNode1(), configurations);
@@ -210,22 +208,19 @@ public final class TopologyUtil {
   private static void computeLayer2SelfEdges(
       @Nonnull String hostname, @Nonnull Vrf vrf, @Nonnull ImmutableSet.Builder<Layer2Edge> edges) {
     Map<Integer, ImmutableList.Builder<String>> switchportsByVlan = new HashMap<>();
-    vrf.getInterfaces()
-        .values()
-        .stream()
+    vrf.getInterfaces().values().stream()
         .filter(Interface::getActive)
         .forEach(
             i -> {
               if (i.getSwitchportMode() == SwitchportMode.TRUNK) {
-                i.getAllowedVlans()
-                    .stream()
+                i.getAllowedVlans().stream()
                     .forEach(
                         vlan ->
                             switchportsByVlan
                                 .computeIfAbsent(vlan, n -> ImmutableList.builder())
                                 .add(i.getName()));
               }
-              if (i.getSwitchportMode() == SwitchportMode.ACCESS) {
+              if (i.getSwitchportMode() == SwitchportMode.ACCESS && i.getAccessVlan() != null) {
                 switchportsByVlan
                     .computeIfAbsent(i.getAccessVlan(), n -> ImmutableList.builder())
                     .add(i.getName());
@@ -256,10 +251,7 @@ public final class TopologyUtil {
       @Nonnull Layer1Topology layer1Topology, @Nonnull Map<String, Configuration> configurations) {
     ImmutableSet.Builder<Layer2Edge> edges = ImmutableSet.builder();
     // First add layer2 edges for physical links.
-    layer1Topology
-        .getGraph()
-        .edges()
-        .stream()
+    layer1Topology.getGraph().edges().stream()
         .forEach(layer1Edge -> computeLayer2EdgesForLayer1Edge(layer1Edge, configurations, edges));
 
     // Then add edges within each node to connect switchports on the same VLAN(s).
@@ -284,8 +276,7 @@ public final class TopologyUtil {
      */
     Set<EndpointPair<Layer2Node>> newEndpoints =
         Sets.difference(closure.edges(), initialGraph.edges());
-    newEndpoints
-        .stream()
+    newEndpoints.stream()
         .filter(ne -> !ne.source().equals(ne.target()))
         .forEach(
             newEndpoint ->
@@ -369,8 +360,7 @@ public final class TopologyUtil {
 
   private static boolean matchingSubnet(
       @Nonnull Set<InterfaceAddress> addresses1, @Nonnull Set<InterfaceAddress> addresses2) {
-    return addresses1
-        .stream()
+    return addresses1.stream()
         .anyMatch(
             address1 ->
                 addresses2.stream().anyMatch(address2 -> matchingSubnet(address1, address2)));
@@ -399,10 +389,7 @@ public final class TopologyUtil {
 
   public static @Nonnull Topology toTopology(Layer3Topology layer3Topology) {
     return new Topology(
-        layer3Topology
-            .getGraph()
-            .edges()
-            .stream()
+        layer3Topology.getGraph().edges().stream()
             .map(TopologyUtil::toEdge)
             .collect(ImmutableSortedSet.toImmutableSortedSet(Comparator.naturalOrder())));
   }
@@ -515,8 +502,7 @@ public final class TopologyUtil {
                             candidates.add(i);
                           });
                   // collect prefixes
-                  i.getAllAddresses()
-                      .stream()
+                  i.getAllAddresses().stream()
                       .map(InterfaceAddress::getIp)
                       .forEach(
                           ip ->
@@ -572,9 +558,7 @@ public final class TopologyUtil {
             enabledInterfaces,
             Entry::getKey, /* hostname */
             nodeInterfaces ->
-                nodeInterfaces
-                    .getValue()
-                    .stream()
+                nodeInterfaces.getValue().stream()
                     .collect(
                         ImmutableMap.toImmutableMap(Interface::getName, Interface::getVrfName)));
 
@@ -586,9 +570,7 @@ public final class TopologyUtil {
                 ipInterfaceOwnersEntry.getValue(),
                 Entry::getKey, /* Hostname */
                 ipNodeInterfaceOwnersEntry ->
-                    ipNodeInterfaceOwnersEntry
-                        .getValue()
-                        .stream()
+                    ipNodeInterfaceOwnersEntry.getValue().stream()
                         .map(interfaceVrfs.get(ipNodeInterfaceOwnersEntry.getKey())::get)
                         .collect(ImmutableSet.toImmutableSet())));
   }
@@ -608,9 +590,7 @@ public final class TopologyUtil {
                 Entry::getKey, /* node */
                 nodeEntry ->
                     ImmutableSet.copyOf(
-                        nodeEntry
-                            .getValue()
-                            .stream()
+                        nodeEntry.getValue().stream()
                             .map(
                                 iface ->
                                     configs
@@ -661,5 +641,76 @@ public final class TopologyUtil {
         configurations,
         Entry::getKey,
         e -> ImmutableSet.copyOf(e.getValue().getAllInterfaces().values()));
+  }
+
+  /** Returns {@code true} if any {@link Ip IP address} is owned by both devices. */
+  private static boolean haveIpInCommon(Interface i1, Interface i2) {
+    for (InterfaceAddress ia : i1.getAllAddresses()) {
+      for (InterfaceAddress ia2 : i2.getAllAddresses()) {
+        if (ia.getIp().equals(ia2.getIp())) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Returns a {@link Topology} inferred from the L3 configuration of interfaces on the devices.
+   *
+   * <p>Ignores {@code Loopback} interfaces and inactive interfaces.
+   */
+  public static Topology synthesizeL3Topology(Map<String, Configuration> configurations) {
+    Map<Prefix, List<Interface>> prefixInterfaces = new HashMap<>();
+    configurations.forEach(
+        (nodeName, node) -> {
+          for (Interface iface : node.getAllInterfaces().values()) {
+            if (iface.isLoopback(node.getConfigurationFormat()) || !iface.getActive()) {
+              continue;
+            }
+            for (InterfaceAddress address : iface.getAllAddresses()) {
+              if (address.getNetworkBits() < Prefix.MAX_PREFIX_LENGTH) {
+                Prefix prefix = address.getPrefix();
+                List<Interface> interfaceBucket =
+                    prefixInterfaces.computeIfAbsent(prefix, k -> new LinkedList<>());
+                interfaceBucket.add(iface);
+              }
+            }
+          }
+        });
+
+    ImmutableSortedSet.Builder<Edge> edges = ImmutableSortedSet.naturalOrder();
+    for (Entry<Prefix, List<Interface>> bucketEntry : prefixInterfaces.entrySet()) {
+      Prefix p = bucketEntry.getKey();
+
+      // Collect all interfaces that have subnets overlapping P iff they have an IP address in P.
+      // Use an IdentityHashSet to prevent duplicates.
+      Set<Interface> candidateInterfaces = Sets.newIdentityHashSet();
+      IntStream.range(0, Prefix.MAX_PREFIX_LENGTH)
+          .mapToObj(
+              i ->
+                  prefixInterfaces.getOrDefault(
+                      Prefix.create(p.getStartIp(), i), ImmutableList.of()))
+          .flatMap(Collection::stream)
+          .filter(
+              iface -> iface.getAllAddresses().stream().anyMatch(ia -> p.containsIp(ia.getIp())))
+          .forEach(candidateInterfaces::add);
+
+      for (Interface iface1 : bucketEntry.getValue()) {
+        for (Interface iface2 : candidateInterfaces) {
+          // No device self-adjacencies in the same VRF.
+          if (iface1.getOwner() == iface2.getOwner()
+              && iface1.getVrfName().equals(iface2.getVrfName())) {
+            continue;
+          }
+          // don't connect interfaces that have any IP address in common
+          if (haveIpInCommon(iface1, iface2)) {
+            continue;
+          }
+          edges.add(new Edge(iface1, iface2));
+        }
+      }
+    }
+    return new Topology(edges.build());
   }
 }

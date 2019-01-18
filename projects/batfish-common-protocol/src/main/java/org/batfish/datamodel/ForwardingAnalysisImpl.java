@@ -295,8 +295,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
     try (ActiveSpan span =
         GlobalTracer.get().buildSpan("ForwardingAnalysisImpl.computeArpTrueEdge").startActive()) {
       assert span != null; // avoid unused warning
-      return Sets.union(_arpTrueEdgeDestIp.keySet(), _arpTrueEdgeNextHopIp.keySet())
-          .stream()
+      return Sets.union(_arpTrueEdgeDestIp.keySet(), _arpTrueEdgeNextHopIp.keySet()).stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Function.identity(),
@@ -324,9 +323,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeArpTrueEdgeDestIp")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return _routesWithDestIpEdge
-          .entrySet()
-          .stream()
+      return _routesWithDestIpEdge.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* edge */,
@@ -358,9 +355,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeArpTrueEdgeNextHopIp")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return _routesWithNextHopIpArpTrue
-          .entrySet()
-          .stream()
+      return _routesWithNextHopIpArpTrue.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* edge */,
@@ -421,18 +416,12 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
           Entry::getKey /* hostname */,
           nodeEntry -> {
             String hostname = nodeEntry.getKey();
-            return nodeEntry
-                .getValue()
-                .entrySet()
-                .stream()
+            return nodeEntry.getValue().entrySet().stream()
                 .flatMap(
                     vrfEntry -> {
                       String vrf = vrfEntry.getKey();
                       Map<Prefix, IpSpace> vrfMatchingIps = matchingIps.get(hostname).get(vrf);
-                      return vrfEntry
-                          .getValue()
-                          .entrySet()
-                          .stream()
+                      return vrfEntry.getValue().entrySet().stream()
                           /*
                            *  Cannot determine IPs for null interface here because it is
                            *  not tied to a single VRF.
@@ -466,18 +455,13 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeArpFalseDestIp")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return _routesWhereDstIpCanBeArpIp
-          .entrySet()
-          .stream()
+      return _routesWhereDstIpCanBeArpIp.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   routesWhereDstIpCanBeArpIpByHostnameEntry -> {
                     String hostname = routesWhereDstIpCanBeArpIpByHostnameEntry.getKey();
-                    return routesWhereDstIpCanBeArpIpByHostnameEntry
-                        .getValue()
-                        .entrySet()
-                        .stream()
+                    return routesWhereDstIpCanBeArpIpByHostnameEntry.getValue().entrySet().stream()
                         .collect(
                             ImmutableMap.toImmutableMap(
                                 Entry::getKey /* vrf */,
@@ -485,9 +469,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
                                   String vrf = routesWhereDstIpCanBeArpIpByVrfEntry.getKey();
                                   Map<Prefix, IpSpace> vrfMatchingIps =
                                       matchingIps.get(hostname).get(vrf);
-                                  return routesWhereDstIpCanBeArpIpByVrfEntry
-                                      .getValue()
-                                      .entrySet()
+                                  return routesWhereDstIpCanBeArpIpByVrfEntry.getValue().entrySet()
                                       .stream()
                                       /* null_interface is handled in computeNullRoutedIps */
                                       .filter(
@@ -528,26 +510,19 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeArpFalseNextHopIp")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return _routesWithNextHopIpArpFalse
-          .entrySet()
-          .stream()
+      return _routesWithNextHopIpArpFalse.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   routesWithNextHopIpArpFalseByHostnameEntry -> {
                     String hostname = routesWithNextHopIpArpFalseByHostnameEntry.getKey();
-                    return routesWithNextHopIpArpFalseByHostnameEntry
-                        .getValue()
-                        .entrySet()
-                        .stream()
+                    return routesWithNextHopIpArpFalseByHostnameEntry.getValue().entrySet().stream()
                         .collect(
                             ImmutableMap.toImmutableMap(
                                 Entry::getKey /* vrf */,
                                 routesWithNextHopIpArpFalseByVrfEntry -> {
                                   String vrf = routesWithNextHopIpArpFalseByVrfEntry.getKey();
-                                  return routesWithNextHopIpArpFalseByVrfEntry
-                                      .getValue()
-                                      .entrySet()
+                                  return routesWithNextHopIpArpFalseByVrfEntry.getValue().entrySet()
                                       .stream()
                                       /* null_interface is handled in computeNullRoutedIps */
                                       .filter(
@@ -573,17 +548,13 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
     try (ActiveSpan span =
         GlobalTracer.get().buildSpan("ForwardingAnalysisImpl.computeNullRoutedIps").startActive()) {
       assert span != null; // avoid unused warning
-      return fibs.entrySet()
-          .stream()
+      return fibs.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   fibsByHostnameEntry -> {
                     String hostname = fibsByHostnameEntry.getKey();
-                    return fibsByHostnameEntry
-                        .getValue()
-                        .entrySet()
-                        .stream()
+                    return fibsByHostnameEntry.getValue().entrySet().stream()
                         .collect(
                             ImmutableMap.toImmutableMap(
                                 Entry::getKey /* vrf */,
@@ -593,9 +564,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
                                   Map<Prefix, IpSpace> vrfMatchingIps =
                                       matchingIps.get(hostname).get(vrf);
                                   Set<AbstractRoute> nullRoutes =
-                                      fib.getNextHopInterfaces()
-                                          .entrySet()
-                                          .stream()
+                                      fib.getNextHopInterfaces().entrySet().stream()
                                           .filter(
                                               nextHopInterfacesByRouteEntry ->
                                                   nextHopInterfacesByRouteEntry
@@ -616,16 +585,12 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
     try (ActiveSpan span =
         GlobalTracer.get().buildSpan("ForwardingAnalysisImpl.computeRoutableIps").startActive()) {
       assert span != null; // avoid unused warning
-      return ribs.entrySet()
-          .stream()
+      return ribs.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   ribsByHostnameEntry ->
-                      ribsByHostnameEntry
-                          .getValue()
-                          .entrySet()
-                          .stream()
+                      ribsByHostnameEntry.getValue().entrySet().stream()
                           .collect(
                               ImmutableMap.toImmutableMap(
                                   Entry::getKey /* vrf */,
@@ -642,16 +607,12 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeRoutableIpsByNodeVrf")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return ribs.entrySet()
-          .stream()
+      return ribs.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey, // hostname
                   ribsByNodeEntry ->
-                      ribsByNodeEntry
-                          .getValue()
-                          .entrySet()
-                          .stream()
+                      ribsByNodeEntry.getValue().entrySet().stream()
                           .collect(
                               ImmutableMap.toImmutableMap(
                                   Entry::getKey, // vrfName
@@ -682,8 +643,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
     // get the union of IpSpace that match one of the routes
     return firstNonNull(
         AclIpSpace.union(
-            routes
-                .stream()
+            routes.stream()
                 .map(AbstractRoute::getNetwork)
                 .collect(ImmutableSet.toImmutableSet())
                 .stream()
@@ -704,28 +664,20 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeRoutesWhereDstIpCanBeArpIp")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return _routesWithNextHop
-          .entrySet()
-          .stream()
+      return _routesWithNextHop.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   routesWithNextHopByHostnameEntry -> {
                     String hostname = routesWithNextHopByHostnameEntry.getKey();
-                    return routesWithNextHopByHostnameEntry
-                        .getValue()
-                        .entrySet()
-                        .stream()
+                    return routesWithNextHopByHostnameEntry.getValue().entrySet().stream()
                         .collect(
                             ImmutableMap.toImmutableMap(
                                 Entry::getKey /* vrf */,
                                 routesWithNextHopByVrfEntry -> {
                                   String vrf = routesWithNextHopByVrfEntry.getKey();
                                   Fib fib = fibs.get(hostname).get(vrf);
-                                  return routesWithNextHopByVrfEntry
-                                      .getValue()
-                                      .entrySet()
-                                      .stream()
+                                  return routesWithNextHopByVrfEntry.getValue().entrySet().stream()
                                       .collect(
                                           ImmutableMap.toImmutableMap(
                                               Entry::getKey /* interface */,
@@ -828,9 +780,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
                           routesWithNextHopByVrfEntry.getValue(),
                           Entry::getKey /* outInterface */,
                           routesWithNextHopByOutInterfaceEntry ->
-                              routesWithNextHopByOutInterfaceEntry
-                                  .getValue()
-                                  .stream()
+                              routesWithNextHopByOutInterfaceEntry.getValue().stream()
                                   .filter(routeFilter::apply)
                                   .collect(Collectors.toSet()))));
     }
@@ -856,27 +806,19 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
             .buildSpan("ForwardingAnalysisImpl.computeRoutesWithNextHopIpArpFalse")
             .startActive()) {
       assert span != null; // avoid unused warning
-      return _routesWithNextHop
-          .entrySet()
-          .stream()
+      return _routesWithNextHop.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   routesWithNextHopByHostnameEntry -> {
                     String hostname = routesWithNextHopByHostnameEntry.getKey();
-                    return routesWithNextHopByHostnameEntry
-                        .getValue()
-                        .entrySet()
-                        .stream()
+                    return routesWithNextHopByHostnameEntry.getValue().entrySet().stream()
                         .collect(
                             ImmutableMap.toImmutableMap(
                                 Entry::getKey /* vrf */,
                                 routesWithNextHopByVrfEntry -> {
                                   String vrf = routesWithNextHopByVrfEntry.getKey();
-                                  return routesWithNextHopByVrfEntry
-                                      .getValue()
-                                      .entrySet()
-                                      .stream()
+                                  return routesWithNextHopByVrfEntry.getValue().entrySet().stream()
                                       .collect(
                                           ImmutableMap.toImmutableMap(
                                               Entry::getKey /* outInterface */,
@@ -901,15 +843,10 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
         _someoneReplies
             .getOrDefault(hostname, ImmutableMap.of())
             .getOrDefault(outInterface, EmptyIpSpace.INSTANCE);
-    return candidateRoutes
-        .stream()
+    return candidateRoutes.stream()
         .filter(
             candidateRoute ->
-                fib.getNextHopInterfaces()
-                    .get(candidateRoute)
-                    .get(outInterface)
-                    .keySet()
-                    .stream()
+                fib.getNextHopInterfaces().get(candidateRoute).get(outInterface).keySet().stream()
                     .filter(ip -> !ip.equals(Route.UNSET_ROUTE_NEXT_HOP_IP))
                     .anyMatch(
                         nextHopIp -> !someoneReplies.containsIp(nextHopIp, ImmutableMap.of())))
@@ -942,14 +879,11 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
                                       _arpReplies.get(recvNode).get(recvInterface);
                                   Edge edge = new Edge(out, receiver);
                                   Set<AbstractRoute> routes =
-                                      candidateRoutes
-                                          .stream()
+                                      candidateRoutes.stream()
                                           .filter(
                                               route ->
-                                                  fib.getNextHopInterfaces()
-                                                      .get(route)
-                                                      .get(outInterface)
-                                                      .keySet() /* nextHopIps */
+                                                  fib.getNextHopInterfaces().get(route)
+                                                      .get(outInterface).keySet() /* nextHopIps */
                                                       .stream()
                                                       .filter(
                                                           ip ->
@@ -983,17 +917,12 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
                       .computeIfAbsent(edge.getNode1(), n -> new HashMap<>())
                       .computeIfAbsent(edge.getInt1(), i -> AclIpSpace.builder())
                       .thenPermitting((_arpReplies.get(edge.getNode2()).get(edge.getInt2()))));
-      return someoneRepliesByNode
-          .entrySet()
-          .stream()
+      return someoneRepliesByNode.entrySet().stream()
           .collect(
               ImmutableMap.toImmutableMap(
                   Entry::getKey /* hostname */,
                   someoneRepliesByNodeEntry ->
-                      someoneRepliesByNodeEntry
-                          .getValue()
-                          .entrySet()
-                          .stream()
+                      someoneRepliesByNodeEntry.getValue().entrySet().stream()
                           .collect(
                               ImmutableMap.toImmutableMap(
                                   Entry::getKey /* interface */,
@@ -1124,10 +1053,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
                           ifaceEntry ->
                               firstNonNull(
                                   AclIpSpace.union(
-                                      ifaceEntry
-                                          .getValue()
-                                          .getAllAddresses()
-                                          .stream()
+                                      ifaceEntry.getValue().getAllAddresses().stream()
                                           .map(InterfaceAddress::getPrefix)
                                           .map(Prefix::toHostIpSpace)
                                           .collect(ImmutableList.toImmutableList())),
@@ -1141,9 +1067,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
       assert span != null; // avoid unused warning
       return firstNonNull(
           AclIpSpace.union(
-              _interfaceHostSubnetIps
-                  .values()
-                  .stream()
+              _interfaceHostSubnetIps.values().stream()
                   .flatMap(vrfSubnetIps -> vrfSubnetIps.values().stream())
                   .flatMap(ifaceSubnetIps -> ifaceSubnetIps.values().stream())
                   .collect(Collectors.toList())),
@@ -1369,11 +1293,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
           configurations,
           Entry::getKey,
           nodeEntry ->
-              nodeEntry
-                  .getValue()
-                  .getAllInterfaces()
-                  .entrySet()
-                  .stream()
+              nodeEntry.getValue().getAllInterfaces().entrySet().stream()
                   .filter(
                       ifaceEntry ->
                           hasMissingDevicesOnInterface(nodeEntry.getKey(), ifaceEntry.getKey()))
@@ -1445,9 +1365,7 @@ public final class ForwardingAnalysisImpl implements ForwardingAnalysis {
       assert span != null; // avoid unused warning
       return IpWildcardSetIpSpace.builder()
           .including(
-              _interfaceOwnedIps
-                  .values()
-                  .stream()
+              _interfaceOwnedIps.values().stream()
                   .flatMap(ifaceMap -> ifaceMap.values().stream())
                   .flatMap(Collection::stream)
                   .map(IpWildcard::new)

@@ -1,6 +1,6 @@
 package org.batfish.dataplane.topology;
 
-import static org.batfish.common.util.CommonUtil.synthesizeTopology;
+import static org.batfish.common.topology.TopologyUtil.synthesizeL3Topology;
 import static org.batfish.datamodel.isis.IsisLevel.LEVEL_1_2;
 import static org.batfish.datamodel.isis.IsisLevel.LEVEL_2;
 import static org.batfish.dataplane.topology.matchers.IsisEdgeMatchers.hasCircuitType;
@@ -46,10 +46,8 @@ public final class IsisEdgeTest {
   }
 
   private static Set<IsisEdge> getIsisEdges(Map<String, Configuration> configurations) {
-    Topology topology = synthesizeTopology(configurations);
-    return topology
-        .getEdges()
-        .stream()
+    Topology topology = synthesizeL3Topology(configurations);
+    return topology.getEdges().stream()
         .map(edge -> IsisEdge.edgeIfCircuit(edge, configurations))
         .filter(Optional::isPresent)
         .map(Optional::get)

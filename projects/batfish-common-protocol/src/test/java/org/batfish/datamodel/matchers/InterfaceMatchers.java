@@ -28,8 +28,10 @@ import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasEigrp;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasHsrpGroup;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasHsrpVersion;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasIsis;
+import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasMlagId;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasMtu;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasName;
+import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasNativeVlan;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasOspfArea;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasOspfAreaName;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.HasOspfCost;
@@ -41,6 +43,7 @@ import org.batfish.datamodel.matchers.InterfaceMatchersImpl.IsActive;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.IsOspfPassive;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.IsOspfPointToPoint;
 import org.batfish.datamodel.matchers.InterfaceMatchersImpl.IsProxyArp;
+import org.batfish.datamodel.matchers.InterfaceMatchersImpl.IsSwitchport;
 import org.batfish.datamodel.ospf.OspfArea;
 import org.hamcrest.Matcher;
 
@@ -170,6 +173,19 @@ public final class InterfaceMatchers {
     return new HasIsis(subMatcher);
   }
 
+  /** Provides a matcher that matches if the provided value matches the interface's MLAG ID. */
+  public static HasMlagId hasMlagId(int value) {
+    return hasMlagId(equalTo(value));
+  }
+
+  /**
+   * Provides a matcher that matches if the provided {@code subMatcher} matches the interface's MLAG
+   * ID.
+   */
+  public static HasMlagId hasMlagId(Matcher<? super Integer> subMatcher) {
+    return new HasMlagId(subMatcher);
+  }
+
   /** Provides a matcher that matches if the provided value matches the interface's MTU. */
   public static HasMtu hasMtu(int value) {
     return hasMtu(equalTo(value));
@@ -185,6 +201,19 @@ public final class InterfaceMatchers {
   /** Provides a matcher that matches if the provided name matches the interface's name. */
   public static HasName hasName(String expectedName) {
     return new HasName(equalTo(expectedName));
+  }
+
+  /** Provides a matcher that matches if the provided value matches the interface's Native VLAN. */
+  public static HasNativeVlan hasNativeVlan(@Nullable Integer value) {
+    return hasNativeVlan(equalTo(value));
+  }
+
+  /**
+   * Provides a matcher that matches if the provided {@code subMatcher} matches the interface's
+   * Native VLAN.
+   */
+  public static HasNativeVlan hasNativeVlan(Matcher<? super Integer> subMatcher) {
+    return new HasNativeVlan(subMatcher);
   }
 
   /**
@@ -308,6 +337,19 @@ public final class InterfaceMatchers {
    */
   public static IsProxyArp isProxyArp(Matcher<? super Boolean> subMatcher) {
     return new IsProxyArp(subMatcher);
+  }
+
+  /** Provides a matcher that matches if the interface is configured as a switchport. */
+  public static Matcher<Interface> isSwitchport() {
+    return new IsSwitchport(equalTo(true));
+  }
+
+  /**
+   * Provides a matcher that matches if the provided switchport flag matches the interface's
+   * switchport flag.
+   */
+  public static Matcher<Interface> isSwitchport(boolean switchport) {
+    return new IsSwitchport(equalTo(switchport));
   }
 
   private InterfaceMatchers() {}

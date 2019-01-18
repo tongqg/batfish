@@ -1,8 +1,8 @@
 package org.batfish.question.bgpsessionstatus;
 
-import static org.batfish.question.bgpsessionstatus.BgpSessionAnswerer.ConfiguredSessionStatus.DYNAMIC_MATCH;
-import static org.batfish.question.bgpsessionstatus.BgpSessionAnswerer.ConfiguredSessionStatus.NO_MATCH_FOUND;
-import static org.batfish.question.bgpsessionstatus.BgpSessionAnswerer.ConfiguredSessionStatus.UNIQUE_MATCH;
+import static org.batfish.datamodel.questions.ConfiguredSessionStatus.DYNAMIC_MATCH;
+import static org.batfish.datamodel.questions.ConfiguredSessionStatus.NO_MATCH_FOUND;
+import static org.batfish.datamodel.questions.ConfiguredSessionStatus.UNIQUE_MATCH;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
@@ -31,6 +31,7 @@ import org.batfish.datamodel.answers.SelfDescribingObject;
 import org.batfish.datamodel.bgp.BgpTopologyUtils;
 import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.datamodel.pojo.Node;
+import org.batfish.datamodel.questions.ConfiguredSessionStatus;
 import org.batfish.datamodel.questions.DisplayHints;
 import org.batfish.datamodel.questions.Question;
 import org.batfish.datamodel.table.ColumnMetadata;
@@ -77,9 +78,7 @@ public class BgpSessionCompatibilityAnswerer extends BgpSessionAnswerer {
     Set<BgpPeerConfigId> compatibleActivePeers = new TreeSet<>();
 
     Stream<Row> activePeerRows =
-        configuredBgpTopology
-            .nodes()
-            .stream()
+        configuredBgpTopology.nodes().stream()
             .map(
                 neighbor -> {
                   BgpPeerConfig bpc = getBgpPeerConfig(configurations, neighbor);
@@ -115,9 +114,7 @@ public class BgpSessionCompatibilityAnswerer extends BgpSessionAnswerer {
                 row -> row != null && matchesQuestionFilters(row, nodes, remoteNodes, question));
 
     Stream<Row> passivePeerRows =
-        configuredBgpTopology
-            .nodes()
-            .stream()
+        configuredBgpTopology.nodes().stream()
             .filter(neighbor -> nodes.contains(neighbor.getHostname()))
             .flatMap(
                 neighbor -> {
@@ -148,8 +145,7 @@ public class BgpSessionCompatibilityAnswerer extends BgpSessionAnswerer {
                   }
 
                   // Compatible neighbors exist. Generate a row for each.
-                  return remoteIds
-                      .stream()
+                  return remoteIds.stream()
                       .map(
                           remoteId ->
                               buildDynamicMatchRow(

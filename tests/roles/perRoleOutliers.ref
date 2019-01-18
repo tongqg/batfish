@@ -15,7 +15,6 @@
         ],
         "structDefinition" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.11.2/24"
@@ -28,7 +27,6 @@
           ],
           "incomingFilter" : "blocktelnet",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -41,6 +39,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -62,7 +61,6 @@
         ],
         "structDefinition" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.12.2/24"
@@ -75,7 +73,6 @@
           ],
           "incomingFilter" : "blocktelnet",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -88,6 +85,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",

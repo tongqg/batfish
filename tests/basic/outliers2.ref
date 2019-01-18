@@ -26,7 +26,6 @@
         ],
         "structDefinition" : {
           "name" : "Ethernet0/0",
-          "accessVlan" : 0,
           "active" : false,
           "allowedVlans" : "",
           "autostate" : true,
@@ -35,7 +34,6 @@
             "Ethernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -45,6 +43,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -76,7 +75,6 @@
         ],
         "structDefinition" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.1.1/24"
@@ -88,7 +86,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -101,6 +98,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -132,7 +130,6 @@
         ],
         "structDefinition" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.12.11.1/24"
@@ -144,7 +141,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -155,6 +151,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -186,7 +183,6 @@
         ],
         "structDefinition" : {
           "name" : "Loopback0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.1.1.1/32"
@@ -198,7 +194,6 @@
             "Loopback0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -211,6 +206,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "LOOPBACK",

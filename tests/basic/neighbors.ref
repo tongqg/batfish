@@ -2331,7 +2331,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.1.1/24"
@@ -2343,7 +2342,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2356,6 +2354,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2363,7 +2362,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.1.2/24"
@@ -2375,7 +2373,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2388,6 +2385,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2403,7 +2401,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.12.11.1/24"
@@ -2415,7 +2412,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2426,6 +2422,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2433,7 +2430,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.12.11.2/24"
@@ -2446,7 +2442,6 @@
           ],
           "incomingFilter" : "OUTSIDE_TO_INSIDE",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2458,6 +2453,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2473,7 +2469,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.13.22.1/24"
@@ -2485,7 +2480,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2496,6 +2490,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2503,7 +2498,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.13.22.3/24"
@@ -2515,7 +2509,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2526,6 +2519,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2541,7 +2535,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.2.1/24"
@@ -2553,7 +2546,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2566,6 +2558,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2573,7 +2566,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.2.2/24"
@@ -2585,7 +2577,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2598,6 +2589,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2613,7 +2605,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.2.2/24"
@@ -2625,7 +2616,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2638,6 +2628,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2645,7 +2636,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.2.1/24"
@@ -2657,7 +2647,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2670,6 +2659,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2685,7 +2675,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.1.2/24"
@@ -2697,7 +2686,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2710,6 +2698,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2717,7 +2706,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "1.0.1.1/24"
@@ -2729,7 +2717,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2742,6 +2729,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2757,7 +2745,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.12.11.2/24"
@@ -2770,7 +2757,6 @@
           ],
           "incomingFilter" : "OUTSIDE_TO_INSIDE",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2782,6 +2768,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2789,7 +2776,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.12.11.1/24"
@@ -2801,7 +2787,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2812,6 +2797,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2827,7 +2813,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.11.1/24"
@@ -2839,7 +2824,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2852,6 +2836,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2859,7 +2844,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.11.2/24"
@@ -2871,7 +2855,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2884,6 +2867,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2899,7 +2883,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.12.1/24"
@@ -2911,7 +2894,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2924,6 +2906,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2931,7 +2914,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.12.2/24"
@@ -2943,7 +2925,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1600,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -2956,6 +2937,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -2971,7 +2953,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.23.21.2/24"
@@ -2984,7 +2965,6 @@
           ],
           "incomingFilter" : "OUTSIDE_TO_INSIDE",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -2996,6 +2976,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3003,7 +2984,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.23.21.3/24"
@@ -3015,7 +2995,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3026,6 +3005,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3041,7 +3021,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.22.1/24"
@@ -3053,7 +3032,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3066,6 +3044,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3073,7 +3052,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.22.2/24"
@@ -3085,7 +3063,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1800,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3098,6 +3075,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3113,7 +3091,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.21.1/24"
@@ -3125,7 +3102,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3138,6 +3114,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3145,7 +3122,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.21.2/24"
@@ -3157,7 +3133,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3170,6 +3145,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3185,7 +3161,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.11.2/24"
@@ -3197,7 +3172,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3210,6 +3184,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3217,7 +3192,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.11.1/24"
@@ -3229,7 +3203,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3242,6 +3215,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3257,7 +3231,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.21.2/24"
@@ -3269,7 +3242,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3282,6 +3254,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3289,7 +3262,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.21.1/24"
@@ -3301,7 +3273,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3314,6 +3285,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3329,7 +3301,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.11.2/24"
@@ -3342,7 +3313,6 @@
           ],
           "incomingFilter" : "blocktelnet",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3355,6 +3325,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3362,7 +3333,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.11.3/24"
@@ -3374,7 +3344,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3387,6 +3356,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3402,7 +3372,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.12.2/24"
@@ -3415,7 +3384,6 @@
           ],
           "incomingFilter" : "blocktelnet",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3428,6 +3396,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3435,7 +3404,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.12.3/24"
@@ -3447,7 +3415,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3460,6 +3427,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3475,7 +3443,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.22.2/24"
@@ -3487,7 +3454,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1800,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3500,6 +3466,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3507,7 +3474,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.22.1/24"
@@ -3519,7 +3485,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3532,6 +3497,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3547,7 +3513,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.12.2/24"
@@ -3559,7 +3524,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1600,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3572,6 +3536,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3579,7 +3544,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.12.12.1/24"
@@ -3591,7 +3555,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3604,6 +3567,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3619,7 +3583,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.22.2/24"
@@ -3631,7 +3594,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1700,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3644,6 +3606,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3651,7 +3614,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.22.3/24"
@@ -3663,7 +3625,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3676,6 +3637,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3691,7 +3653,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.21.2/24"
@@ -3703,7 +3664,6 @@
             "GigabitEthernet3/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3716,6 +3676,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3723,7 +3684,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.21.3/24"
@@ -3735,7 +3695,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -3748,6 +3707,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3763,7 +3723,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.101.4/24"
@@ -3775,7 +3734,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3786,6 +3744,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3793,7 +3752,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.101.3/24"
@@ -3805,7 +3763,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3816,6 +3773,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3831,7 +3789,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.201.4/24"
@@ -3843,7 +3800,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3854,6 +3810,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3861,7 +3818,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.201.3/24"
@@ -3873,7 +3829,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3884,6 +3839,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3899,7 +3855,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.0.1/24"
@@ -3912,7 +3867,6 @@
           ],
           "incomingFilter" : "RESTRICT_HOST_TRAFFIC_IN",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3923,6 +3877,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3930,7 +3885,6 @@
         },
         "node2Interface" : {
           "name" : "eth0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.0.101/24"
@@ -3943,7 +3897,6 @@
           ],
           "incomingFilter" : "filter::INPUT",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3955,6 +3908,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -3970,7 +3924,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.1.1/24"
@@ -3983,7 +3936,6 @@
           ],
           "incomingFilter" : "RESTRICT_HOST_TRAFFIC_IN",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -3994,6 +3946,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4001,7 +3954,6 @@
         },
         "node2Interface" : {
           "name" : "eth0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.1.101/24"
@@ -4014,7 +3966,6 @@
           ],
           "incomingFilter" : "filter::INPUT",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4026,6 +3977,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4041,7 +3993,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.11.3/24"
@@ -4053,7 +4004,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4066,6 +4016,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4073,7 +4024,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.11.2/24"
@@ -4086,7 +4036,6 @@
           ],
           "incomingFilter" : "blocktelnet",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4099,6 +4048,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4114,7 +4064,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.21.3/24"
@@ -4126,7 +4075,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4139,6 +4087,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4146,7 +4095,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.21.2/24"
@@ -4158,7 +4106,6 @@
             "GigabitEthernet3/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4171,6 +4118,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4186,7 +4134,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.101.3/24"
@@ -4198,7 +4145,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4209,6 +4155,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4216,7 +4163,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.101.4/24"
@@ -4228,7 +4174,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4239,6 +4184,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4254,7 +4200,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.22.3/24"
@@ -4266,7 +4211,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4279,6 +4223,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4286,7 +4231,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.22.2/24"
@@ -4298,7 +4242,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1700,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4311,6 +4254,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4326,7 +4270,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.12.3/24"
@@ -4338,7 +4281,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4351,6 +4293,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4358,7 +4301,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.23.12.2/24"
@@ -4371,7 +4313,6 @@
           ],
           "incomingFilter" : "blocktelnet",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4384,6 +4325,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4399,7 +4341,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.201.3/24"
@@ -4411,7 +4352,6 @@
             "GigabitEthernet2/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4422,6 +4362,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4429,7 +4370,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.34.201.4/24"
@@ -4441,7 +4381,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4452,6 +4391,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4467,7 +4407,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.1.1/24"
@@ -4479,7 +4418,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4492,6 +4430,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4499,7 +4438,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.1.2/24"
@@ -4511,7 +4449,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4524,6 +4461,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4539,7 +4477,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.23.21.3/24"
@@ -4551,7 +4488,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4562,6 +4498,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4569,7 +4506,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.23.21.2/24"
@@ -4582,7 +4518,6 @@
           ],
           "incomingFilter" : "OUTSIDE_TO_INSIDE",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4594,6 +4529,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4609,7 +4545,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.13.22.3/24"
@@ -4621,7 +4556,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4632,6 +4566,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4639,7 +4574,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "10.13.22.1/24"
@@ -4651,7 +4585,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4662,6 +4595,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4677,7 +4611,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.2.1/24"
@@ -4689,7 +4622,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4702,6 +4634,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4709,7 +4642,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.2.2/24"
@@ -4721,7 +4653,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4734,6 +4665,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4749,7 +4681,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.2.2/24"
@@ -4761,7 +4692,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4774,6 +4704,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4781,7 +4712,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.2.1/24"
@@ -4793,7 +4723,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4806,6 +4735,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4821,7 +4751,6 @@
         },
         "node1Interface" : {
           "name" : "GigabitEthernet1/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.1.2/24"
@@ -4833,7 +4762,6 @@
             "GigabitEthernet1/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4846,6 +4774,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4853,7 +4782,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet0/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "3.0.1.1/24"
@@ -4865,7 +4793,6 @@
             "GigabitEthernet0/0"
           ],
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfArea" : 1,
           "ospfCost" : 1,
           "ospfDeadInterval" : 0,
@@ -4878,6 +4805,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4893,7 +4821,6 @@
         },
         "node1Interface" : {
           "name" : "eth0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.0.101/24"
@@ -4906,7 +4833,6 @@
           ],
           "incomingFilter" : "filter::INPUT",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4918,6 +4844,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4925,7 +4852,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet2/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.0.1/24"
@@ -4938,7 +4864,6 @@
           ],
           "incomingFilter" : "RESTRICT_HOST_TRAFFIC_IN",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4949,6 +4874,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4964,7 +4890,6 @@
         },
         "node1Interface" : {
           "name" : "eth0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.1.101/24"
@@ -4977,7 +4902,6 @@
           ],
           "incomingFilter" : "filter::INPUT",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -4989,6 +4913,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -4996,7 +4921,6 @@
         },
         "node2Interface" : {
           "name" : "GigabitEthernet3/0",
-          "accessVlan" : 0,
           "active" : true,
           "allPrefixes" : [
             "2.128.1.1/24"
@@ -5009,7 +4933,6 @@
           ],
           "incomingFilter" : "RESTRICT_HOST_TRAFFIC_IN",
           "mtu" : 1500,
-          "nativeVlan" : 1,
           "ospfDeadInterval" : 0,
           "ospfEnabled" : false,
           "ospfHelloMultiplier" : 0,
@@ -5020,6 +4943,7 @@
           "ripEnabled" : false,
           "ripPassive" : false,
           "spanningTreePortfast" : false,
+          "switchport" : false,
           "switchportMode" : "NONE",
           "switchportTrunkEncapsulation" : "DOT1Q",
           "type" : "PHYSICAL",
@@ -5043,7 +4967,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.1.1/24"
@@ -5055,7 +4978,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5068,6 +4990,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5083,7 +5006,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.1.2/24"
@@ -5095,7 +5017,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5108,6 +5029,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5131,7 +5053,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.2.1/24"
@@ -5143,7 +5064,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5156,6 +5076,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5171,7 +5092,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.2.2/24"
@@ -5183,7 +5103,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5196,6 +5115,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5219,7 +5139,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.1.2/24"
@@ -5231,7 +5150,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5244,6 +5162,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5259,7 +5178,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.1.1/24"
@@ -5271,7 +5189,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5284,6 +5201,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5307,7 +5225,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.2.2/24"
@@ -5319,7 +5236,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5332,6 +5248,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5347,7 +5264,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "1.0.2.1/24"
@@ -5359,7 +5275,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5372,6 +5287,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5395,7 +5311,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.11.1/24"
@@ -5407,7 +5322,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5420,6 +5334,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5435,7 +5350,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.11.2/24"
@@ -5447,7 +5361,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5460,6 +5373,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5483,7 +5397,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.12.1/24"
@@ -5495,7 +5408,6 @@
               "GigabitEthernet2/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5508,6 +5420,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5523,7 +5436,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.12.2/24"
@@ -5535,7 +5447,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1600,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5548,6 +5459,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5571,7 +5483,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.21.1/24"
@@ -5583,7 +5494,6 @@
               "GigabitEthernet2/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5596,6 +5506,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5611,7 +5522,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.21.2/24"
@@ -5623,7 +5533,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5636,6 +5545,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5659,7 +5569,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.22.1/24"
@@ -5671,7 +5580,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5684,6 +5592,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5699,7 +5608,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.22.2/24"
@@ -5711,7 +5619,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1800,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5724,6 +5631,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5747,7 +5655,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.11.2/24"
@@ -5759,7 +5666,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5772,6 +5678,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5787,7 +5694,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.11.1/24"
@@ -5799,7 +5705,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5812,6 +5717,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5835,7 +5741,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.21.2/24"
@@ -5847,7 +5752,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5860,6 +5764,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5875,7 +5780,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.21.1/24"
@@ -5887,7 +5791,6 @@
               "GigabitEthernet2/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5900,6 +5803,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5923,7 +5827,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.11.2/24"
@@ -5936,7 +5839,6 @@
             ],
             "incomingFilter" : "blocktelnet",
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5949,6 +5851,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -5964,7 +5867,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.11.3/24"
@@ -5976,7 +5878,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -5989,6 +5890,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6012,7 +5914,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet3/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.12.2/24"
@@ -6025,7 +5926,6 @@
             ],
             "incomingFilter" : "blocktelnet",
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6038,6 +5938,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6053,7 +5954,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.12.3/24"
@@ -6065,7 +5965,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6078,6 +5977,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6101,7 +6001,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.12.2/24"
@@ -6113,7 +6012,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1600,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6126,6 +6024,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6141,7 +6040,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.12.1/24"
@@ -6153,7 +6051,6 @@
               "GigabitEthernet2/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6166,6 +6063,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6189,7 +6087,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.22.2/24"
@@ -6201,7 +6098,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1800,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6214,6 +6110,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6229,7 +6126,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.12.22.1/24"
@@ -6241,7 +6137,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6254,6 +6149,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6277,7 +6173,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet3/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.21.2/24"
@@ -6289,7 +6184,6 @@
               "GigabitEthernet3/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6302,6 +6196,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6317,7 +6212,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.21.3/24"
@@ -6329,7 +6223,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6342,6 +6235,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6365,7 +6259,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.22.2/24"
@@ -6377,7 +6270,6 @@
               "GigabitEthernet2/0"
             ],
             "mtu" : 1700,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6390,6 +6282,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6405,7 +6298,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.22.3/24"
@@ -6417,7 +6309,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6430,6 +6321,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6453,7 +6345,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.11.3/24"
@@ -6465,7 +6356,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6478,6 +6368,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6493,7 +6384,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.11.2/24"
@@ -6506,7 +6396,6 @@
             ],
             "incomingFilter" : "blocktelnet",
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6519,6 +6408,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6542,7 +6432,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.21.3/24"
@@ -6554,7 +6443,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6567,6 +6455,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6582,7 +6471,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet3/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.21.2/24"
@@ -6594,7 +6482,6 @@
               "GigabitEthernet3/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6607,6 +6494,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6630,7 +6518,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.12.3/24"
@@ -6642,7 +6529,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6655,6 +6541,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6670,7 +6557,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet3/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.12.2/24"
@@ -6683,7 +6569,6 @@
             ],
             "incomingFilter" : "blocktelnet",
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6696,6 +6581,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6719,7 +6605,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.22.3/24"
@@ -6731,7 +6616,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6744,6 +6628,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6759,7 +6644,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet2/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "2.23.22.2/24"
@@ -6771,7 +6655,6 @@
               "GigabitEthernet2/0"
             ],
             "mtu" : 1700,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6784,6 +6667,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6807,7 +6691,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.1.1/24"
@@ -6819,7 +6702,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6832,6 +6714,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6847,7 +6730,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.1.2/24"
@@ -6859,7 +6741,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6872,6 +6753,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6895,7 +6777,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.2.1/24"
@@ -6907,7 +6788,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6920,6 +6800,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6935,7 +6816,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.2.2/24"
@@ -6947,7 +6827,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -6960,6 +6839,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -6983,7 +6863,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.1.2/24"
@@ -6995,7 +6874,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -7008,6 +6886,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -7023,7 +6902,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.1.1/24"
@@ -7035,7 +6913,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -7048,6 +6925,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -7071,7 +6949,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet0/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.2.2/24"
@@ -7083,7 +6960,6 @@
               "GigabitEthernet0/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -7096,6 +6972,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",
@@ -7111,7 +6988,6 @@
           "area" : 1,
           "iface" : {
             "name" : "GigabitEthernet1/0",
-            "accessVlan" : 0,
             "active" : true,
             "allPrefixes" : [
               "3.0.2.1/24"
@@ -7123,7 +6999,6 @@
               "GigabitEthernet1/0"
             ],
             "mtu" : 1500,
-            "nativeVlan" : 1,
             "ospfArea" : 1,
             "ospfCost" : 1,
             "ospfDeadInterval" : 0,
@@ -7136,6 +7011,7 @@
             "ripEnabled" : false,
             "ripPassive" : false,
             "spanningTreePortfast" : false,
+            "switchport" : false,
             "switchportMode" : "NONE",
             "switchportTrunkEncapsulation" : "DOT1Q",
             "type" : "PHYSICAL",

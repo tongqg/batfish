@@ -345,6 +345,16 @@ if_ip_nat_destination
    NEWLINE
 ;
 
+if_ip_nat_inside
+:
+   IP NAT INSIDE NEWLINE
+;
+
+if_ip_nat_outside
+:
+   IP NAT OUTSIDE NEWLINE
+;
+
 if_ip_nat_source
 :
    IP NAT SOURCE DYNAMIC ACCESS_LIST acl = variable
@@ -751,14 +761,6 @@ if_null_block
             | MTU
             | MULTICAST
             | MULTICAST_BOUNDARY
-            |
-            (
-               NAT
-               (
-                  INSIDE
-                  | OUTSIDE
-               )
-            )
             | NHRP
             |
             (
@@ -964,11 +966,7 @@ if_null_block
             | TOOL
             |
             (
-               TRUNK
-               (
-                  GROUP
-                  | PRUNING
-               )
+               TRUNK PRUNING
             )
             | VOICE
             | VLAN
@@ -1401,6 +1399,11 @@ if_switchport_trunk_encapsulation
    SWITCHPORT TRUNK ENCAPSULATION e = switchport_trunk_encapsulation NEWLINE
 ;
 
+if_switchport_trunk_group_eos
+:
+   SWITCHPORT TRUNK GROUP name = variable NEWLINE
+;
+
 if_switchport_trunk_native
 :
    SWITCHPORT TRUNK NATIVE VLAN vlan = DEC NEWLINE
@@ -1625,7 +1628,8 @@ iftunnel_source
 :
    SOURCE 
    (
-     IP_ADDRESS 
+     DYNAMIC
+     | IP_ADDRESS
      | interface_name
    ) NEWLINE
 ;
@@ -1719,6 +1723,8 @@ if_inner
    | if_ip_inband_access_group
    | if_ip_igmp
    | if_ip_nat_destination
+   | if_ip_nat_inside
+   | if_ip_nat_outside
    | if_ip_nat_source
    | if_ip_nbar
    | if_ip_ospf_area
@@ -1779,6 +1785,7 @@ if_inner
    | if_switchport_private_vlan_mapping
    | if_switchport_trunk_allowed
    | if_switchport_trunk_encapsulation
+   | if_switchport_trunk_group_eos
    | if_switchport_trunk_native
    | if_tunnel
    | if_vrf

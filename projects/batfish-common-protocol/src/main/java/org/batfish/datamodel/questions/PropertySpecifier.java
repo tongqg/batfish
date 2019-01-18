@@ -51,7 +51,7 @@ public abstract class PropertySpecifier {
    * @param query The query that came to the concrete child class
    * @return The list of suggestions
    */
-  static List<AutocompleteSuggestion> baseAutoComplete(
+  public static List<AutocompleteSuggestion> baseAutoComplete(
       @Nullable String query, Set<String> allProperties) {
 
     String finalQuery = firstNonNull(query, "").toLowerCase();
@@ -65,8 +65,7 @@ public abstract class PropertySpecifier {
      */
     if (queryPattern != null) {
       suggestions.addAll(
-          allProperties
-              .stream()
+          allProperties.stream()
               .filter(prop -> queryPattern.matcher(prop.toLowerCase()).matches())
               .map(prop -> new AutocompleteSuggestion(prop, false))
               .collect(Collectors.toList()));
@@ -83,10 +82,7 @@ public abstract class PropertySpecifier {
     if (outputPropertyValue instanceof Map<?, ?>) {
       outputPropertyValue =
           ((Map<?, ?>) outputPropertyValue)
-              .keySet()
-              .stream()
-              .map(Object::toString)
-              .collect(Collectors.toSet());
+              .keySet().stream().map(Object::toString).collect(Collectors.toSet());
     }
 
     // check if a conversion to String or List/Set<String> is needed for complex objects (e.g., VRF)
@@ -105,8 +101,7 @@ public abstract class PropertySpecifier {
       Collection<?> outputCollection = (Collection<?>) outputPropertyValue;
       if (!outputCollection.isEmpty() && !(outputCollection.iterator().next() instanceof String)) {
         Stream<?> stream =
-            outputCollection
-                .stream()
+            outputCollection.stream()
                 .map(
                     e ->
                         (e instanceof ComparableStructure)
