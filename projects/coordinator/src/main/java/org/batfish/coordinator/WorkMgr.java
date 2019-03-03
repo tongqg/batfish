@@ -21,6 +21,8 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
 import com.google.common.collect.Comparators;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableMultimap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.ImmutableSortedMap;
 import com.google.common.collect.ImmutableSortedSet;
@@ -31,6 +33,7 @@ import io.opentracing.ActiveSpan;
 import io.opentracing.References;
 import io.opentracing.SpanContext;
 import io.opentracing.util.GlobalTracer;
+import java.io.ByteArrayInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -119,6 +122,7 @@ import org.batfish.datamodel.collections.NodeInterfacePair;
 import org.batfish.datamodel.flow.Hop;
 import org.batfish.datamodel.flow.Step;
 import org.batfish.datamodel.flow.Trace;
+import org.batfish.datamodel.pojo.Interface;
 import org.batfish.datamodel.pojo.Node;
 import org.batfish.datamodel.pojo.Topology;
 import org.batfish.datamodel.questions.Question;
@@ -130,6 +134,8 @@ import org.batfish.datamodel.table.TableAnswerElement;
 import org.batfish.datamodel.table.TableMetadata;
 import org.batfish.datamodel.table.TableView;
 import org.batfish.datamodel.table.TableViewRow;
+import org.batfish.datamodel.topology_layout.TopologyLayoutEngine;
+import org.batfish.datamodel.topology_layout.TopologyPositions;
 import org.batfish.identifiers.AnalysisId;
 import org.batfish.identifiers.AnswerId;
 import org.batfish.identifiers.IssueSettingsId;
@@ -139,6 +145,7 @@ import org.batfish.identifiers.QuestionId;
 import org.batfish.identifiers.QuestionSettingsId;
 import org.batfish.identifiers.SnapshotId;
 import org.batfish.referencelibrary.ReferenceLibrary;
+import org.batfish.role.NodeRoleDimension;
 import org.batfish.role.NodeRolesData;
 import org.batfish.storage.FileBasedStorageDirectoryProvider;
 import org.batfish.storage.StorageProvider;
@@ -2686,12 +2693,99 @@ public class WorkMgr extends AbstractCoordinator {
     try {
       return _storage.loadNetworkObject(networkId, key);
     } catch (FileNotFoundException e) {
+      // TODO: This is a hack; integrate properly
+      if (key.equals("topology_positions")) {
+        return getNetworkTopologyLayout(network);
+      }
       return null;
     } catch (IOException e) {
       throw new IOException(
           String.format("Could not read extended object for network '%s', key '%s'", network, key),
           e);
     }
+  }
+
+  @MustBeClosed
+  @Nullable
+  private InputStream getNetworkTopologyLayout(String network) throws IOException {
+    Optional<TopologyLayoutEngine> engine = TopologyLayoutEngine.load();
+    if (!engine.isPresent()) {
+      return null;
+    }
+    NetworkId networkId = _idManager.getNetworkId(network);
+    List<String> roleDimensionNameHierarchy = null;
+    try {
+      InputStream inStream = _storage.loadNetworkObject(networkId, "topology_hierarchy");
+      roleDimensionNameHierarchy =
+          BatfishObjectMapper.mapper().readValue(inStream, new TypeReference<List<String>>() {});
+    } catch (FileNotFoundException e) {
+    }
+    NodeRolesData nodeRolesData = getNetworkNodeRoles(network);
+
+    // if we didn't have any input on role hierarchy, rank dimensions by number of roles -- we
+    // assume that if a dimension has fewer roles, it is higher in the hierarchy.
+    List<NodeRoleDimension> roleDimensionHierarchy =
+        roleDimensionNameHierarchy == null
+            ? nodeRolesData.getNodeRoleDimensions().stream()
+                .sorted(Comparator.comparing(dim -> dim.getRoles().size()))
+                .collect(ImmutableList.toImmutableList())
+            : roleDimensionNameHierarchy.stream()
+                // remove dimension that do not exist
+                .filter(
+                    dim -> {
+                      try {
+                        return nodeRolesData.getNodeRoleDimension(dim).isPresent();
+                      } catch (IOException e) {
+                        throw new BatfishException("Unexpected error", e);
+                      }
+                    })
+                .map(
+                    name -> {
+                      try {
+                        return nodeRolesData.getNodeRoleDimension(name).get();
+                      } catch (IOException e) {
+                        throw new BatfishException("Unexpected error", e);
+                      }
+                    })
+                .collect(ImmutableList.toImmutableList());
+
+    // get nodes and edges in the latest snapshot
+    Optional<String> snapshot = getLatestSnapshot(network);
+    if (!snapshot.isPresent()) {
+      return null;
+    }
+    Topology pojoTopology = getPojoTopology(network, snapshot.get());
+    Set<String> nodes =
+        pojoTopology.getNodes().stream()
+            .map(n -> n.getName())
+            .collect(ImmutableSet.toImmutableSet());
+
+    Map<String, String> nodeIdToNodeName =
+        pojoTopology.getNodes().stream()
+            .collect(ImmutableMap.toImmutableMap(Node::getId, Node::getName));
+
+    Map<String, String> interfaceIdToNodeName =
+        pojoTopology.getInterfaces().stream()
+            .collect(
+                ImmutableMap.toImmutableMap(
+                    Interface::getId, i -> nodeIdToNodeName.get(i.getNodeId())));
+
+    ImmutableMultimap.Builder<String, String> edges = ImmutableMultimap.builder();
+    pojoTopology
+        .getLinks()
+        .forEach(
+            l ->
+                edges.put(
+                    interfaceIdToNodeName.get(l.getSrcId()),
+                    interfaceIdToNodeName.get(l.getDstId())));
+    TopologyPositions topologyPositions =
+        engine.get().compute(nodes, edges.build(), roleDimensionHierarchy);
+
+    // store and return the positions object
+    byte[] bytes =
+        BatfishObjectMapper.mapper().writeValueAsBytes(topologyPositions.getCoordinates());
+    _storage.storeNetworkObject(new ByteArrayInputStream(bytes), networkId, "topology_positions");
+    return _storage.loadNetworkObject(networkId, "topology_positions");
   }
 
   /**
