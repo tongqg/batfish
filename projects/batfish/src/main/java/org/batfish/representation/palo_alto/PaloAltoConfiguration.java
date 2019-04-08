@@ -781,7 +781,7 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
       }
       conjuncts.add(match);
     }
-
+    
     //////////////////////////////////////////////////////////////////////////////////////////
     // 4. Match services.
     getServiceExpr(rule, vsys).ifPresent(conjuncts::add);
@@ -1141,7 +1141,7 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
       if (iface.getVrf() == null) {
         orphanedInterfaces.put(iface.getName(), iface);
         iface.setVrf(nullVrf);
-        iface.setActive(false);
+        // iface.setActive(false);
         _w.redFlag(
             String.format(
                 "Interface %s is not in a virtual-router, placing in %s and shutting it down.",

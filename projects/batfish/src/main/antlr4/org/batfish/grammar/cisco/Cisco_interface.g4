@@ -1028,6 +1028,7 @@ if_null_block
       | UDLD
       | UNTAGGED
       | VLT_PEER_LAG
+      | VLAN
       | VMTRACER
       | VPC
       | VTP

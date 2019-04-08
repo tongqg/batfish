@@ -42,3 +42,9 @@ coverage*
 # Ignore python cache files
 __pycache__
 .pytest_cache/
+
+# My ignore
+/projects/allinone/data
+.project
+.antlr
+org.eclipse.*

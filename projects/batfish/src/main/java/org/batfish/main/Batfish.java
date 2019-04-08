@@ -1769,7 +1769,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
         .map(d -> config.getAllInterfaces().get(d.getInterfaceName()))
         // Find any missing or inactive interfaces
         .anyMatch(parent -> parent == null || !parent.getActive())) {
-      iface.setActive(false);
+      // iface.setActive(false);
     }
 
     // Look at aggregate dependencies only now

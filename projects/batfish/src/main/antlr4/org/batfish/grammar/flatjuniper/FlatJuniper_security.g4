@@ -1216,7 +1216,13 @@ sepctxpt_permit
       apply
       | sepctxptp_services_offload
       | sepctxptp_tunnel
+      | sepctxpt_permit_offload
    )
+;
+
+sepctxpt_permit_offload
+:
+   SERVICES_OFFLOAD
 ;
 
 sepctxpt_trace
