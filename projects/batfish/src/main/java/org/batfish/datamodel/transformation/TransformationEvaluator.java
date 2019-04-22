@@ -1,5 +1,6 @@
 package org.batfish.datamodel.transformation;
 
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Verify.verifyNotNull;
 import static org.batfish.datamodel.FlowDiff.flowDiff;
 
@@ -7,9 +8,14 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Range;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import org.batfish.datamodel.Flow;
 import org.batfish.datamodel.FlowDiff;
 import org.batfish.datamodel.Ip;
@@ -24,15 +30,9 @@ import org.batfish.datamodel.flow.TransformationStep.TransformationType;
 
 /** Evaluates a {@link Transformation} on an input {@link Flow}. */
 public class TransformationEvaluator {
-  private final Flow.Builder _flowBuilder;
   private final String _srcInterface;
   private final Map<String, IpAccessList> _namedAcls;
   private final Map<String, IpSpace> _namedIpSpaces;
-  private final ImmutableList.Builder<Step<?>> _traceSteps;
-
-  // the ACL evaluator has to be re-initialized every time we transform the flow
-  private Evaluator _aclEvaluator;
-  private Flow _currentFlow;
 
   /**
    * StepEvaluator returns true iff the step transforms the packet. It's possible that the step
@@ -40,163 +40,112 @@ public class TransformationEvaluator {
    * generated even when the packet isn't transformed.
    */
   @VisibleForTesting
-  class StepEvaluator implements TransformationStepVisitor<Boolean> {
-    private final Map<TransformationType, ImmutableSortedSet.Builder<FlowDiff>> _flowDiffs =
-        new EnumMap<>(TransformationType.class);
+  static class StepEvaluator
+      implements TransformationStepVisitor<
+          Function<Stream<TransformationState>, Stream<TransformationState>>> {
 
-    private void set(IpField field, Ip ip) {
-      switch (field) {
-        case DESTINATION:
-          _flowBuilder.setDstIp(ip);
-          break;
-        case SOURCE:
-          _flowBuilder.setSrcIp(ip);
-          break;
-        default:
-          throw new IllegalArgumentException("unknown IpField " + field);
-      }
-    }
-
-    private void set(PortField field, int port) {
-      switch (field) {
-        case DESTINATION:
-          _flowBuilder.setDstPort(port);
-          break;
-        case SOURCE:
-          _flowBuilder.setSrcPort(port);
-          break;
-        default:
-          throw new IllegalArgumentException("unknown PortField " + field);
-      }
-    }
-
-    private Ip get(IpField field) {
-      switch (field) {
-        case DESTINATION:
-          return _flowBuilder.getDstIp();
-        case SOURCE:
-          return _flowBuilder.getSrcIp();
-        default:
-          throw new IllegalArgumentException("unknown IpField " + field);
-      }
-    }
-
-    private int get(PortField field) {
-      switch (field) {
-        case DESTINATION:
-          return verifyNotNull(_flowBuilder.getDstPort(), "Missing destination port");
-        case SOURCE:
-          return verifyNotNull(_flowBuilder.getSrcPort(), "Missing source port");
-        default:
-          throw new IllegalArgumentException("unknown PortField " + field);
-      }
-    }
-
-    private ImmutableSortedSet.Builder<FlowDiff> getFlowDiffs(TransformationType type) {
-      return _flowDiffs.computeIfAbsent(type, k -> ImmutableSortedSet.naturalOrder());
-    }
-
-    // when no values change, simply apply noop
-    private void noop(TransformationType type) {
-      _flowDiffs.computeIfAbsent(type, k -> ImmutableSortedSet.naturalOrder());
-    }
-
-    private List<Step<?>> getTraceSteps() {
-      return _flowDiffs.entrySet().stream()
-          .map(
-              entry -> {
-                ImmutableSortedSet<FlowDiff> flowDiffs = entry.getValue().build();
-                TransformationStepDetail detail =
-                    new TransformationStepDetail(entry.getKey(), flowDiffs);
-                StepAction action =
-                    flowDiffs.isEmpty() ? StepAction.PERMITTED : StepAction.TRANSFORMED;
-                return new org.batfish.datamodel.flow.TransformationStep(detail, action);
-              })
-          .collect(ImmutableList.toImmutableList());
-    }
-
-    private boolean set(TransformationType type, IpField ipField, Ip oldValue, Ip newValue) {
-      if (oldValue.equals(newValue)) {
-        noop(type);
-        return false;
-      } else {
-        set(ipField, newValue);
-        getFlowDiffs(type).add(flowDiff(ipField, oldValue, newValue));
-        return true;
-      }
-    }
-
-    private boolean set(TransformationType type, PortField portField, int oldValue, int newValue) {
-      if (oldValue == newValue) {
-        noop(type);
-        return false;
-      } else {
-        set(portField, newValue);
-        getFlowDiffs(type).add(flowDiff(portField, oldValue, newValue));
-        return true;
-      }
+    private static Stream<Ip> ipRangeStream(Range<Ip> range) {
+      checkArgument(range.hasUpperBound() && range.hasLowerBound(), "Expected bounded range");
+      Long lower = range.lowerEndpoint().asLong();
+      Long upper = range.upperEndpoint().asLong();
+      return LongStream.rangeClosed(lower, upper).mapToObj(Ip::create);
     }
 
     @Override
-    public Boolean visitAssignIpAddressFromPool(AssignIpAddressFromPool step) {
-      Ip ip = step.getIpRanges().asRanges().iterator().next().lowerEndpoint();
-      return set(step.getType(), step.getIpField(), get(step.getIpField()), ip);
+    public Function<Stream<TransformationState>, Stream<TransformationState>>
+        visitAssignIpAddressFromPool(AssignIpAddressFromPool step) {
+      return stateStream ->
+          stateStream.flatMap(
+              state -> {
+                return step.getIpRanges().asRanges().stream()
+                    .flatMap(StepEvaluator::ipRangeStream)
+                    .map(
+                        ip -> {
+                          TransformationState newState = new TransformationState(state);
+                          newState.set(
+                              step.getType(),
+                              step.getIpField(),
+                              newState.get(step.getIpField()),
+                              ip);
+                          return newState;
+                        });
+              });
     }
 
     @Override
-    public Boolean visitNoop(Noop noop) {
-      /* getFlowDiffs makes sure the type is in the key set, which signals that we went through
-       * the transformation
-       */
-      this.noop(noop.getType());
-      return false;
+    public Function<Stream<TransformationState>, Stream<TransformationState>> visitNoop(Noop noop) {
+      return stateStream ->
+          stateStream.peek(
+              state -> {
+                state.noop(noop.getType());
+              });
     }
 
     @Override
-    public Boolean visitShiftIpAddressIntoSubnet(ShiftIpAddressIntoSubnet step) {
+    public Function<Stream<TransformationState>, Stream<TransformationState>>
+        visitShiftIpAddressIntoSubnet(ShiftIpAddressIntoSubnet step) {
       IpField field = step.getIpField();
-      Ip oldValue = get(field);
-      Prefix targetSubnet = step.getSubnet();
-      Prefix currentSubnetPrefix = Prefix.create(oldValue, targetSubnet.getPrefixLength());
-      long offset = oldValue.asLong() - currentSubnetPrefix.getStartIp().asLong();
-      Ip newValue = Ip.create(targetSubnet.getStartIp().asLong() + offset);
-      return set(step.getType(), field, oldValue, newValue);
+      return stateStream ->
+          stateStream.map(
+              state -> {
+                Ip oldValue = state.get(field);
+                Prefix targetSubnet = step.getSubnet();
+                Prefix currentSubnetPrefix =
+                    Prefix.create(oldValue, targetSubnet.getPrefixLength());
+                long offset = oldValue.asLong() - currentSubnetPrefix.getStartIp().asLong();
+                Ip newValue = Ip.create(targetSubnet.getStartIp().asLong() + offset);
+                state.set(step.getType(), field, oldValue, newValue);
+                return state;
+              });
     }
 
     @Override
-    public Boolean visitAssignPortFromPool(AssignPortFromPool step) {
-      return set(
-          step.getType(), step.getPortField(), get(step.getPortField()), step.getPoolStart());
+    public Function<Stream<TransformationState>, Stream<TransformationState>>
+        visitAssignPortFromPool(AssignPortFromPool step) {
+      return stateStream ->
+          stateStream.flatMap(
+              state -> {
+                return IntStream.rangeClosed(step.getPoolStart(), step.getPoolEnd())
+                    .mapToObj(
+                        value -> {
+                          TransformationState newState = new TransformationState(state);
+                          newState.set(
+                              step.getType(),
+                              step.getPortField(),
+                              newState.get(step.getPortField()),
+                              value);
+                          return newState;
+                        });
+              });
     }
 
     @Override
-    public Boolean visitApplyAll(ApplyAll applyAll) {
-      // NOTE that reduce is used instead of anyMatch to ensure all steps accept the visitor.
+    public Function<Stream<TransformationState>, Stream<TransformationState>> visitApplyAll(
+        ApplyAll applyAll) {
       return applyAll.getSteps().stream()
-          .map(step -> step.accept(this))
-          .reduce(false, (a, b) -> a || b);
+          .map(this::visit)
+          .reduce(Function.identity(), Function::andThen);
     }
 
     @Override
-    public Boolean visitApplyAny(ApplyAny applyAny) {
-      // NOTE that short-circuiting with anyMatch is intended so no more than one non-identity
-      // transformation is performed.
-      return applyAny.getSteps().stream().anyMatch(step -> step.accept(this));
+    public Function<Stream<TransformationState>, Stream<TransformationState>> visitApplyAny(
+        ApplyAny applyAny) {
+      // for each state { for each step { apply step to state }}
+      return stateStream ->
+          stateStream.flatMap(
+              state ->
+                  applyAny.getSteps().stream()
+                      .flatMap(step -> visit(step).apply(Stream.of(state))));
     }
   }
 
   private TransformationEvaluator(
-      Flow flow,
       String srcInterface,
       Map<String, IpAccessList> namedAcls,
       Map<String, IpSpace> namedIpSpaces) {
-    _currentFlow = flow;
-    _flowBuilder = flow.toBuilder();
     _srcInterface = srcInterface;
     _namedAcls = ImmutableMap.copyOf(namedAcls);
     _namedIpSpaces = ImmutableMap.copyOf(namedIpSpaces);
-    _traceSteps = ImmutableList.builder();
-    initializeAclEvaluator();
   }
 
   /** The result of evaluating a {@link Transformation}. */
@@ -218,44 +167,178 @@ public class TransformationEvaluator {
     }
   }
 
-  public static TransformationResult eval(
+  private static final class TransformationState {
+    private final Function<Flow, Evaluator> _mkEvaluator;
+    private Flow.Builder _flowBuilder;
+    private Evaluator _aclEvaluator;
+    private final ImmutableList.Builder<Step<?>> _traceSteps;
+    private final Map<TransformationType, ImmutableSortedSet.Builder<FlowDiff>> _flowDiffs;
+
+    TransformationState(Flow currentFlow, Function<Flow, Evaluator> mkEvaluator) {
+      _flowBuilder = currentFlow.toBuilder();
+      _traceSteps = ImmutableList.builder();
+      _mkEvaluator = mkEvaluator;
+      _aclEvaluator = _mkEvaluator.apply(currentFlow);
+      _flowDiffs = new EnumMap<>(TransformationType.class);
+    }
+
+    TransformationState(TransformationState other) {
+      _flowBuilder = other._flowBuilder.build().toBuilder();
+      _mkEvaluator = other._mkEvaluator;
+      _aclEvaluator = other._aclEvaluator;
+      _traceSteps = ImmutableList.builder();
+      _traceSteps.addAll(other._traceSteps.build());
+      _flowDiffs = new EnumMap<>(other._flowDiffs);
+    }
+
+    private void set(IpField field, Ip ip) {
+      switch (field) {
+        case DESTINATION:
+          _flowBuilder.setDstIp(ip);
+          break;
+        case SOURCE:
+          _flowBuilder.setSrcIp(ip);
+          break;
+        default:
+          throw new IllegalArgumentException("unknown IpField " + field);
+      }
+    }
+
+    void set(PortField field, int port) {
+      switch (field) {
+        case DESTINATION:
+          _flowBuilder.setDstPort(port);
+          break;
+        case SOURCE:
+          _flowBuilder.setSrcPort(port);
+          break;
+        default:
+          throw new IllegalArgumentException("unknown PortField " + field);
+      }
+    }
+
+    Ip get(IpField field) {
+      switch (field) {
+        case DESTINATION:
+          return _flowBuilder.getDstIp();
+        case SOURCE:
+          return _flowBuilder.getSrcIp();
+        default:
+          throw new IllegalArgumentException("unknown IpField " + field);
+      }
+    }
+
+    int get(PortField field) {
+      switch (field) {
+        case DESTINATION:
+          return verifyNotNull(_flowBuilder.getDstPort(), "Missing destination port");
+        case SOURCE:
+          return verifyNotNull(_flowBuilder.getSrcPort(), "Missing source port");
+        default:
+          throw new IllegalArgumentException("unknown PortField " + field);
+      }
+    }
+
+    void set(TransformationType type, IpField ipField, Ip oldValue, Ip newValue) {
+      if (oldValue.equals(newValue)) {
+        noop(type);
+      } else {
+        set(ipField, newValue);
+        getFlowDiffs(type).add(flowDiff(ipField, oldValue, newValue));
+        _aclEvaluator = _mkEvaluator.apply(_flowBuilder.build());
+      }
+    }
+
+    void set(TransformationType type, PortField portField, int oldValue, int newValue) {
+      if (oldValue == newValue) {
+        noop(type);
+      } else {
+        set(portField, newValue);
+        getFlowDiffs(type).add(flowDiff(portField, oldValue, newValue));
+        _aclEvaluator = _mkEvaluator.apply(_flowBuilder.build());
+      }
+    }
+
+    // when no values change, simply apply noop
+    private void noop(TransformationType type) {
+      getFlowDiffs(type);
+    }
+
+    private ImmutableSortedSet.Builder<FlowDiff> getFlowDiffs(TransformationType type) {
+      return _flowDiffs.computeIfAbsent(type, k -> ImmutableSortedSet.naturalOrder());
+    }
+
+    public void buildTraceSteps() {
+      _flowDiffs.entrySet().stream()
+          .map(
+              entry -> {
+                ImmutableSortedSet<FlowDiff> flowDiffs = entry.getValue().build();
+                TransformationStepDetail detail =
+                    new TransformationStepDetail(entry.getKey(), flowDiffs);
+                StepAction action =
+                    flowDiffs.isEmpty() ? StepAction.PERMITTED : StepAction.TRANSFORMED;
+                return new org.batfish.datamodel.flow.TransformationStep(detail, action);
+              })
+          .forEach(_traceSteps::add);
+      _flowDiffs.clear();
+    }
+  }
+
+  public static Stream<TransformationResult> evalAll(
       Transformation transformation,
       Flow flow,
       String srcInterface,
       Map<String, IpAccessList> namedAcls,
       Map<String, IpSpace> namedIpSpaces) {
     TransformationEvaluator evaluator =
-        new TransformationEvaluator(flow, srcInterface, namedAcls, namedIpSpaces);
-    evaluator.eval(transformation);
-    return new TransformationResult(evaluator._currentFlow, evaluator._traceSteps.build());
+        new TransformationEvaluator(srcInterface, namedAcls, namedIpSpaces);
+    return evaluator.eval(transformation, flow);
   }
 
-  private void initializeAclEvaluator() {
-    _aclEvaluator = new Evaluator(_currentFlow, _srcInterface, _namedAcls, _namedIpSpaces);
+  public static TransformationResult eval(
+      Transformation transformation,
+      Flow flow,
+      String srcInterface,
+      Map<String, IpAccessList> namedAcls,
+      Map<String, IpSpace> namedIpSpaces) {
+    Stream<TransformationResult> results =
+        evalAll(transformation, flow, srcInterface, namedAcls, namedIpSpaces);
+    return results.findFirst().get();
   }
 
-  private void eval(Transformation transformation) {
-    Transformation node = transformation;
-    while (node != null) {
-      if (_aclEvaluator.visit(node.getGuard())) {
-        StepEvaluator stepEvaluator = new StepEvaluator();
-        boolean transformed =
-            node.getTransformationSteps().stream()
-                .map(stepEvaluator::visit)
-                .reduce(Boolean::logicalOr)
-                .orElse(false);
-        // noop transformation steps can generate tracesteps without transforming the flow
-        _traceSteps.addAll(stepEvaluator.getTraceSteps());
+  private Stream<TransformationResult> eval(Transformation transformation, Flow inputFlow) {
+    Stream<TransformationState> states =
+        Stream.of(
+            new TransformationState(
+                inputFlow, flow -> new Evaluator(flow, _srcInterface, _namedAcls, _namedIpSpaces)));
 
-        if (transformed) {
-          _currentFlow = _flowBuilder.build();
-          initializeAclEvaluator();
-        }
+    return eval(transformation, states)
+        .map(
+            state -> {
+              TransformationResult result =
+                  new TransformationResult(state._flowBuilder.build(), state._traceSteps.build());
+              return result;
+            });
+  }
 
-        node = node.getAndThen();
-      } else {
-        node = node.getOrElse();
-      }
+  private static Stream<TransformationState> eval(
+      Transformation transformation, Stream<TransformationState> states) {
+    if (transformation == null) {
+      return states;
     }
+    return states.flatMap(
+        state -> {
+          if (state._aclEvaluator.visit(transformation.getGuard())) {
+            Function<Stream<TransformationState>, Stream<TransformationState>> stepsFunction =
+                transformation.getTransformationSteps().stream()
+                    .map(new StepEvaluator()::visit)
+                    .reduce(Function.identity(), Function::andThen);
+            Stream<TransformationState> stateStream =
+                stepsFunction.apply(Stream.of(state)).peek(TransformationState::buildTraceSteps);
+            return eval(transformation.getAndThen(), stateStream);
+          } else {
+            return eval(transformation.getOrElse(), Stream.of(state));
+          }
+        });
   }
 }

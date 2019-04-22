@@ -7,6 +7,8 @@ import static org.batfish.datamodel.flow.StepAction.PERMITTED;
 import static org.batfish.datamodel.flow.StepAction.TRANSFORMED;
 import static org.batfish.datamodel.flow.TransformationStep.TransformationType.DEST_NAT;
 import static org.batfish.datamodel.flow.TransformationStep.TransformationType.SOURCE_NAT;
+import static org.batfish.datamodel.matchers.FlowMatchers.hasDstIp;
+import static org.batfish.datamodel.matchers.FlowMatchers.hasDstPort;
 import static org.batfish.datamodel.transformation.IpField.DESTINATION;
 import static org.batfish.datamodel.transformation.IpField.SOURCE;
 import static org.batfish.datamodel.transformation.Transformation.always;
@@ -19,9 +21,9 @@ import static org.batfish.datamodel.transformation.TransformationStep.shiftDesti
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.sameInstance;
 import static org.junit.Assert.assertThat;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
 import java.util.List;
@@ -53,6 +55,12 @@ public class TransformationEvaluatorTest {
   private static TransformationResult evalResult(Transformation transformation, Flow flow) {
     return TransformationEvaluator.eval(
         transformation, flow, "iface", ImmutableMap.of(), ImmutableMap.of());
+  }
+
+  private static List<TransformationResult> evalResults(Transformation transformation, Flow flow) {
+    return TransformationEvaluator.evalAll(
+            transformation, flow, "iface", ImmutableMap.of(), ImmutableMap.of())
+        .collect(ImmutableList.toImmutableList());
   }
 
   @Test
@@ -129,9 +137,9 @@ public class TransformationEvaluatorTest {
         _flowBuilder.setSrcIp(Ip.parse("1.1.1.1")).setDstIp(Ip.parse("2.2.2.2")).build();
     TransformationResult result = evalResult(transformation, origFlow);
     assertThat(
-        "Noop transformations should return the original (==) flow",
+        "Noop transformations should return the original (.equals) flow",
         result.getOutputFlow(),
-        sameInstance(origFlow));
+        equalTo(origFlow));
 
     assertThat(
         result.getTraceSteps(),
@@ -333,5 +341,118 @@ public class TransformationEvaluatorTest {
         new TransformationStep(
             new TransformationStepDetail(SOURCE_NAT, ImmutableSortedSet.of()), PERMITTED);
     assertThat(traceSteps, contains(step));
+  }
+
+  @Test
+  public void testEvalAll_applyAny() {
+    Ip ip1 = Ip.parse("1.1.1.1");
+    Ip ip2 = Ip.parse("2.2.2.2");
+    Transformation transformation =
+        Transformation.always()
+            .apply(new ApplyAny(assignDestinationIp(ip1, ip1), assignDestinationIp(ip2, ip2)))
+            .build();
+
+    Flow origFlow = _flowBuilder.setDstIp(Ip.ZERO).build();
+
+    List<TransformationResult> results = evalResults(transformation, origFlow);
+    assertThat(results, hasSize(2));
+
+    {
+      TransformationResult result = results.get(0);
+      assertThat(result.getOutputFlow(), hasDstIp(ip1));
+      assertThat(
+          result.getTraceSteps(),
+          contains(
+              new TransformationStep(
+                  new TransformationStepDetail(
+                      DEST_NAT, ImmutableSortedSet.of(flowDiff(IpField.DESTINATION, Ip.ZERO, ip1))),
+                  TRANSFORMED)));
+    }
+
+    {
+      TransformationResult result = results.get(1);
+      assertThat(result.getOutputFlow(), hasDstIp(ip2));
+      assertThat(
+          result.getTraceSteps(),
+          contains(
+              new TransformationStep(
+                  new TransformationStepDetail(
+                      DEST_NAT, ImmutableSortedSet.of(flowDiff(IpField.DESTINATION, Ip.ZERO, ip2))),
+                  TRANSFORMED)));
+    }
+  }
+
+  @Test
+  public void testEvalAll_destIpPool() {
+    Ip ip1 = Ip.parse("1.1.1.1");
+    Ip ip2 = Ip.parse("1.1.1.2");
+    Transformation transformation =
+        Transformation.always().apply(assignDestinationIp(ip1, ip2)).build();
+
+    Flow origFlow = _flowBuilder.setDstIp(Ip.ZERO).build();
+
+    List<TransformationResult> results = evalResults(transformation, origFlow);
+    assertThat(results, hasSize(2));
+
+    {
+      TransformationResult result = results.get(0);
+      assertThat(result.getOutputFlow(), hasDstIp(ip1));
+      assertThat(
+          result.getTraceSteps(),
+          contains(
+              new TransformationStep(
+                  new TransformationStepDetail(
+                      DEST_NAT, ImmutableSortedSet.of(flowDiff(IpField.DESTINATION, Ip.ZERO, ip1))),
+                  TRANSFORMED)));
+    }
+
+    {
+      TransformationResult result = results.get(1);
+      assertThat(result.getOutputFlow(), hasDstIp(ip2));
+      assertThat(
+          result.getTraceSteps(),
+          contains(
+              new TransformationStep(
+                  new TransformationStepDetail(
+                      DEST_NAT, ImmutableSortedSet.of(flowDiff(IpField.DESTINATION, Ip.ZERO, ip2))),
+                  TRANSFORMED)));
+    }
+  }
+
+  @Test
+  public void testEvalAll_destPortPool() {
+    int port1 = 10;
+    int port2 = 11;
+    Transformation transformation =
+        Transformation.always().apply(assignDestinationPort(port1, port2)).build();
+
+    Flow origFlow = _flowBuilder.setDstIp(Ip.ZERO).setDstPort(0).build();
+
+    List<TransformationResult> results = evalResults(transformation, origFlow);
+    assertThat(results, hasSize(2));
+
+    {
+      TransformationResult result = results.get(0);
+      assertThat(result.getOutputFlow(), hasDstPort(port1));
+      assertThat(
+          result.getTraceSteps(),
+          contains(
+              new TransformationStep(
+                  new TransformationStepDetail(
+                      DEST_NAT, ImmutableSortedSet.of(flowDiff(PortField.DESTINATION, 0, port1))),
+                  TRANSFORMED)));
+    }
+
+    {
+      TransformationResult result = results.get(1);
+      assertThat(result.getOutputFlow(), hasDstPort(port2));
+      assertThat(
+          result.getTraceSteps(),
+          contains(
+              new TransformationStep(
+                  new TransformationStepDetail(
+                      DEST_NAT, ImmutableSortedSet.of(flowDiff(PortField.DESTINATION, 0, port2))),
+                  TRANSFORMED)));
+    }
   }
 }
