@@ -317,35 +317,37 @@ class FlowTracer {
         }
       }
 
-      TransformationResult transformationResult =
-          TransformationEvaluator.eval(
+      TransformationEvaluator.evalAll(
               incomingInterface.getIncomingTransformation(),
               _currentFlow,
               _ingressInterface,
               _aclDefinitions,
-              _namedIpSpaces);
-      _steps.addAll(transformationResult.getTraceSteps());
-      _currentFlow = transformationResult.getOutputFlow();
+              _namedIpSpaces)
+          .forEach(
+              transformationResult -> {
+                _steps.addAll(transformationResult.getTraceSteps());
+                _currentFlow = transformationResult.getOutputFlow();
 
-      inputFilter = incomingInterface.getPostTransformationIncomingFilter();
-      if (applyFilter(inputFilter, POST_TRANSFORMATION_INGRESS_FILTER) == DENIED) {
-        return;
-      }
-    } else {
-      // if inputIfaceName is not set for this hop, this is the originating step
-      _steps.add(buildOriginateStep());
+                IpAccessList inputFilter1 = incomingInterface.getPostTransformationIncomingFilter();
+                if (applyFilter(inputFilter1, POST_TRANSFORMATION_INGRESS_FILTER) == DENIED) {
+                  return;
+                } else {
+                  // if inputIfaceName is not set for this hop, this is the originating step
+                  _steps.add(buildOriginateStep());
+                }
+
+                Ip dstIp = _currentFlow.getDstIp();
+
+                // Accept if the flow is destined for this vrf on this host.
+                if (_tracerouteContext.ownsIp(currentNodeName, _vrfName, dstIp)) {
+                  buildAcceptTrace();
+                  return;
+                }
+
+                Fib fib = _tracerouteContext.getFib(currentNodeName, _vrfName).get();
+                fibLookup(dstIp, currentNodeName, fib);
+              });
     }
-
-    Ip dstIp = _currentFlow.getDstIp();
-
-    // Accept if the flow is destined for this vrf on this host.
-    if (_tracerouteContext.ownsIp(currentNodeName, _vrfName, dstIp)) {
-      buildAcceptTrace();
-      return;
-    }
-
-    Fib fib = _tracerouteContext.getFib(currentNodeName, _vrfName).get();
-    fibLookup(dstIp, currentNodeName, fib);
   }
 
   private boolean processPBR(Interface incomingInterface) {
@@ -612,38 +614,41 @@ class FlowTracer {
 
     // Apply outgoing transformation
     Transformation transformation = outgoingInterface.getOutgoingTransformation();
-    TransformationResult transformationResult =
-        TransformationEvaluator.eval(
-            transformation, _currentFlow, _ingressInterface, _aclDefinitions, _namedIpSpaces);
-    _steps.addAll(transformationResult.getTraceSteps());
-    _currentFlow = transformationResult.getOutputFlow();
 
-    // apply outgoing filter
-    if (applyFilter(outgoingInterface.getOutgoingFilter(), EGRESS_FILTER) == DENIED) {
-      return;
-    }
+    TransformationEvaluator.evalAll(
+            transformation, _currentFlow, _ingressInterface, _aclDefinitions, _namedIpSpaces)
+        .forEach(
+            transformationResult -> {
+              _steps.addAll(transformationResult.getTraceSteps());
+              _currentFlow = transformationResult.getOutputFlow();
 
-    // setup session if necessary
-    FirewallSessionInterfaceInfo firewallSessionInterfaceInfo =
-        outgoingInterface.getFirewallSessionInterfaceInfo();
-    if (firewallSessionInterfaceInfo != null) {
-      _newSessions.add(buildFirewallSessionTraceInfo(firewallSessionInterfaceInfo));
-      _steps.add(new SetupSessionStep());
-    }
+              // apply outgoing filter
+              if (applyFilter(outgoingInterface.getOutgoingFilter(), EGRESS_FILTER) == DENIED) {
+                return;
+              }
 
-    String currentNodeName = _currentNode.getName();
-    String outgoingIfaceName = outgoingInterface.getName();
-    SortedSet<NodeInterfacePair> neighborIfaces =
-        _tracerouteContext.getInterfaceNeighbors(currentNodeName, outgoingIfaceName);
-    if (neighborIfaces.isEmpty()) {
-      FlowDisposition disposition =
-          _tracerouteContext.computeDisposition(
-              currentNodeName, outgoingIfaceName, _currentFlow.getDstIp());
+              // setup session if necessary
+              FirewallSessionInterfaceInfo firewallSessionInterfaceInfo =
+                  outgoingInterface.getFirewallSessionInterfaceInfo();
+              if (firewallSessionInterfaceInfo != null) {
+                _newSessions.add(buildFirewallSessionTraceInfo(firewallSessionInterfaceInfo));
+                _steps.add(new SetupSessionStep());
+              }
 
-      buildArpFailureTrace(outgoingIfaceName, disposition);
-    } else {
-      processOutgoingInterfaceEdges(outgoingIfaceName, nextHopIp, neighborIfaces);
-    }
+              String currentNodeName = _currentNode.getName();
+              String outgoingIfaceName = outgoingInterface.getName();
+              SortedSet<NodeInterfacePair> neighborIfaces =
+                  _tracerouteContext.getInterfaceNeighbors(currentNodeName, outgoingIfaceName);
+              if (neighborIfaces.isEmpty()) {
+                FlowDisposition disposition =
+                    _tracerouteContext.computeDisposition(
+                        currentNodeName, outgoingIfaceName, _currentFlow.getDstIp());
+
+                buildArpFailureTrace(outgoingIfaceName, disposition);
+              } else {
+                processOutgoingInterfaceEdges(outgoingIfaceName, nextHopIp, neighborIfaces);
+              }
+            });
   }
 
   @Nonnull

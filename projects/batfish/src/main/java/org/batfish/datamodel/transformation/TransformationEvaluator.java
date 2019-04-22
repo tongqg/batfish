@@ -12,10 +12,11 @@ import com.google.common.collect.Range;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.IntStream;
 import java.util.stream.LongStream;
 import java.util.stream.Stream;
+import org.batfish.common.BatfishException;
 import org.batfish.datamodel.Flow;
 import org.batfish.datamodel.FlowDiff;
 import org.batfish.datamodel.Ip;
@@ -55,6 +56,7 @@ public class TransformationEvaluator {
     public Function<Stream<TransformationState>, Stream<TransformationState>>
         visitAssignIpAddressFromPool(AssignIpAddressFromPool step) {
       return stateStream ->
+          /*
           stateStream.flatMap(
               state -> {
                 return step.getIpRanges().asRanges().stream()
@@ -69,6 +71,17 @@ public class TransformationEvaluator {
                               ip);
                           return newState;
                         });
+              });
+              */
+          stateStream.map(
+              state -> {
+                TransformationState newState = new TransformationState(state);
+                newState.set(
+                    step.getType(),
+                    step.getIpField(),
+                    newState.get(step.getIpField()),
+                    step.getIpRanges().asRanges().iterator().next().lowerEndpoint());
+                return newState;
               });
     }
 
@@ -103,8 +116,9 @@ public class TransformationEvaluator {
     public Function<Stream<TransformationState>, Stream<TransformationState>>
         visitAssignPortFromPool(AssignPortFromPool step) {
       return stateStream ->
-          stateStream.flatMap(
+          stateStream.map(
               state -> {
+                /*
                 return IntStream.rangeClosed(step.getPoolStart(), step.getPoolEnd())
                     .mapToObj(
                         value -> {
@@ -116,6 +130,14 @@ public class TransformationEvaluator {
                               value);
                           return newState;
                         });
+                        */
+                TransformationState newState = new TransformationState(state);
+                newState.set(
+                    step.getType(),
+                    step.getPortField(),
+                    newState.get(step.getPortField()),
+                    step.getPoolStart());
+                return newState;
               });
     }
 
@@ -170,11 +192,13 @@ public class TransformationEvaluator {
   private static final class TransformationState {
     private final Function<Flow, Evaluator> _mkEvaluator;
     private Flow.Builder _flowBuilder;
+    private Flow _currentFlow;
     private Evaluator _aclEvaluator;
     private final ImmutableList.Builder<Step<?>> _traceSteps;
     private final Map<TransformationType, ImmutableSortedSet.Builder<FlowDiff>> _flowDiffs;
 
     TransformationState(Flow currentFlow, Function<Flow, Evaluator> mkEvaluator) {
+      _currentFlow = currentFlow;
       _flowBuilder = currentFlow.toBuilder();
       _traceSteps = ImmutableList.builder();
       _mkEvaluator = mkEvaluator;
@@ -183,6 +207,7 @@ public class TransformationEvaluator {
     }
 
     TransformationState(TransformationState other) {
+      _currentFlow = other._currentFlow;
       _flowBuilder = other._flowBuilder.build().toBuilder();
       _mkEvaluator = other._mkEvaluator;
       _aclEvaluator = other._aclEvaluator;
@@ -245,7 +270,6 @@ public class TransformationEvaluator {
       } else {
         set(ipField, newValue);
         getFlowDiffs(type).add(flowDiff(ipField, oldValue, newValue));
-        _aclEvaluator = _mkEvaluator.apply(_flowBuilder.build());
       }
     }
 
@@ -269,10 +293,15 @@ public class TransformationEvaluator {
     }
 
     public void buildTraceSteps() {
+      AtomicReference<Boolean> transformed = new AtomicReference<>(false);
+
       _flowDiffs.entrySet().stream()
           .map(
               entry -> {
                 ImmutableSortedSet<FlowDiff> flowDiffs = entry.getValue().build();
+                if (!flowDiffs.isEmpty()) {
+                  transformed.set(true);
+                }
                 TransformationStepDetail detail =
                     new TransformationStepDetail(entry.getKey(), flowDiffs);
                 StepAction action =
@@ -280,6 +309,12 @@ public class TransformationEvaluator {
                 return new org.batfish.datamodel.flow.TransformationStep(detail, action);
               })
           .forEach(_traceSteps::add);
+
+      if (transformed.get()) {
+        _currentFlow = _flowBuilder.build();
+        _aclEvaluator = _mkEvaluator.apply(_currentFlow);
+      }
+
       _flowDiffs.clear();
     }
   }
@@ -303,6 +338,19 @@ public class TransformationEvaluator {
       Map<String, IpSpace> namedIpSpaces) {
     Stream<TransformationResult> results =
         evalAll(transformation, flow, srcInterface, namedAcls, namedIpSpaces);
+
+    // horrible hack to avoid evaluating the entire stream (findFirst and findAny don't work)
+    AtomicReference<TransformationResult> result = new AtomicReference<>();
+    try {
+      results.forEach(
+          r -> {
+            result.set(r);
+            throw new BatfishException("");
+          });
+    } catch (BatfishException e) {
+      return result.get();
+    }
+
     return results.findFirst().get();
   }
 
@@ -316,7 +364,7 @@ public class TransformationEvaluator {
         .map(
             state -> {
               TransformationResult result =
-                  new TransformationResult(state._flowBuilder.build(), state._traceSteps.build());
+                  new TransformationResult(state._currentFlow, state._traceSteps.build());
               return result;
             });
   }
