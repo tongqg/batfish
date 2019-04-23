@@ -304,46 +304,45 @@ class FlowTracer {
       _steps.add(buildOriginateStep());
       postIn();
       return;
-    } else {
-      // trace was received on a source interface of this hop
-      // apply ingress filter
-      Interface incomingInterface = _currentConfig.getAllInterfaces().get(_ingressInterface);
-      // if defined, use routing/packet policy applied to the interface
-      if (processPBR(incomingInterface)) {
+    }
+
+    // trace was received on a source interface of this hop
+    // apply ingress filter
+    Interface incomingInterface = _currentConfig.getAllInterfaces().get(_ingressInterface);
+    // if defined, use routing/packet policy applied to the interface
+    if (processPBR(incomingInterface)) {
+      return;
+    }
+
+    // if wasn't processed by packet policy, just apply ingress filter
+    IpAccessList inputFilter = incomingInterface.getIncomingFilter();
+    if (inputFilter != null) {
+      if (applyFilter(inputFilter, INGRESS_FILTER) == DENIED) {
         return;
       }
-
-      // if wasn't processed by packet policy, just apply ingress filter
-      IpAccessList inputFilter = incomingInterface.getIncomingFilter();
-      if (inputFilter != null) {
-        if (applyFilter(inputFilter, INGRESS_FILTER) == DENIED) {
-          return;
-        }
-      }
-
-      List<TransformationResult> results =
-          TransformationEvaluator.evalAll(
-                  incomingInterface.getIncomingTransformation(),
-                  _currentFlow,
-                  _ingressInterface,
-                  _aclDefinitions,
-                  _namedIpSpaces)
-              .collect(Collectors.toList());
-      checkState(!results.isEmpty(), "must have at least one transformed flow");
-      results.forEach(
-          transformationResult -> {
-            FlowTracer flowTracer = branch();
-            flowTracer._steps.addAll(transformationResult.getTraceSteps());
-            flowTracer._currentFlow = transformationResult.getOutputFlow();
-
-            IpAccessList inputFilter1 = incomingInterface.getPostTransformationIncomingFilter();
-            if (flowTracer.applyFilter(inputFilter1, POST_TRANSFORMATION_INGRESS_FILTER)
-                == DENIED) {
-              return;
-            }
-            flowTracer.postIn();
-          });
     }
+
+    List<TransformationResult> results =
+        TransformationEvaluator.evalAll(
+                incomingInterface.getIncomingTransformation(),
+                _currentFlow,
+                _ingressInterface,
+                _aclDefinitions,
+                _namedIpSpaces)
+            .collect(Collectors.toList());
+    checkState(!results.isEmpty(), "must have at least one transformed flow");
+    results.forEach(
+        transformationResult -> {
+          FlowTracer flowTracer = branch();
+          flowTracer._steps.addAll(transformationResult.getTraceSteps());
+          flowTracer._currentFlow = transformationResult.getOutputFlow();
+
+          IpAccessList inputFilter1 = incomingInterface.getPostTransformationIncomingFilter();
+          if (flowTracer.applyFilter(inputFilter1, POST_TRANSFORMATION_INGRESS_FILTER) == DENIED) {
+            return;
+          }
+          flowTracer.postIn();
+        });
   }
 
   private void postIn() {
