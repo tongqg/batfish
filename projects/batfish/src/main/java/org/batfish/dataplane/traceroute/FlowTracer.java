@@ -304,6 +304,7 @@ class FlowTracer {
     if (_ingressInterface == null) {
       // if inputIfaceName is not set for this hop, this is the originating step
       _steps.add(buildOriginateStep());
+      postIn();
       return;
     } else if (_ingressInterface != null) {
       // trace was received on a source interface of this hop
