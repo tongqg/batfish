@@ -289,8 +289,6 @@ class FlowTracer {
     checkState(
         _hops.size() == _breadcrumbs.size(), "Must have equal number of hops and breadcrumbs");
 
-    String currentNodeName = _currentNode.getName();
-
     // Trace was received on a source interface of this hop - this should always be first.
     if (_ingressInterface != null) {
       _steps.add(buildEnterSrcIfaceStep(_currentConfig, _ingressInterface));
