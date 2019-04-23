@@ -130,9 +130,9 @@ public class TransformationEvaluator {
     private final Flow _outputFlow;
     private final List<Step<?>> _traceSteps;
 
-    TransformationResult(Flow outputFlow, List<Step<?>> traceSteps) {
-      _outputFlow = outputFlow;
-      _traceSteps = ImmutableList.copyOf(traceSteps);
+    TransformationResult(TransformationState state) {
+      _outputFlow = state._currentFlow;
+      _traceSteps = state._traceSteps.build();
     }
 
     public Flow getOutputFlow() {
@@ -317,13 +317,7 @@ public class TransformationEvaluator {
             new TransformationState(
                 inputFlow, flow -> new Evaluator(flow, _srcInterface, _namedAcls, _namedIpSpaces)));
 
-    return eval(transformation, states)
-        .map(
-            state -> {
-              TransformationResult result =
-                  new TransformationResult(state._currentFlow, state._traceSteps.build());
-              return result;
-            });
+    return eval(transformation, states).map(TransformationResult::new);
   }
 
   private static Stream<TransformationState> eval(
