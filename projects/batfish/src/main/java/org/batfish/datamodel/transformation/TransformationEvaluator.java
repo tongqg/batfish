@@ -184,7 +184,7 @@ public class TransformationEvaluator {
       }
     }
 
-    void set(PortField field, int port) {
+    private void set(PortField field, int port) {
       switch (field) {
         case DESTINATION:
           _flowBuilder.setDstPort(port);
@@ -197,7 +197,7 @@ public class TransformationEvaluator {
       }
     }
 
-    Ip get(IpField field) {
+    private Ip get(IpField field) {
       switch (field) {
         case DESTINATION:
           return _flowBuilder.getDstIp();
@@ -208,7 +208,7 @@ public class TransformationEvaluator {
       }
     }
 
-    int get(PortField field) {
+    private int get(PortField field) {
       switch (field) {
         case DESTINATION:
           return verifyNotNull(_flowBuilder.getDstPort(), "Missing destination port");
@@ -219,7 +219,7 @@ public class TransformationEvaluator {
       }
     }
 
-    void set(TransformationType type, IpField ipField, Ip oldValue, Ip newValue) {
+    private void set(TransformationType type, IpField ipField, Ip oldValue, Ip newValue) {
       if (oldValue.equals(newValue)) {
         noop(type);
       } else {
@@ -228,7 +228,7 @@ public class TransformationEvaluator {
       }
     }
 
-    void set(TransformationType type, PortField portField, int oldValue, int newValue) {
+    private void set(TransformationType type, PortField portField, int oldValue, int newValue) {
       if (oldValue == newValue) {
         noop(type);
       } else {
@@ -246,7 +246,7 @@ public class TransformationEvaluator {
       return _flowDiffs.computeIfAbsent(type, k -> ImmutableSortedSet.naturalOrder());
     }
 
-    public void buildTraceSteps() {
+    private void buildTraceSteps() {
       AtomicBoolean transformed = new AtomicBoolean(false);
 
       _flowDiffs.entrySet().stream()
