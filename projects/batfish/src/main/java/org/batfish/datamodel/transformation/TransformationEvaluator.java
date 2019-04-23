@@ -1,6 +1,5 @@
 package org.batfish.datamodel.transformation;
 
-import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Verify.verifyNotNull;
 import static org.batfish.datamodel.FlowDiff.flowDiff;
 
@@ -8,15 +7,12 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.collect.Range;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
-import java.util.stream.LongStream;
 import java.util.stream.Stream;
-import org.batfish.common.BatfishException;
 import org.batfish.datamodel.Flow;
 import org.batfish.datamodel.FlowDiff;
 import org.batfish.datamodel.Ip;
@@ -45,43 +41,17 @@ public class TransformationEvaluator {
       implements TransformationStepVisitor<
           Function<Stream<TransformationState>, Stream<TransformationState>>> {
 
-    private static Stream<Ip> ipRangeStream(Range<Ip> range) {
-      checkArgument(range.hasUpperBound() && range.hasLowerBound(), "Expected bounded range");
-      Long lower = range.lowerEndpoint().asLong();
-      Long upper = range.upperEndpoint().asLong();
-      return LongStream.rangeClosed(lower, upper).mapToObj(Ip::create);
-    }
-
     @Override
     public Function<Stream<TransformationState>, Stream<TransformationState>>
         visitAssignIpAddressFromPool(AssignIpAddressFromPool step) {
       return stateStream ->
-          /*
-          stateStream.flatMap(
+          stateStream.peek(
               state -> {
-                return step.getIpRanges().asRanges().stream()
-                    .flatMap(StepEvaluator::ipRangeStream)
-                    .map(
-                        ip -> {
-                          TransformationState newState = new TransformationState(state);
-                          newState.set(
-                              step.getType(),
-                              step.getIpField(),
-                              newState.get(step.getIpField()),
-                              ip);
-                          return newState;
-                        });
-              });
-              */
-          stateStream.map(
-              state -> {
-                TransformationState newState = new TransformationState(state);
-                newState.set(
+                state.set(
                     step.getType(),
                     step.getIpField(),
-                    newState.get(step.getIpField()),
+                    state.get(step.getIpField()),
                     step.getIpRanges().asRanges().iterator().next().lowerEndpoint());
-                return newState;
               });
     }
 
@@ -99,7 +69,7 @@ public class TransformationEvaluator {
         visitShiftIpAddressIntoSubnet(ShiftIpAddressIntoSubnet step) {
       IpField field = step.getIpField();
       return stateStream ->
-          stateStream.map(
+          stateStream.peek(
               state -> {
                 Ip oldValue = state.get(field);
                 Prefix targetSubnet = step.getSubnet();
@@ -108,7 +78,6 @@ public class TransformationEvaluator {
                 long offset = oldValue.asLong() - currentSubnetPrefix.getStartIp().asLong();
                 Ip newValue = Ip.create(targetSubnet.getStartIp().asLong() + offset);
                 state.set(step.getType(), field, oldValue, newValue);
-                return state;
               });
     }
 
@@ -116,28 +85,13 @@ public class TransformationEvaluator {
     public Function<Stream<TransformationState>, Stream<TransformationState>>
         visitAssignPortFromPool(AssignPortFromPool step) {
       return stateStream ->
-          stateStream.map(
+          stateStream.peek(
               state -> {
-                /*
-                return IntStream.rangeClosed(step.getPoolStart(), step.getPoolEnd())
-                    .mapToObj(
-                        value -> {
-                          TransformationState newState = new TransformationState(state);
-                          newState.set(
-                              step.getType(),
-                              step.getPortField(),
-                              newState.get(step.getPortField()),
-                              value);
-                          return newState;
-                        });
-                        */
-                TransformationState newState = new TransformationState(state);
-                newState.set(
+                state.set(
                     step.getType(),
                     step.getPortField(),
-                    newState.get(step.getPortField()),
+                    state.get(step.getPortField()),
                     step.getPoolStart());
-                return newState;
               });
     }
 
@@ -157,7 +111,8 @@ public class TransformationEvaluator {
           stateStream.flatMap(
               state ->
                   applyAny.getSteps().stream()
-                      .flatMap(step -> visit(step).apply(Stream.of(state))));
+                      .flatMap(
+                          step -> visit(step).apply(Stream.of(new TransformationState(state)))));
     }
   }
 
@@ -208,7 +163,7 @@ public class TransformationEvaluator {
 
     TransformationState(TransformationState other) {
       _currentFlow = other._currentFlow;
-      _flowBuilder = other._flowBuilder.build().toBuilder();
+      _flowBuilder = _currentFlow.toBuilder();
       _mkEvaluator = other._mkEvaluator;
       _aclEvaluator = other._aclEvaluator;
       _traceSteps = ImmutableList.builder();
@@ -279,7 +234,6 @@ public class TransformationEvaluator {
       } else {
         set(portField, newValue);
         getFlowDiffs(type).add(flowDiff(portField, oldValue, newValue));
-        _aclEvaluator = _mkEvaluator.apply(_flowBuilder.build());
       }
     }
 
@@ -339,6 +293,8 @@ public class TransformationEvaluator {
     Stream<TransformationResult> results =
         evalAll(transformation, flow, srcInterface, namedAcls, namedIpSpaces);
 
+    return results.limit(1).findFirst().get();
+    /*
     // horrible hack to avoid evaluating the entire stream (findFirst and findAny don't work)
     AtomicReference<TransformationResult> result = new AtomicReference<>();
     try {
@@ -352,6 +308,7 @@ public class TransformationEvaluator {
     }
 
     return results.findFirst().get();
+    */
   }
 
   private Stream<TransformationResult> eval(Transformation transformation, Flow inputFlow) {

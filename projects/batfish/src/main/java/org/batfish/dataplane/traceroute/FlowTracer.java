@@ -214,7 +214,8 @@ class FlowTracer {
   }
 
   private FlowTracer branch() {
-    checkState(_hops.size() == _breadcrumbs.size() - 1, "Must be just ready to add another hop");
+    //    checkState(_hops.size() == _breadcrumbs.size() - 1, "Must be just ready to add another
+    // hop");
     return new FlowTracer(
         _tracerouteContext,
         _currentNode,
@@ -300,8 +301,12 @@ class FlowTracer {
       return;
     }
 
-    // trace was received on a source interface of this hop
-    if (_ingressInterface != null) {
+    if (_ingressInterface == null) {
+      // if inputIfaceName is not set for this hop, this is the originating step
+      _steps.add(buildOriginateStep());
+      return;
+    } else if (_ingressInterface != null) {
+      // trace was received on a source interface of this hop
       // apply ingress filter
       Interface incomingInterface = _currentConfig.getAllInterfaces().get(_ingressInterface);
       // if defined, use routing/packet policy applied to the interface
@@ -317,37 +322,43 @@ class FlowTracer {
         }
       }
 
-      TransformationEvaluator.evalAll(
-              incomingInterface.getIncomingTransformation(),
-              _currentFlow,
-              _ingressInterface,
-              _aclDefinitions,
-              _namedIpSpaces)
-          .forEach(
-              transformationResult -> {
-                _steps.addAll(transformationResult.getTraceSteps());
-                _currentFlow = transformationResult.getOutputFlow();
+      List<TransformationResult> results =
+          TransformationEvaluator.evalAll(
+                  incomingInterface.getIncomingTransformation(),
+                  _currentFlow,
+                  _ingressInterface,
+                  _aclDefinitions,
+                  _namedIpSpaces)
+              .collect(Collectors.toList());
+      checkState(!results.isEmpty(), "must have at least one transformed flow");
+      results.forEach(
+          transformationResult -> {
+            FlowTracer flowTracer = branch();
+            flowTracer._steps.addAll(transformationResult.getTraceSteps());
+            flowTracer._currentFlow = transformationResult.getOutputFlow();
 
-                IpAccessList inputFilter1 = incomingInterface.getPostTransformationIncomingFilter();
-                if (applyFilter(inputFilter1, POST_TRANSFORMATION_INGRESS_FILTER) == DENIED) {
-                  return;
-                } else {
-                  // if inputIfaceName is not set for this hop, this is the originating step
-                  _steps.add(buildOriginateStep());
-                }
-
-                Ip dstIp = _currentFlow.getDstIp();
-
-                // Accept if the flow is destined for this vrf on this host.
-                if (_tracerouteContext.ownsIp(currentNodeName, _vrfName, dstIp)) {
-                  buildAcceptTrace();
-                  return;
-                }
-
-                Fib fib = _tracerouteContext.getFib(currentNodeName, _vrfName).get();
-                fibLookup(dstIp, currentNodeName, fib);
-              });
+            IpAccessList inputFilter1 = incomingInterface.getPostTransformationIncomingFilter();
+            if (flowTracer.applyFilter(inputFilter1, POST_TRANSFORMATION_INGRESS_FILTER)
+                == DENIED) {
+              return;
+            }
+            flowTracer.postIn();
+          });
     }
+  }
+
+  private void postIn() {
+    String currentNodeName = _currentNode.getName();
+    Ip dstIp = _currentFlow.getDstIp();
+
+    // Accept if the flow is destined for this vrf on this host.
+    if (_tracerouteContext.ownsIp(currentNodeName, _vrfName, dstIp)) {
+      buildAcceptTrace();
+      return;
+    }
+
+    Fib fib = _tracerouteContext.getFib(currentNodeName, _vrfName).get();
+    fibLookup(dstIp, currentNodeName, fib);
   }
 
   private boolean processPBR(Interface incomingInterface) {
@@ -615,40 +626,50 @@ class FlowTracer {
     // Apply outgoing transformation
     Transformation transformation = outgoingInterface.getOutgoingTransformation();
 
-    TransformationEvaluator.evalAll(
-            transformation, _currentFlow, _ingressInterface, _aclDefinitions, _namedIpSpaces)
-        .forEach(
-            transformationResult -> {
-              _steps.addAll(transformationResult.getTraceSteps());
-              _currentFlow = transformationResult.getOutputFlow();
+    List<TransformationResult> results =
+        TransformationEvaluator.evalAll(
+                transformation, _currentFlow, _ingressInterface, _aclDefinitions, _namedIpSpaces)
+            .collect(Collectors.toList());
+    checkState(!results.isEmpty(), "must have at least one transformed flow");
+    results.forEach(
+        transformationResult -> {
+          branch()
+              .processEgressTransformationResult(
+                  outgoingInterface, nextHopIp, transformationResult);
+        });
+  }
 
-              // apply outgoing filter
-              if (applyFilter(outgoingInterface.getOutgoingFilter(), EGRESS_FILTER) == DENIED) {
-                return;
-              }
+  private void processEgressTransformationResult(
+      Interface outgoingInterface, Ip nextHopIp, TransformationResult transformationResult) {
+    _steps.addAll(transformationResult.getTraceSteps());
+    _currentFlow = transformationResult.getOutputFlow();
 
-              // setup session if necessary
-              FirewallSessionInterfaceInfo firewallSessionInterfaceInfo =
-                  outgoingInterface.getFirewallSessionInterfaceInfo();
-              if (firewallSessionInterfaceInfo != null) {
-                _newSessions.add(buildFirewallSessionTraceInfo(firewallSessionInterfaceInfo));
-                _steps.add(new SetupSessionStep());
-              }
+    // apply outgoing filter
+    if (applyFilter(outgoingInterface.getOutgoingFilter(), EGRESS_FILTER) == DENIED) {
+      return;
+    }
 
-              String currentNodeName = _currentNode.getName();
-              String outgoingIfaceName = outgoingInterface.getName();
-              SortedSet<NodeInterfacePair> neighborIfaces =
-                  _tracerouteContext.getInterfaceNeighbors(currentNodeName, outgoingIfaceName);
-              if (neighborIfaces.isEmpty()) {
-                FlowDisposition disposition =
-                    _tracerouteContext.computeDisposition(
-                        currentNodeName, outgoingIfaceName, _currentFlow.getDstIp());
+    // setup session if necessary
+    FirewallSessionInterfaceInfo firewallSessionInterfaceInfo =
+        outgoingInterface.getFirewallSessionInterfaceInfo();
+    if (firewallSessionInterfaceInfo != null) {
+      _newSessions.add(buildFirewallSessionTraceInfo(firewallSessionInterfaceInfo));
+      _steps.add(new SetupSessionStep());
+    }
 
-                buildArpFailureTrace(outgoingIfaceName, disposition);
-              } else {
-                processOutgoingInterfaceEdges(outgoingIfaceName, nextHopIp, neighborIfaces);
-              }
-            });
+    String currentNodeName = _currentNode.getName();
+    String outgoingIfaceName = outgoingInterface.getName();
+    SortedSet<NodeInterfacePair> neighborIfaces =
+        _tracerouteContext.getInterfaceNeighbors(currentNodeName, outgoingIfaceName);
+    if (neighborIfaces.isEmpty()) {
+      FlowDisposition disposition =
+          _tracerouteContext.computeDisposition(
+              currentNodeName, outgoingIfaceName, _currentFlow.getDstIp());
+
+      buildArpFailureTrace(outgoingIfaceName, disposition);
+    } else {
+      processOutgoingInterfaceEdges(outgoingIfaceName, nextHopIp, neighborIfaces);
+    }
   }
 
   @Nonnull

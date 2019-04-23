@@ -162,6 +162,7 @@ public class TransformationEvaluatorTest {
     Transformation transformation =
         always().apply(shiftDestinationIp(subnet), assignSourceIp(poolIp, poolIp)).build();
     Flow origFlow = _flowBuilder.setSrcIp(srcIp).setDstIp(dstIp).build();
+    List<TransformationResult> results = evalResults(transformation, origFlow);
     Flow transformedFlow = eval(transformation, origFlow);
     assertThat(
         transformedFlow,
