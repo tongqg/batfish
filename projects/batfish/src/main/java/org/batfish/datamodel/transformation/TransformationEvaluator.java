@@ -10,7 +10,7 @@ import com.google.common.collect.ImmutableSortedSet;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.stream.Stream;
 import org.batfish.datamodel.Flow;
@@ -247,7 +247,7 @@ public class TransformationEvaluator {
     }
 
     public void buildTraceSteps() {
-      AtomicReference<Boolean> transformed = new AtomicReference<>(false);
+      AtomicBoolean transformed = new AtomicBoolean(false);
 
       _flowDiffs.entrySet().stream()
           .map(
