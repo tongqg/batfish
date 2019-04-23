@@ -304,7 +304,7 @@ class FlowTracer {
       _steps.add(buildOriginateStep());
       postIn();
       return;
-    } else if (_ingressInterface != null) {
+    } else {
       // trace was received on a source interface of this hop
       // apply ingress filter
       Interface incomingInterface = _currentConfig.getAllInterfaces().get(_ingressInterface);
