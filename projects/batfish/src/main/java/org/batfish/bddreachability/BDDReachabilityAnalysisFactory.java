@@ -613,8 +613,18 @@ public final class BDDReachabilityAnalysisFactory {
         generateRules_PreOutVrf_PreOutEdge());
   }
 
-  private static Stream<Edge> generateRules_NodeAccept_Accept(Set<String> finalNodes) {
-    return finalNodes.stream().map(node -> new Edge(new NodeAccept(node), Accept.INSTANCE));
+  private Stream<Edge> generateRules_NodeAccept_Accept(Set<String> finalNodes) {
+    return finalNodes.stream()
+        .map(
+            node ->
+                new Edge(
+                    new NodeAccept(node),
+                    Accept.INSTANCE,
+                    // TODO is this ok?
+                    // TODO one function for src constraint/ last hhop stuff
+                    compose(
+                        removeSourceConstraint(_bddSourceManagers.get(node)),
+                        removeLastHopConstraint(_lastHopMgr, node))));
   }
 
   private static Stream<Edge> generateRules_NodeDropAclIn_DropAclIn(Set<String> finalNodes) {
@@ -625,9 +635,17 @@ public final class BDDReachabilityAnalysisFactory {
     return finalNodes.stream().map(node -> new Edge(new NodeDropAclOut(node), DropAclOut.INSTANCE));
   }
 
-  private static Stream<Edge> generateRules_NodeDropNoRoute_DropNoRoute(Set<String> finalNodes) {
+  private Stream<Edge> generateRules_NodeDropNoRoute_DropNoRoute(Set<String> finalNodes) {
     return finalNodes.stream()
-        .map(node -> new Edge(new NodeDropNoRoute(node), DropNoRoute.INSTANCE));
+        .map(
+            node ->
+                new Edge(
+                    new NodeDropNoRoute(node),
+                    DropNoRoute.INSTANCE,
+                    // TODO is this ok?
+                    compose(
+                        removeSourceConstraint(_bddSourceManagers.get(node)),
+                        removeLastHopConstraint(_lastHopMgr, node))));
   }
 
   private static Stream<Edge> generateRules_NodeDropNullRoute_DropNullRoute(
