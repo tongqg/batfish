@@ -794,6 +794,17 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
 
     // TODO(https://github.com/batfish/batfish/issues/2097): need to handle matching specified
     // applications
+    SortedSet<Application> ruleApplications = rule.getApplications();
+    if (!ruleApplications.isEmpty()) {
+      List<AclLineMatchExpr> appDisjuncts = new TreeList<>();
+      for (Application application: ruleApplications) {
+        application.getHeaderSpaces().forEach(hs -> {
+          AclLineMatchExpr match = new MatchHeaderSpace(hs);
+          appDisjuncts.add(match);
+        });
+      }
+      conjuncts.add(new OrMatchExpr(appDisjuncts));
+    }
 
     // Construct service match expression
     SortedSet<ServiceOrServiceGroupReference> ruleServices = rule.getService();
@@ -807,7 +818,9 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
         if (vsysName != null) {
           serviceDisjuncts.add(
               permittedByAcl(computeServiceGroupMemberAclName(vsysName, serviceName)));
-        } else if (serviceName.equals(ServiceBuiltIn.ANY.getName())) {
+        } else if (serviceName.equals(ServiceBuiltIn.ANY.getName()) 
+            || (serviceName.equals(ServiceBuiltIn.APPLICATION_DEFAULT.getName()) 
+                  && rule.getApplications().size() > 0)) {
           serviceDisjuncts.clear();
           serviceDisjuncts.add(TrueExpr.INSTANCE);
           break;
