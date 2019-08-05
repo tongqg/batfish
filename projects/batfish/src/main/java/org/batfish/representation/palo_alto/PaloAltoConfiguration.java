@@ -813,10 +813,8 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
       if (vsysName != null) {
         serviceDisjuncts.add(
             permittedByAcl(computeServiceGroupMemberAclName(vsysName, serviceName)));
-      } else if (serviceName.equals(ServiceBuiltIn.ANY.getName())) {
-        // Anything is allowed.
-        return Optional.empty();
-      } else if (serviceName.equals(ServiceBuiltIn.APPLICATION_DEFAULT.getName())) {
+      } else if (serviceName.equals(ServiceBuiltIn.APPLICATION_DEFAULT.getName()) 
+        || (serviceName.equals(ServiceBuiltIn.ANY.getName()) && !rule.getApplications().contains(ApplicationBuiltIn.ANY.getName()))) {
         if (rule.getAction() == LineAction.PERMIT) {
           // Since Batfish cannot currently match above L4, we follow Cisco-fragments-like logic:
           // When permitting an application, optimistically permit all traffic where the L4 rule
@@ -824,6 +822,9 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
           // not block all matching L4 traffic, since we can't know it is this specific application.
           serviceDisjuncts.addAll(matchApplications(rule, vsys));
         }
+      } else if (serviceName.equals(ServiceBuiltIn.ANY.getName())) {
+        // Anything is allowed.
+        return Optional.empty();
       } else if (serviceName.equals(ServiceBuiltIn.SERVICE_HTTP.getName())) {
         serviceDisjuncts.add(new MatchHeaderSpace(ServiceBuiltIn.SERVICE_HTTP.getHeaderSpace()));
       } else if (serviceName.equals(ServiceBuiltIn.SERVICE_HTTPS.getName())) {

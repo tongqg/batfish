@@ -140,6 +140,8 @@ public final class ApplicationBuiltIn {
           .addService(
               Service.builder("web-browsing").setIpProtocol(IpProtocol.TCP).addPort(80).build())
           .build();
+  public static final Application ANY = 
+      Application.builder("any").build();
 
   private static final List<Application> BUILTIN_LIST =
       ImmutableList.of(
@@ -159,7 +161,8 @@ public final class ApplicationBuiltIn {
           SOAP,
           SSH,
           SSL,
-          WEB_BROWSING);
+          WEB_BROWSING,
+          ANY);
 
   private static final Map<String, Application> BUILTINS =
       BUILTIN_LIST.stream()
