@@ -24,25 +24,6 @@ import static org.batfish.common.util.IspModelingUtils.getInternetAndIspNodes;
 import static org.batfish.datamodel.acl.AclLineMatchExprs.not;
 import static org.batfish.main.ReachabilityParametersResolver.resolveReachabilityParameters;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
-import com.google.common.cache.Cache;
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.ImmutableSortedMap;
-import com.google.common.collect.ImmutableSortedSet;
-import com.google.common.collect.Ordering;
-import com.google.common.collect.Sets;
-import com.google.common.hash.Hashing;
-import io.opentracing.ActiveSpan;
-import io.opentracing.References;
-import io.opentracing.SpanContext;
-import io.opentracing.util.GlobalTracer;
 import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -76,9 +57,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import net.sf.javabdd.BDD;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
+import com.google.common.cache.Cache;
+import com.google.common.collect.HashMultimap;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableSortedMap;
+import com.google.common.collect.ImmutableSortedSet;
+import com.google.common.collect.Ordering;
+import com.google.common.collect.Sets;
+import com.google.common.hash.Hashing;
+
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
 import org.apache.commons.configuration2.ImmutableConfiguration;
@@ -185,6 +183,8 @@ import org.batfish.identifiers.NodeRolesId;
 import org.batfish.identifiers.QuestionId;
 import org.batfish.identifiers.QuestionSettingsId;
 import org.batfish.identifiers.SnapshotId;
+import org.batfish.identifiers.SwiftBasedIdResolver;
+import org.batfish.identifiers.SwiftFileBasedIdResolver;
 import org.batfish.job.BatfishJobExecutor;
 import org.batfish.job.ConvertConfigurationJob;
 import org.batfish.job.FlattenVendorConfigurationJob;
@@ -216,6 +216,8 @@ import org.batfish.specifier.SpecifierContextImpl;
 import org.batfish.specifier.UnionLocationSpecifier;
 import org.batfish.storage.FileBasedStorage;
 import org.batfish.storage.StorageProvider;
+import org.batfish.storage.SwiftBasedStorage;
+import org.batfish.storage.SwiftFileBasedStorage;
 import org.batfish.symbolic.IngressLocation;
 import org.batfish.topology.TopologyProviderImpl;
 import org.batfish.vendor.VendorConfiguration;
@@ -225,6 +227,12 @@ import org.codehaus.jettison.json.JSONObject;
 import org.jgrapht.Graph;
 import org.jgrapht.graph.SimpleDirectedGraph;
 import org.jgrapht.traverse.TopologicalOrderIterator;
+
+import io.opentracing.ActiveSpan;
+import io.opentracing.References;
+import io.opentracing.SpanContext;
+import io.opentracing.util.GlobalTracer;
+import net.sf.javabdd.BDD;
 
 /** This class encapsulates the main control logic for Batfish. */
 public class Batfish extends PluginConsumer implements IBatfish {
@@ -474,14 +482,27 @@ public class Batfish extends PluginConsumer implements IBatfish {
     _answererCreators = new HashMap<>();
     _testrigSettingsStack = new ArrayList<>();
     _dataPlanePlugins = new HashMap<>();
-    _storage =
-        alternateStorageProvider != null
-            ? alternateStorageProvider
-            : new FileBasedStorage(_settings.getStorageBase(), _logger, this::newBatch);
-    _idResolver =
-        alternateIdResolver != null
-            ? alternateIdResolver
-            : new FileBasedIdResolver(_settings.getStorageBase());
+
+    switch (settings.getStorageProvider()) 
+    {
+      case "swiftfile": 
+        _storage = new SwiftFileBasedStorage(_settings.getStorageBase(), _logger);
+        _idResolver = new SwiftFileBasedIdResolver(_settings.getStorageBase());
+        break;
+      case "swift":
+        _storage = new SwiftBasedStorage("container", _logger);
+        _idResolver = new SwiftBasedIdResolver("container");
+        break;
+      default:
+        _storage =
+            alternateStorageProvider != null
+                ? alternateStorageProvider
+                : new FileBasedStorage(_settings.getStorageBase(), _logger, this::newBatch);
+        _idResolver =
+            alternateIdResolver != null
+                ? alternateIdResolver
+                : new FileBasedIdResolver(_settings.getStorageBase());
+    }
     _topologyProvider = new TopologyProviderImpl(this, _storage);
     loadPlugins();
   }
@@ -1047,7 +1068,7 @@ public class Batfish extends PluginConsumer implements IBatfish {
 
   private SortedMap<String, BgpAdvertisementsByVrf> getEnvironmentBgpTables(
       Path inputPath, ParseEnvironmentBgpTablesAnswerElement answerElement) {
-    if (Files.exists(inputPath.getParent()) && !Files.exists(inputPath)) {
+    if (!Files.exists(inputPath)) {
       return new TreeMap<>();
     }
     _logger.info("\n*** READING Environment BGP Tables ***\n");

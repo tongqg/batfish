@@ -26,23 +26,23 @@ import org.batfish.storage.FileBasedStorageDirectoryProvider;
  */
 public class FileBasedIdResolver implements IdResolver {
 
-  private static final String ID_EXTENSION = ".id";
+  protected static final String ID_EXTENSION = ".id";
 
-  private static final String RELPATH_ANALYSIS_IDS = "analysis_ids";
+  protected static final String RELPATH_ANALYSIS_IDS = "analysis_ids";
 
-  private static final String RELPATH_ISSUE_SETTINGS_IDS = "analysis_ids";
+  protected static final String RELPATH_ISSUE_SETTINGS_IDS = "analysis_ids";
 
-  private static final String RELPATH_NETWORK_IDS = "network_ids";
+  protected static final String RELPATH_NETWORK_IDS = "network_ids";
 
-  private static final String RELPATH_NETWORK_NODE_ROLES_ID = "network_node_roles.id";
+  protected static final String RELPATH_NETWORK_NODE_ROLES_ID = "network_node_roles.id";
 
-  private static final String RELPATH_QUESTION_IDS = "question_ids";
+  protected static final String RELPATH_QUESTION_IDS = "question_ids";
 
-  private static final String RELPATH_QUESTION_SETTINGS_IDS = "question_settings_ids";
+  protected static final String RELPATH_QUESTION_SETTINGS_IDS = "question_settings_ids";
 
-  private static final String RELPATH_SNAPSHOT_IDS = "snapshot_ids";
+  protected static final String RELPATH_SNAPSHOT_IDS = "snapshot_ids";
 
-  private static @Nonnull String hash(String input) {
+  protected static @Nonnull String hash(String input) {
     return Hashing.murmur3_128().hashString(input, StandardCharsets.UTF_8).toString();
   }
 

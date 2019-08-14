@@ -535,7 +535,6 @@ public class Driver {
               CACHED_ENVIRONMENT_BGP_TABLES,
               null,
               null);
-
       @Nullable
       SpanContext runBatfishSpanContext =
           GlobalTracer.get().activeSpan() == null

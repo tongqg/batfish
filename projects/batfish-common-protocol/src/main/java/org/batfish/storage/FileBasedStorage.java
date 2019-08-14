@@ -82,7 +82,7 @@ import org.batfish.role.NodeRolesData;
 
 /** A utility class that abstracts the underlying file system storage used by Batfish. */
 @ParametersAreNonnullByDefault
-public final class FileBasedStorage implements StorageProvider {
+public class FileBasedStorage implements StorageProvider {
 
   private static final String RELPATH_COMPLETION_METADATA_FILE = "completion_metadata.json";
   private static final String RELPATH_BGP_TOPOLOGY = "bgp_topology.json";
@@ -92,8 +92,8 @@ public final class FileBasedStorage implements StorageProvider {
   private static final String RELPATH_OSPF_TOPOLOGY = "ospf_topology.json";
   private static final String RELPATH_VXLAN_TOPOLOGY = "vxlan_topology.json";
 
-  private final BatfishLogger _logger;
-  private final BiFunction<String, Integer, AtomicInteger> _newBatch;
+  protected final BatfishLogger _logger;
+  protected final BiFunction<String, Integer, AtomicInteger> _newBatch;
   private FileBasedStorageDirectoryProvider _d;
 
   @VisibleForTesting
@@ -363,7 +363,7 @@ public final class FileBasedStorage implements StorageProvider {
     storeConfigurations(outputDir, batchName, configurations);
   }
 
-  private @Nonnull Path getConvertAnswerPath(NetworkId network, SnapshotId snapshot) {
+  protected @Nonnull Path getConvertAnswerPath(NetworkId network, SnapshotId snapshot) {
     return _d.getSnapshotDir(network, snapshot)
         .resolve(Paths.get(BfConsts.RELPATH_OUTPUT, BfConsts.RELPATH_CONVERT_ANSWER_PATH));
   }
@@ -472,7 +472,7 @@ public final class FileBasedStorage implements StorageProvider {
    * Writes a single object of the given class to the given file. Uses the {@link FileBasedStorage}
    * default file encoding including serialization format and compression.
    */
-  private static void serializeObject(Serializable object, Path outputFile) {
+  protected static void serializeObject(Serializable object, Path outputFile) {
     try {
       try (OutputStream out = Files.newOutputStream(outputFile);
           LZ4FrameOutputStream gos = new LZ4FrameOutputStream(out);

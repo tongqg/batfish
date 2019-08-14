@@ -88,6 +88,8 @@ public final class Settings extends BaseSettings implements GrammarSettings {
 
   public static final String ARG_SERVICE_PORT = "serviceport";
 
+  private static final String ARG_STORAGE_PROVIDER = "storageprovider";
+
   private static final String ARG_TRACING_AGENT_HOST = "tracingagenthost";
 
   private static final String ARG_TRACING_AGENT_PORT = "tracingagentport";
@@ -404,6 +406,10 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     return _config.getInt(ARG_SERVICE_PORT);
   }
 
+  public String getStorageProvider() {
+    return _config.getString(ARG_STORAGE_PROVIDER);
+  }
+
   public boolean getShuffleJobs() {
     return !_config.getBoolean(ARG_NO_SHUFFLE);
   }
@@ -576,6 +582,7 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     setDefaultProperty(ARG_SERVICE_HOST, "localhost");
     setDefaultProperty(ARG_SERVICE_NAME, "worker-service");
     setDefaultProperty(ARG_SERVICE_PORT, BfConsts.SVC_PORT);
+    setDefaultProperty(ARG_STORAGE_PROVIDER, "file");
     setDefaultProperty(BfConsts.ARG_SNAPSHOT_NAME, null);
     setDefaultProperty(BfConsts.ARG_SSL_DISABLE, CoordConsts.SVC_CFG_POOL_SSL_DISABLE);
     setDefaultProperty(BfConsts.ARG_SSL_KEYSTORE_FILE, null);
@@ -774,6 +781,12 @@ public final class Settings extends BaseSettings implements GrammarSettings {
 
     addOption(ARG_SERVICE_PORT, "port for batfish service", ARGNAME_PORT);
 
+    addOption(
+      ARG_STORAGE_PROVIDER,
+      "storage provider of batfish persistent files. file|swift",
+      "stoage_provider"
+    );
+
     addOption(BfConsts.ARG_SNAPSHOT_NAME, "name of snapshot", ARGNAME_NAME);
 
     addBooleanOption(
@@ -935,6 +948,7 @@ public final class Settings extends BaseSettings implements GrammarSettings {
     getBooleanOptionValue(BfConsts.ARG_SSL_TRUST_ALL_CERTS);
     getPathOptionValue(BfConsts.ARG_SSL_TRUSTSTORE_FILE);
     getStringOptionValue(BfConsts.ARG_SSL_TRUSTSTORE_PASSWORD);
+    getStringOptionValue(ARG_STORAGE_PROVIDER);
     getPathOptionValue(BfConsts.ARG_STORAGE_BASE);
     getStringOptionValue(BfConsts.ARG_TASK_PLUGIN);
     getStringOptionValue(BfConsts.ARG_TESTRIG);

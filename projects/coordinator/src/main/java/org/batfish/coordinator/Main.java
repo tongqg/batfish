@@ -3,15 +3,6 @@ package org.batfish.coordinator;
 import static com.google.common.base.Preconditions.checkState;
 import static java.nio.file.FileVisitOption.FOLLOW_LINKS;
 
-import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Throwables;
-import com.google.common.collect.Lists;
-import com.uber.jaeger.Configuration;
-import com.uber.jaeger.Configuration.ReporterConfiguration;
-import com.uber.jaeger.Configuration.SamplerConfiguration;
-import com.uber.jaeger.samplers.ConstSampler;
-import io.opentracing.contrib.jaxrs2.server.ServerTracingDynamicFeature;
-import io.opentracing.util.GlobalTracer;
 import java.io.IOException;
 import java.net.URI;
 import java.nio.file.FileVisitResult;
@@ -27,8 +18,18 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
 import javax.annotation.Nullable;
 import javax.ws.rs.core.UriBuilder;
+
+import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Throwables;
+import com.google.common.collect.Lists;
+import com.uber.jaeger.Configuration;
+import com.uber.jaeger.Configuration.ReporterConfiguration;
+import com.uber.jaeger.Configuration.SamplerConfiguration;
+import com.uber.jaeger.samplers.ConstSampler;
+
 import org.batfish.common.BatfishException;
 import org.batfish.common.BatfishLogger;
 import org.batfish.common.BfConsts;
@@ -42,8 +43,14 @@ import org.batfish.coordinator.authorizer.NoneAuthorizer;
 import org.batfish.coordinator.config.ConfigurationLocator;
 import org.batfish.coordinator.config.Settings;
 import org.batfish.coordinator.id.FileBasedIdManager;
+import org.batfish.coordinator.id.IdManager;
+import org.batfish.coordinator.id.SwiftBasedIdManager;
+import org.batfish.coordinator.id.SwiftFileBasedIdManager;
 import org.batfish.datamodel.questions.InstanceData;
 import org.batfish.storage.FileBasedStorage;
+import org.batfish.storage.StorageProvider;
+import org.batfish.storage.SwiftBasedStorage;
+import org.batfish.storage.SwiftFileBasedStorage;
 import org.codehaus.jettison.json.JSONException;
 import org.codehaus.jettison.json.JSONObject;
 import org.glassfish.grizzly.http.server.HttpServer;
@@ -52,6 +59,9 @@ import org.glassfish.jersey.jackson.JacksonFeature;
 import org.glassfish.jersey.jettison.JettisonFeature;
 import org.glassfish.jersey.media.multipart.MultiPartFeature;
 import org.glassfish.jersey.server.ResourceConfig;
+
+import io.opentracing.contrib.jaxrs2.server.ServerTracingDynamicFeature;
+import io.opentracing.util.GlobalTracer;
 
 public class Main {
 
@@ -328,12 +338,26 @@ public class Main {
   }
 
   private static void initWorkManager(BindPortFutures bindPortFutures) {
-    _workManager =
-        new WorkMgr(
-            _settings,
-            _logger,
-            new FileBasedIdManager(_settings.getContainersLocation()),
-            new FileBasedStorage(_settings.getContainersLocation(), _logger));
+
+    IdManager idManager;
+    StorageProvider storage;
+
+    switch(_settings.getStorageProvider())
+    {
+      case "swiftfile":
+        idManager = new SwiftFileBasedIdManager(_settings.getContainersLocation());
+        storage = new SwiftFileBasedStorage(_settings.getContainersLocation(), _logger);
+        break;
+      case "swift":
+        idManager = new SwiftBasedIdManager("container");
+        storage = new SwiftBasedStorage("container", _logger);
+        break;
+      default:
+        idManager = new FileBasedIdManager(_settings.getContainersLocation());
+        storage = new FileBasedStorage(_settings.getContainersLocation(), _logger);
+    }
+    _workManager = new WorkMgr(_settings, _logger, idManager, storage);
+    
     _workManager.startWorkManager();
     // Initialize and start the work manager service using the legacy API and Jettison.
     startWorkManagerService(

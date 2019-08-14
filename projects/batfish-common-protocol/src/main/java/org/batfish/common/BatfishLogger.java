@@ -198,6 +198,9 @@ public final class BatfishLogger {
           throw new BatfishException(
               String.format("Failed to rename %s to %s", _logFile, rotatedLog));
         }
+      } else {
+        logFileFile.toPath().getParent().toFile().mkdirs();
+
       }
 
       PrintStream filePrintStream = null;

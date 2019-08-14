@@ -271,6 +271,12 @@
       <artifactId>jsonassert</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>com.ebay.fwauto.excavator</groupId>
+      <artifactId>SwiftClient</artifactId>
+      <version>0.0.1</version>
+    </dependency>
+
     <!-- Provided dependencies to be available at compile time only -->
     <dependency>
       <groupId>org.lastnpe.eea</groupId>

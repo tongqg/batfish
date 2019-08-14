@@ -56,6 +56,8 @@ public class Settings extends BaseSettings {
   private static final String ARG_SSL_WORK_TRUSTSTORE_FILE = "sslworktruststorefile";
   private static final String ARG_SSL_WORK_TRUSTSTORE_PASSWORD = "sslworktruststorepassword";
 
+  private static final String ARG_STORAGE_PROVIDER = "storageprovider";
+
   private static final String ARG_TRACING_AGENT_HOST = "tracingagenthost";
   private static final String ARG_TRACING_AGENT_PORT = "tracingagentport";
   public static final String ARG_TRACING_ENABLE = "tracingenable";
@@ -100,6 +102,7 @@ public class Settings extends BaseSettings {
   private boolean _sslWorkTrustAllCerts;
   private Path _sslWorkTruststoreFile;
   private String _sslWorkTruststorePassword;
+  private String _storageProvider;
   private String _storageAccountKey;
   private String _storageAccountName;
   private String _storageProtocol;
@@ -256,6 +259,9 @@ public class Settings extends BaseSettings {
     return _sslWorkTruststorePassword;
   }
 
+  public String getStorageProvider() {
+    return _storageProvider;
+  }
   public String getStorageAccountKey() {
     return _storageAccountKey;
   }
@@ -325,6 +331,7 @@ public class Settings extends BaseSettings {
     setDefaultProperty(ARG_SSL_WORK_TRUST_ALL_CERTS, true);
     setDefaultProperty(ARG_SSL_WORK_TRUSTSTORE_FILE, null);
     setDefaultProperty(ARG_SSL_WORK_TRUSTSTORE_PASSWORD, null);
+    setDefaultProperty(ARG_STORAGE_PROVIDER, "file");
     setDefaultProperty(ARG_TRACING_AGENT_HOST, "localhost");
     setDefaultProperty(ARG_TRACING_AGENT_PORT, 5775);
     setDefaultProperty(ARG_TRACING_ENABLE, false);
@@ -404,6 +411,12 @@ public class Settings extends BaseSettings {
         ARG_SSL_WORK_TRUST_ALL_CERTS,
         "trust all SSL certs for outgoing connections from work manager");
 
+    addOption(
+        ARG_STORAGE_PROVIDER,
+        "storage provider of batfish persistent files. file|swift",
+        "stoage_provider"
+    );
+
     addOption(ARG_TRACING_AGENT_HOST, "jaeger agent host", "jaeger_agent_host");
 
     addOption(ARG_TRACING_AGENT_PORT, "jaeger agent port", "jaeger_agent_port");
@@ -448,6 +461,7 @@ public class Settings extends BaseSettings {
     _sslWorkTrustAllCerts = getBooleanOptionValue(ARG_SSL_WORK_TRUST_ALL_CERTS);
     _sslWorkTruststoreFile = getPathOptionValue(ARG_SSL_WORK_TRUSTSTORE_FILE);
     _sslWorkTruststorePassword = getStringOptionValue(ARG_SSL_WORK_TRUSTSTORE_PASSWORD);
+    _storageProvider = getStringOptionValue(ARG_STORAGE_PROVIDER);
     _tracingAgentHost = getStringOptionValue(ARG_TRACING_AGENT_HOST);
     _tracingAgentPort = getIntegerOptionValue(ARG_TRACING_AGENT_PORT);
     _tracingEnable = getBooleanOptionValue(ARG_TRACING_ENABLE);

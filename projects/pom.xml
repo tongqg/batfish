@@ -66,6 +66,8 @@
     <guava.version>26.0-jre</guava.version>
     <guava-eea.version>0.0.1</guava-eea.version>
     <hamcrest.version>2.1</hamcrest.version>
+    <httpclient.version>4.5.3</httpclient.version>
+    <httpcore.version>4.4.6</httpcore.version>
     <icu4j.version>63.1</icu4j.version>
     <jackson.version>2.9.8</jackson.version>
     <javax-activation.version>1.1</javax-activation.version>
@@ -1007,6 +1009,16 @@
         <artifactId>sqlite-jdbc</artifactId>
         <version>${sqlite-jdbc.version}</version>
       </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpcore</artifactId>
+        <version>${httpcore.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.httpcomponents</groupId>
+        <artifactId>httpclient</artifactId>
+        <version>${httpclient.version}</version>
+      </dependency>  
     </dependencies>
   </dependencyManagement>
 
