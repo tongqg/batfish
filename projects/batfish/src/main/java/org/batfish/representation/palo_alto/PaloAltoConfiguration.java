@@ -977,6 +977,18 @@ public final class PaloAltoConfiguration extends VendorConfiguration {
       newIface.setFirewallSessionInterfaceInfo(
           new FirewallSessionInterfaceInfo(
               true, sharedGateway.getImportedInterfaces(), null, null));
+      // find the zone that has external to the shared gateway
+      // set the zone name with the interface assumoing one shared gateway
+      // is used by only one zone
+      Optional<Zone> zoneOptional =
+          _virtualSystems.values().stream()
+            .flatMap(x -> x.getZones().values().stream())
+              .filter(x -> x.getType() == Zone.Type.EXTERNAL && x.getExternalNames().contains(sgName))
+                .findFirst();
+      if (zoneOptional.isPresent()) {
+          newIface.setZoneName(zoneOptional.get().getName());
+      }
+  
     } else if (zone != null) {
       newIface.setZoneName(zone.getName());
       if (zone.getType() == Type.LAYER3) {
